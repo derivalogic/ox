@@ -1063,7 +1063,7 @@ mod tests_expect_token {
     #[test]
     fn test_spot_function() {
         let script = "
-            x = spot(\"USD\");
+            x = spot(\"USD\", \"EUR\");
         "
         .to_string();
 
@@ -1072,7 +1072,12 @@ mod tests_expect_token {
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::Spot(Currency::USD, None, OnceLock::new())),
+
+            Box::new(Node::Spot(
+                Currency::try_from("USD".to_string()).unwrap(),
+                Some(Currency::try_from("EUR".to_string()).unwrap()),
+                OnceLock::new(),
+            )),
         ]))]));
 
         assert_eq!(nodes, expected);
