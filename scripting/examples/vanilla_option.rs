@@ -1,9 +1,12 @@
+use std::sync::{Arc, RwLock};
+
 use lefi::prelude::*;
 use lefi::utils::errors::Result;
-use rustatlas::currencies::enums::Currency;
 use rustatlas::core::marketstore::MarketStore;
+use rustatlas::currencies::enums::Currency;
 use rustatlas::models::montecarlo::RiskFreeMonteCarloModel;
 use rustatlas::models::traits::MonteCarloModel;
+use rustatlas::prelude::{FlatForwardTermStructure, OvernightIndex, RateDefinition};
 use rustatlas::time::date::Date;
 
 fn create_market_store() -> MarketStore {
@@ -12,13 +15,39 @@ fn create_market_store() -> MarketStore {
     store
         .mut_exchange_rate_store()
         .add_exchange_rate(Currency::CLP, Currency::USD, 850.0);
+
+    let clp_curve = Arc::new(FlatForwardTermStructure::new(
+        ref_date,
+        0.05,
+        RateDefinition::default(),
+    ));
+    let clp_index = Arc::new(RwLock::new(
+        OvernightIndex::new(ref_date).with_term_structure(clp_curve),
+    ));
+    let _ = store.mut_index_store().add_index(0, clp_index);
+    store.mut_index_store().add_currency_curve(Currency::CLP, 0);
+
+    let usd_curve = Arc::new(FlatForwardTermStructure::new(
+        ref_date,
+        0.03,
+        RateDefinition::default(),
+    ));
+    let usd_index = Arc::new(RwLock::new(
+        OvernightIndex::new(ref_date).with_term_structure(usd_curve),
+    ));
+    let _ = store.mut_index_store().add_index(1, usd_index);
+    store.mut_index_store().add_currency_curve(Currency::USD, 1);
     store
 }
 
 fn main() -> Result<()> {
     // European call option on CLP/USD with strike 900 and maturity in one year
     let maturity = Date::new(2025, 1, 1);
-    let script = "call = pays max(spot(\"CLP\", \"USD\") - 900.0, 0);";
+    let script = "
+    s = spot(\"CLP\", \"USD\");
+    call =  max(s - 900.0, 0); 
+    pays call
+    ";
 
     // Create event stream from the scripted payoff
     let coded = CodedEvent::new(maturity, script.to_string());
