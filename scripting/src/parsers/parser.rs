@@ -155,7 +155,10 @@ impl Parser {
         self.expect_token(Token::Pays)?;
         self.advance();
         let mut pays = Vec::new();
-        while self.current_token() != Token::EOF {
+        while self.current_token() != Token::EOF
+            && self.current_token() != Token::Semicolon
+            && self.current_token() != Token::CloseParen
+        {
             let expr = self.parse_expr()?;
             pays.push(expr);
         }
@@ -341,11 +344,14 @@ impl Parser {
             return try_string;
         }
 
-        // Check if the current token is a function
+        // Check if the current token is a function or a `pays` expression
         let mut min_args = 0;
         let mut max_args = 0;
         let mut expr = None;
         match self.current_token() {
+            Token::Pays => {
+                return self.parse_pays();
+            }
             Token::Identifier(name) => match name.as_str() {
                 "ln" => {
                     min_args = 1;
