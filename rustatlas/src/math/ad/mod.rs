@@ -13,6 +13,8 @@ enum Op {
     Mul,
     Div,
     Neg,
+    Ln,
+    Exp,
 }
 
 #[derive(Clone, Copy)]
@@ -61,6 +63,32 @@ impl Var {
 
     pub fn id(&self) -> usize {
         self.id
+    }
+
+    pub fn ln(self) -> Var {
+        let v = self.value().ln();
+        let id = push(Node {
+            value: v,
+            op: Op::Ln,
+            lhs: Some(self.id),
+            rhs: None,
+        });
+        Var { id }
+    }
+
+    pub fn exp(self) -> Var {
+        let v = self.value().exp();
+        let id = push(Node {
+            value: v,
+            op: Op::Exp,
+            lhs: Some(self.id),
+            rhs: None,
+        });
+        Var { id }
+    }
+
+    pub fn powf(self, rhs: Var) -> Var {
+        (self.ln() * rhs).exp()
     }
 }
 
@@ -187,6 +215,16 @@ pub fn backward(result: &Var) -> Vec<f64> {
                     let l = node.lhs.unwrap();
                     grad[l] -= grad[i];
                 }
+                Op::Ln => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    grad[l] += grad[i] / lv;
+                }
+                Op::Exp => {
+                    let l = node.lhs.unwrap();
+                    let v = node.value;
+                    grad[l] += grad[i] * v;
+                }
             }
         }
         grad
@@ -246,6 +284,20 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                     let l = node.lhs.unwrap();
                     for j in 0..n {
                         deriv[i][j] = -deriv[l][j];
+                    }
+                }
+                Op::Ln => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    for j in 0..n {
+                        deriv[i][j] = deriv[l][j] / lv;
+                    }
+                }
+                Op::Exp => {
+                    let l = node.lhs.unwrap();
+                    let v = node.value;
+                    for j in 0..n {
+                        deriv[i][j] = deriv[l][j] * v;
                     }
                 }
             }
@@ -312,6 +364,22 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                     grad[l] -= grad[i];
                     for j in 0..n {
                         hess[l][j] -= hess[i][j];
+                    }
+                }
+                Op::Ln => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    grad[l] += grad[i] / lv;
+                    for j in 0..n {
+                        hess[l][j] += hess[i][j] / lv - grad[i] * deriv[l][j] / lv;
+                    }
+                }
+                Op::Exp => {
+                    let l = node.lhs.unwrap();
+                    let v = node.value;
+                    grad[l] += grad[i] * v;
+                    for j in 0..n {
+                        hess[l][j] += hess[i][j] * v + grad[i] * v * deriv[l][j];
                     }
                 }
             }
