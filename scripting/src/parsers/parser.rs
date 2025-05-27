@@ -406,15 +406,21 @@ impl Parser {
         self.advance();
         self.expect_token(Token::OpenParen)?;
         self.advance();
-        let currency = match *self.parse_string()? {
-            Node::String(s) => {
-                Currency::try_from(s).map_err(|_| self.invalid_syntax_err("Invalid currency"))?
-            }
+        let first = match *self.parse_string()? {
+            Node::String(s) => Currency::try_from(s).map_err(|_| self.invalid_syntax_err("Invalid currency"))?,
             _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
         };
+        let mut second = None;
+        if self.current_token() == Token::Comma {
+            self.advance();
+            second = match *self.parse_string()? {
+                Node::String(s) => Some(Currency::try_from(s).map_err(|_| self.invalid_syntax_err("Invalid currency"))?),
+                _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
+            };
+        }
         self.expect_token(Token::CloseParen)?;
         self.advance();
-        Ok(Box::new(Node::Spot(currency, OnceLock::new())))
+        Ok(Box::new(Node::Spot(first, second, OnceLock::new())))
     }
 
     /// Parse an expression

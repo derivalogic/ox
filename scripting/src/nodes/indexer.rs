@@ -176,14 +176,14 @@ impl NodeVisitor for EventIndexer {
                 };
                 Ok(())
             }
-            Node::Spot(currency, opt_idx) => {
+            Node::Spot(first, second, opt_idx) => {
                 match opt_idx.get() {
                     Some(_) => {}
                     None => {
                         let size = self.market_requests.borrow_mut().len();
                         let exchange_request = ExchangeRateRequest::new(
-                            *currency,
-                            self.local_currency,
+                            *first,
+                            second.or(self.local_currency),
                             self.event_date.borrow().clone(),
                         );
                         let request = MarketRequest::new(size, None, None, Some(exchange_request));
@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn test_spot_indexer() {
         let indexer = EventIndexer::new();
-        let node = Box::new(Node::Spot(Currency::USD, OnceLock::new()));
+        let node = Box::new(Node::Spot(Currency::USD, None, OnceLock::new()));
         indexer.visit(&node).unwrap();
         let market_requests = indexer.get_market_requests();
         assert_eq!(market_requests.len(), 1);
@@ -333,9 +333,9 @@ mod tests {
     #[test]
     fn test_spot_indexer_multiple() {
         let indexer = EventIndexer::new();
-        let node = Box::new(Node::Spot(Currency::USD, OnceLock::new()));
+        let node = Box::new(Node::Spot(Currency::USD, None, OnceLock::new()));
         indexer.visit(&node).unwrap();
-        let node = Box::new(Node::Spot(Currency::EUR, OnceLock::new()));
+        let node = Box::new(Node::Spot(Currency::EUR, None, OnceLock::new()));
         indexer.visit(&node).unwrap();
         let market_requests = indexer.get_market_requests();
         assert_eq!(market_requests.len(), 2);

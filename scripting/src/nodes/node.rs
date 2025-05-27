@@ -16,7 +16,7 @@ pub enum Node {
     String(String),
 
     // financial
-    Spot(Currency, OnceLock<usize>),
+    Spot(Currency, Option<Currency>, OnceLock<usize>),
     Pays(Vec<ExprTree>, OnceLock<usize>),
 
     // math
@@ -169,6 +169,10 @@ impl Node {
         Node::Pays(Vec::new(), OnceLock::new())
     }
 
+    pub fn new_spot(first: Currency, second: Option<Currency>) -> Node {
+        Node::Spot(first, second, OnceLock::new())
+    }
+
     pub fn add_child(&mut self, child: ExprTree) {
         match self {
             Node::Base(children) => children.push(child),
@@ -196,7 +200,7 @@ impl Node {
             Node::Pow(children) => children.push(child),
             Node::NotEqual(children) => children.push(child),
             Node::Pays(children, _) => children.push(child),
-            Node::Spot(_, _) => panic!("Cannot add child to spot node"),
+            Node::Spot(_, _, _) => panic!("Cannot add child to spot node"),
             Node::True => panic!("Cannot add child to true node"),
             Node::False => panic!("Cannot add child to false node"),
             Node::Constant(_) => panic!("Cannot add child to constant node"),
@@ -231,7 +235,7 @@ impl Node {
             Node::Pow(children) => children,
             Node::NotEqual(children) => children,
             Node::Pays(children, _) => children,
-            Node::Spot(_, _) => panic!("Cannot get children from spot node"),
+            Node::Spot(_, _, _) => panic!("Cannot get children from spot node"),
             Node::True => panic!("Cannot get children from true node"),
             Node::False => panic!("Cannot get children from false node"),
             Node::Constant(_) => panic!("Cannot get children from constant node"),
@@ -486,7 +490,7 @@ mod ai_gen_tests {
     #[should_panic(expected = "Cannot add child to spot node")]
     fn test_add_child_to_spot() {
         // Test adding a child to a spot node, which should panic
-        let mut node = Node::Spot(Currency::USD, OnceLock::new());
+        let mut node = Node::Spot(Currency::USD, None, OnceLock::new());
         let child = Box::new(Node::new_add());
         node.add_child(child);
     }
@@ -522,7 +526,7 @@ mod ai_gen_tests {
     #[should_panic(expected = "Cannot get children from spot node")]
     fn test_children_of_spot() {
         // Test getting children of a spot node, which should panic
-        let node = Node::Spot(Currency::USD, OnceLock::new());
+        let node = Node::Spot(Currency::USD, None, OnceLock::new());
         node.children();
     }
 

@@ -42,3 +42,13 @@ pub trait Model {
         market_request.iter().map(|x| self.gen_node(x)).collect()
     }
 }
+
+/// Trait for models capable of generating Monte Carlo scenarios.
+pub trait MonteCarloModel: Model {
+    /// Generate stochastic scenarios for the given market requests.
+    fn gen_scenarios(
+        &self,
+        market_request: &[MarketRequest],
+        n: usize,
+    ) -> Result<Vec<Vec<MarketData<Self::Num>>>>;
+}
