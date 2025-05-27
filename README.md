@@ -61,4 +61,4 @@ Running this program prints:
 Variables: [Number(1.0), Number(2.0), Number(3.0)]
 ```
 
-See `scripting/examples` for a full runnable example.
+See `scripting/examples` for runnable examples, including a vanilla option pricing script.
