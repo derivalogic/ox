@@ -155,7 +155,10 @@ impl Parser {
         self.expect_token(Token::Pays)?;
         self.advance();
         let mut pays = Vec::new();
-        while self.current_token() != Token::EOF {
+        while self.current_token() != Token::EOF
+            && self.current_token() != Token::Semicolon
+            && self.current_token() != Token::CloseParen
+        {
             let expr = self.parse_expr()?;
             pays.push(expr);
         }
@@ -341,11 +344,14 @@ impl Parser {
             return try_string;
         }
 
-        // Check if the current token is a function
+        // Check if the current token is a function or a `pays` expression
         let mut min_args = 0;
         let mut max_args = 0;
         let mut expr = None;
         match self.current_token() {
+            Token::Pays => {
+                return self.parse_pays();
+            }
             Token::Identifier(name) => match name.as_str() {
                 "ln" => {
                     min_args = 1;
@@ -1412,5 +1418,42 @@ mod test_function_args {
         let nodes = Parser::new(tokens).parse();
 
         assert!(nodes.is_err());
+    }
+}
+
+#[cfg(test)]
+mod test_pays_expression {
+    use super::*;
+    use rustatlas::currencies::enums::Currency;
+
+    #[test]
+    fn test_pays_as_expression() {
+        let script = "
+            call = pays max(spot(\"CLP\", \"USD\") - 900.0, 0);
+        "
+        .to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "call".to_string(), OnceLock::new())),
+            Box::new(Node::Pays(
+                vec![Box::new(Node::Max(vec![
+                    Box::new(Node::Subtract(vec![
+                        Box::new(Node::Spot(
+                            Currency::try_from("CLP".to_string()).unwrap(),
+                            Some(Currency::try_from("USD".to_string()).unwrap()),
+                            OnceLock::new(),
+                        )),
+                        Box::new(Node::Constant(900.0)),
+                    ])),
+                    Box::new(Node::Constant(0.0)),
+                ]))],
+                OnceLock::new(),
+            )),
+        ]))]));
+
+        assert_eq!(nodes, expected);
     }
 }
