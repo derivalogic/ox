@@ -1420,3 +1420,40 @@ mod test_function_args {
         assert!(nodes.is_err());
     }
 }
+
+#[cfg(test)]
+mod test_pays_expression {
+    use super::*;
+    use rustatlas::currencies::enums::Currency;
+
+    #[test]
+    fn test_pays_as_expression() {
+        let script = "
+            call = pays max(spot(\"CLP\", \"USD\") - 900.0, 0);
+        "
+        .to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "call".to_string(), OnceLock::new())),
+            Box::new(Node::Pays(
+                vec![Box::new(Node::Max(vec![
+                    Box::new(Node::Subtract(vec![
+                        Box::new(Node::Spot(
+                            Currency::try_from("CLP".to_string()).unwrap(),
+                            Some(Currency::try_from("USD".to_string()).unwrap()),
+                            OnceLock::new(),
+                        )),
+                        Box::new(Node::Constant(900.0)),
+                    ])),
+                    Box::new(Node::Constant(0.0)),
+                ]))],
+                OnceLock::new(),
+            )),
+        ]))]));
+
+        assert_eq!(nodes, expected);
+    }
+}
