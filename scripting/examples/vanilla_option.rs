@@ -46,7 +46,7 @@ fn main() -> Result<()> {
     let script = "
     s = spot(\"CLP\", \"USD\");
     call =  max(s - 900.0, 0); 
-    pays call
+    pays call;
     ";
 
     // Create event stream from the scripted payoff
