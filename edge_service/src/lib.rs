@@ -6,6 +6,7 @@ use lefi::prelude::*;
 use rustatlas::models::montecarlo::RiskFreeMonteCarloModel;
 use rustatlas::models::traits::MonteCarloModel;
 use rustatlas::core::marketstore::MarketStore;
+use rustatlas::core::meta::{MarketData, MarketRequest};
 use rustatlas::currencies::enums::Currency;
 
 #[derive(Deserialize)]
@@ -18,6 +19,7 @@ pub struct PricingRequest {
 #[derive(Serialize)]
 pub struct PricingResponse {
     pub variables: Vec<Value>,
+    pub sensitivities: Vec<Vec<f64>>, 
 }
 
 fn create_market_store() -> MarketStore {
@@ -27,6 +29,37 @@ fn create_market_store() -> MarketStore {
         .mut_exchange_rate_store()
         .add_exchange_rate(Currency::CLP, Currency::USD, 850.0);
     store
+}
+
+fn bump_scenarios(
+    scenarios: &[Vec<MarketData<f64>>],
+    request: &MarketRequest,
+    idx: usize,
+    bump: f64,
+) -> Vec<Vec<MarketData<f64>>> {
+    scenarios
+        .iter()
+        .map(|sc| {
+            sc.iter()
+                .enumerate()
+                .map(|(i, d)| {
+                    if i == idx {
+                        let df = d.df().ok().map(|v| if request.df().is_some() { v + bump } else { v });
+                        let fwd = d.fwd().ok().map(|v| if request.fwd().is_some() { v + bump } else { v });
+                        let fx = d.fx().ok().map(|v| if request.fx().is_some() { v + bump } else { v });
+                        let numerarie = if request.df().is_none() && request.fwd().is_none() && request.fx().is_none() {
+                            d.numerarie() + bump
+                        } else {
+                            d.numerarie()
+                        };
+                        MarketData::new(d.id(), d.reference_date(), df, fwd, fx, numerarie)
+                    } else {
+                        *d
+                    }
+                })
+                .collect()
+        })
+        .collect()
 }
 
 fn handle_connection(mut stream: TcpStream) {
@@ -54,7 +87,21 @@ fn handle_connection(mut stream: TcpStream) {
     let scenarios = RiskFreeMonteCarloModel::scenarios_to_f64(scenarios_var);
     let evaluator = EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
     let variables = evaluator.visit_events(&event_stream).unwrap_or_default();
-    let resp = PricingResponse { variables };
+
+    let bump = 1e-4;
+    let mut sensitivities = vec![vec![0.0; variables.len()]; requests.len()];
+    for (i, req) in requests.iter().enumerate() {
+        let bumped = bump_scenarios(&scenarios, req, i, bump);
+        let evaluator = EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&bumped);
+        let bumped_vars = evaluator.visit_events(&event_stream).unwrap_or_default();
+        for j in 0..variables.len() {
+            if let (Value::Number(base), Value::Number(bump_val)) = (variables[j].clone(), bumped_vars[j].clone()) {
+                sensitivities[i][j] = (bump_val - base) / bump;
+            }
+        }
+    }
+
+    let resp = PricingResponse { variables, sensitivities };
     let body = serde_json::to_string(&resp).unwrap();
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\n\r\n{}",

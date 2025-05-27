@@ -240,18 +240,19 @@ impl Parser {
 
     /// Parse a constant
     fn parse_constant(&self) -> Result<ExprTree> {
-        if let Token::Value(value, boolean) = self.current_token() {
-            self.advance();
-            match boolean {
-                Some(true) => Ok(Box::new(Node::True)),
-                Some(false) => Ok(Box::new(Node::False)),
-                None => match value {
-                    Some(v) => Ok(Box::new(Node::Constant(v))),
-                    None => Err(self.invalid_syntax_err("Invalid constant")),
-                },
+        match self.current_token() {
+            Token::Value(value, boolean) => {
+                self.advance();
+                match boolean {
+                    Some(true) => Ok(Box::new(Node::True)),
+                    Some(false) => Ok(Box::new(Node::False)),
+                    None => match value {
+                        Some(v) => Ok(Box::new(Node::Constant(v))),
+                        None => Err(self.invalid_syntax_err("Invalid constant")),
+                    },
+                }
             }
-        } else {
-            Err(self.invalid_syntax_err("Invalid constant"))
+            _ => Err(self.invalid_syntax_err("Invalid constant")),
         }
     }
 
@@ -1071,7 +1072,7 @@ mod tests_expect_token {
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::Spot(Currency::USD, OnceLock::new())),
+            Box::new(Node::Spot(Currency::USD, None, OnceLock::new())),
         ]))]));
 
         assert_eq!(nodes, expected);

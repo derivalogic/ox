@@ -193,16 +193,19 @@ impl NodeVisitor for EventIndexer {
                 };
                 Ok(())
             }
-            Node::Pays(_, opt_idx) => match opt_idx.get() {
-                Some(_) => Ok(()),
-                None => {
-                    let size = self.market_requests.borrow_mut().len();
-                    let request = MarketRequest::new(size, None, None, None); // NumerarieRequest::new(size, None, None, None);
-                    self.market_requests.borrow_mut().push(request.clone());
-                    opt_idx.set(size).unwrap();
-                    Ok(())
+            Node::Pays(children, opt_idx) => {
+                children.iter().try_for_each(|child| self.visit(child))?;
+                match opt_idx.get() {
+                    Some(_) => Ok(()),
+                    None => {
+                        let size = self.market_requests.borrow_mut().len();
+                        let request = MarketRequest::new(size, None, None, None);
+                        self.market_requests.borrow_mut().push(request.clone());
+                        opt_idx.set(size).unwrap();
+                        Ok(())
+                    }
                 }
-            },
+            }
             _ => Ok(()),
         }
     }

@@ -2,17 +2,43 @@ use std::ops::{Add, Sub, Mul, Div, Neg};
 
 /// Trait implemented by numeric types used in pricing calculations.
 pub trait Real:
-    Copy + Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self> + Div<Output = Self> + Neg<Output = Self> + From<f64>
+    Copy
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Mul<Output = Self>
+    + Div<Output = Self>
+    + Neg<Output = Self>
+    + From<f64>
 {
+    fn ln(self) -> Self;
+    fn exp(self) -> Self;
+    fn powf(self, rhs: Self) -> Self;
 }
 
-impl<T> Real for T where
-    T: Copy
-        + Add<Output = T>
-        + Sub<Output = T>
-        + Mul<Output = T>
-        + Div<Output = T>
-        + Neg<Output = T>
-        + From<f64>
-{
+impl Real for f64 {
+    fn ln(self) -> Self {
+        f64::ln(self)
+    }
+
+    fn exp(self) -> Self {
+        f64::exp(self)
+    }
+
+    fn powf(self, rhs: Self) -> Self {
+        f64::powf(self, rhs)
+    }
+}
+
+impl Real for crate::math::ad::Var {
+    fn ln(self) -> Self {
+        self.ln()
+    }
+
+    fn exp(self) -> Self {
+        self.exp()
+    }
+
+    fn powf(self, rhs: Self) -> Self {
+        self.powf(rhs)
+    }
 }

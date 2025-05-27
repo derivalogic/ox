@@ -199,7 +199,10 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                 self.digit_stack.lock().unwrap().push(market_data.fx()?);
                 Ok(())
             }
-            Node::Pays(_, index) => {
+            Node::Pays(children, index) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
                 let id = index
                     .get()
                     .ok_or(ScriptingError::EvaluationError("No event set".to_string()))?;
@@ -1470,6 +1473,26 @@ mod ai_gen_tests {
         evaluator.const_visit(base).unwrap();
 
         assert!((evaluator.digit_stack().pop().unwrap() - 2.718281828459045).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_pays_node_discount() {
+        // Pays should discount the evaluated value by the scenario numerarie
+        let mut base = Box::new(Node::new_base());
+        let mut pays = Box::new(Node::new_pays());
+        pays.add_child(Box::new(Node::new_constant(100.0)));
+        base.add_child(pays);
+
+        let event_date = Date::new(2024, 1, 1);
+        let scenario = vec![MarketData::new(0, event_date, None, None, None, 2.0)];
+
+        let indexer = EventIndexer::new();
+        indexer.visit(&base).unwrap();
+
+        let evaluator = ExprEvaluator::new().with_scenario(&scenario);
+        evaluator.const_visit(base).unwrap();
+
+        assert_eq!(evaluator.digit_stack().pop().unwrap(), 50.0);
     }
 
     #[test]
