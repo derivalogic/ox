@@ -136,7 +136,13 @@ impl Parser {
     fn parse_expression(&self) -> Result<ExprTree> {
         match self.current_token() {
             Token::If => self.parse_if(),
-            Token::Pays => self.parse_pays(),
+            Token::Pays => {
+                let expr = self.parse_pays()?;
+                if self.current_token() == Token::Semicolon {
+                    self.advance();
+                }
+                Ok(expr)
+            },
             Token::EOF => Err(self.invalid_syntax_err("Unexpected end of expression")),
             _ => {
                 let lhs = self.parse_variable()?;

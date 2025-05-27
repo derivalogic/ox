@@ -275,10 +275,10 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
             }
             Node::Assign(children) => {
                 *self.is_lhs_variable.lock().unwrap() = true;
-                children.get(0).unwrap().const_accept(self);
+                self.const_visit(children.get(0).unwrap().clone())?;
 
                 *self.is_lhs_variable.lock().unwrap() = false;
-                children.get(1).unwrap().const_accept(self);
+                self.const_visit(children.get(1).unwrap().clone())?;
 
                 let v = self.lhs_variable.lock().unwrap().clone().unwrap();
                 let variable = v.as_ref();
@@ -562,8 +562,11 @@ impl<'a> EventStreamEvaluator<'a> {
             "No scenarios set".to_string(),
         ))?;
 
-        // Evaluate the events to get the variables
-        let evaluator = ExprEvaluator::new().with_variables(self.n_vars);
+        // Evaluate the events to get the variables using the first scenario
+        let mut evaluator = ExprEvaluator::new().with_variables(self.n_vars);
+        if let Some(first) = scenarios.first() {
+            evaluator = evaluator.with_scenario(first);
+        }
         event_stream
             .events()
             .iter()
