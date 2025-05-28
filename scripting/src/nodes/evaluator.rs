@@ -3,6 +3,7 @@ use rustatlas::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use std::{
+    collections::HashMap,
     ops::{Add, AddAssign, Div, Mul, Sub, SubAssign},
     sync::Mutex,
 };
@@ -557,7 +558,11 @@ impl<'a> EventStreamEvaluator<'a> {
         self
     }
 
-    pub fn visit_events(&self, event_stream: &EventStream) -> Result<Vec<Value>> {
+    pub fn visit_events(
+        &self,
+        event_stream: &EventStream,
+        var_indexes: &HashMap<String, usize>,
+    ) -> Result<HashMap<String, Value>> {
         let scenarios = self.scenarios.ok_or(ScriptingError::EvaluationError(
             "No scenarios set".to_string(),
         ))?;
@@ -620,7 +625,14 @@ impl<'a> EventStreamEvaluator<'a> {
             _ => (),
         });
 
-        Ok(vars.clone())
+        let mut map = HashMap::new();
+        for (name, idx) in var_indexes.iter() {
+            if let Some(v) = vars.get(*idx) {
+                map.insert(name.clone(), v.clone());
+            }
+        }
+
+        Ok(map)
     }
 }
 
@@ -1310,16 +1322,16 @@ mod event_stream_evaluator_tests {
         // Index expressions and initialize evaluator (adjust according to your actual logic)
         let indexer = EventIndexer::new();
         indexer.visit_events(&events).unwrap();
+        let var_map = indexer.get_variable_indexes();
 
         let scenarios = vec![Scenario::new()];
         let evaluator =
             EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
-        let results = evaluator.visit_events(&events);
+        let results = evaluator.visit_events(&events, &var_map).unwrap();
 
-        assert_eq!(
-            results.unwrap(),
-            vec![Value::Number(1.0), Value::Number(2.0), Value::Number(3.0)]
-        );
+        assert_eq!(results.get("x"), Some(&Value::Number(1.0)));
+        assert_eq!(results.get("y"), Some(&Value::Number(2.0)));
+        assert_eq!(results.get("z"), Some(&Value::Number(3.0)));
     }
 
     #[test]
@@ -1338,15 +1350,16 @@ mod event_stream_evaluator_tests {
         let indexer = EventIndexer::new();
         indexer.visit_events(&events).unwrap();
 
+        let var_map = indexer.get_variable_indexes();
+
         let scenarios = vec![Scenario::new(); 10];
         let evaluator =
             EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
-        let results = evaluator.visit_events(&events);
+        let results = evaluator.visit_events(&events, &var_map).unwrap();
 
-        assert_eq!(
-            results.unwrap(),
-            vec![Value::Number(1.0), Value::Number(2.0), Value::Number(3.0)]
-        );
+        assert_eq!(results.get("x"), Some(&Value::Number(1.0)));
+        assert_eq!(results.get("y"), Some(&Value::Number(2.0)));
+        assert_eq!(results.get("z"), Some(&Value::Number(3.0)));
     }
 }
 
@@ -1657,7 +1670,8 @@ mod ai_gen_tests {
         // Test the EventStreamEvaluator to ensure it returns an error when no scenarios are set.
         let evaluator = EventStreamEvaluator::new(1);
         let event_stream = EventStream::new();
-        let result = evaluator.visit_events(&event_stream);
+        let var_map: HashMap<String, usize> = HashMap::new();
+        let result = evaluator.visit_events(&event_stream, &var_map);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -1723,8 +1737,9 @@ mod ai_gen_tests {
         let scenarios = vec![scenario];
         let evaluator = EventStreamEvaluator::new(1).with_scenarios(&scenarios);
         let event_stream = EventStream::new();
-        let result = evaluator.visit_events(&event_stream);
+        let var_map: HashMap<String, usize> = HashMap::new();
+        let result = evaluator.visit_events(&event_stream, &var_map);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), vec![Value::Null]);
+        assert!(result.unwrap().is_empty());
     }
 }

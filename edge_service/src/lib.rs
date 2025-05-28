@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use lefi::nodes::{evaluator::EventStreamEvaluator, indexer::{CodedEvent, EventIndexer, EventStream}};
 use lefi::prelude::*;
 use rustatlas::models::montecarlo::RiskFreeMonteCarloModel;
@@ -18,8 +19,8 @@ pub struct PricingRequest {
 
 #[derive(Serialize)]
 pub struct PricingResponse {
-    pub variables: Vec<Value>,
-    pub sensitivities: Vec<Vec<f64>>, 
+    pub variables: HashMap<String, Value>,
+    pub sensitivities: Vec<Vec<f64>>,
 }
 
 fn create_market_store() -> MarketStore {
@@ -85,18 +86,26 @@ fn handle_connection(mut stream: TcpStream) {
         .gen_scenarios(&requests, req.num_scenarios.max(1))
         .unwrap_or_default();
     let scenarios = RiskFreeMonteCarloModel::scenarios_to_f64(scenarios_var);
+    let var_map = indexer.get_variable_indexes();
     let evaluator = EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
-    let variables = evaluator.visit_events(&event_stream).unwrap_or_default();
+    let variables = evaluator
+        .visit_events(&event_stream, &var_map)
+        .unwrap_or_default();
 
     let bump = 1e-4;
-    let mut sensitivities = vec![vec![0.0; variables.len()]; requests.len()];
+    let mut sensitivities = vec![vec![0.0; var_map.len()]; requests.len()];
     for (i, req) in requests.iter().enumerate() {
         let bumped = bump_scenarios(&scenarios, req, i, bump);
         let evaluator = EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&bumped);
-        let bumped_vars = evaluator.visit_events(&event_stream).unwrap_or_default();
-        for j in 0..variables.len() {
-            if let (Value::Number(base), Value::Number(bump_val)) = (variables[j].clone(), bumped_vars[j].clone()) {
-                sensitivities[i][j] = (bump_val - base) / bump;
+        let bumped_vars = evaluator
+            .visit_events(&event_stream, &var_map)
+            .unwrap_or_default();
+        for (name, idx) in &var_map {
+            if let (Some(Value::Number(base)), Some(Value::Number(bump_val))) = (
+                variables.get(name).cloned(),
+                bumped_vars.get(name).cloned(),
+            ) {
+                sensitivities[i][*idx] = (bump_val - base) / bump;
             }
         }
     }
