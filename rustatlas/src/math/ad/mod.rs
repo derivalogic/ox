@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 thread_local! {
@@ -15,6 +16,10 @@ enum Op {
     Neg,
     Ln,
     Exp,
+    Sin,
+    Cos,
+    Sqrt,
+    Abs,
 }
 
 #[derive(Clone, Copy)]
@@ -87,6 +92,50 @@ impl Var {
         Var { id }
     }
 
+    pub fn sin(self) -> Var {
+        let v = self.value().sin();
+        let id = push(Node {
+            value: v,
+            op: Op::Sin,
+            lhs: Some(self.id),
+            rhs: None,
+        });
+        Var { id }
+    }
+
+    pub fn cos(self) -> Var {
+        let v = self.value().cos();
+        let id = push(Node {
+            value: v,
+            op: Op::Cos,
+            lhs: Some(self.id),
+            rhs: None,
+        });
+        Var { id }
+    }
+
+    pub fn sqrt(self) -> Var {
+        let v = self.value().sqrt();
+        let id = push(Node {
+            value: v,
+            op: Op::Sqrt,
+            lhs: Some(self.id),
+            rhs: None,
+        });
+        Var { id }
+    }
+
+    pub fn abs(self) -> Var {
+        let v = self.value().abs();
+        let id = push(Node {
+            value: v,
+            op: Op::Abs,
+            lhs: Some(self.id),
+            rhs: None,
+        });
+        Var { id }
+    }
+
     pub fn powf(self, rhs: Var) -> Var {
         (self.ln() * rhs).exp()
     }
@@ -104,6 +153,42 @@ impl From<Var> for f64 {
     }
 }
 
+impl PartialEq for Var {
+    fn eq(&self, other: &Self) -> bool {
+        self.value().eq(&other.value())
+    }
+}
+
+impl PartialEq<f64> for Var {
+    fn eq(&self, other: &f64) -> bool {
+        self.value().eq(other)
+    }
+}
+
+impl PartialEq<Var> for f64 {
+    fn eq(&self, other: &Var) -> bool {
+        self.eq(&other.value())
+    }
+}
+
+impl PartialOrd for Var {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.value().partial_cmp(&other.value())
+    }
+}
+
+impl PartialOrd<f64> for Var {
+    fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
+        self.value().partial_cmp(other)
+    }
+}
+
+impl PartialOrd<Var> for f64 {
+    fn partial_cmp(&self, other: &Var) -> Option<Ordering> {
+        self.partial_cmp(&other.value())
+    }
+}
+
 impl Add for Var {
     type Output = Var;
     fn add(self, rhs: Var) -> Var {
@@ -115,6 +200,20 @@ impl Add for Var {
             rhs: Some(rhs.id),
         });
         Var { id }
+    }
+}
+
+impl Add<f64> for Var {
+    type Output = Var;
+    fn add(self, rhs: f64) -> Var {
+        self + Var::new(rhs)
+    }
+}
+
+impl Add<Var> for f64 {
+    type Output = Var;
+    fn add(self, rhs: Var) -> Var {
+        Var::new(self) + rhs
     }
 }
 
@@ -132,6 +231,20 @@ impl Sub for Var {
     }
 }
 
+impl Sub<f64> for Var {
+    type Output = Var;
+    fn sub(self, rhs: f64) -> Var {
+        self - Var::new(rhs)
+    }
+}
+
+impl Sub<Var> for f64 {
+    type Output = Var;
+    fn sub(self, rhs: Var) -> Var {
+        Var::new(self) - rhs
+    }
+}
+
 impl Mul for Var {
     type Output = Var;
     fn mul(self, rhs: Var) -> Var {
@@ -146,6 +259,20 @@ impl Mul for Var {
     }
 }
 
+impl Mul<f64> for Var {
+    type Output = Var;
+    fn mul(self, rhs: f64) -> Var {
+        self * Var::new(rhs)
+    }
+}
+
+impl Mul<Var> for f64 {
+    type Output = Var;
+    fn mul(self, rhs: Var) -> Var {
+        Var::new(self) * rhs
+    }
+}
+
 impl Div for Var {
     type Output = Var;
     fn div(self, rhs: Var) -> Var {
@@ -157,6 +284,20 @@ impl Div for Var {
             rhs: Some(rhs.id),
         });
         Var { id }
+    }
+}
+
+impl Div<f64> for Var {
+    type Output = Var;
+    fn div(self, rhs: f64) -> Var {
+        self / Var::new(rhs)
+    }
+}
+
+impl Div<Var> for f64 {
+    type Output = Var;
+    fn div(self, rhs: Var) -> Var {
+        Var::new(self) / rhs
     }
 }
 
@@ -224,6 +365,27 @@ pub fn backward(result: &Var) -> Vec<f64> {
                     let l = node.lhs.unwrap();
                     let v = node.value;
                     grad[l] += grad[i] * v;
+                }
+                Op::Sin => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    grad[l] += grad[i] * lv.cos();
+                }
+                Op::Cos => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    grad[l] -= grad[i] * lv.sin();
+                }
+                Op::Sqrt => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    grad[l] += grad[i] * 0.5 / lv.sqrt();
+                }
+                Op::Abs => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    let s = if lv > 0.0 { 1.0 } else if lv < 0.0 { -1.0 } else { 0.0 };
+                    grad[l] += grad[i] * s;
                 }
             }
         }
@@ -298,6 +460,35 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                     let v = node.value;
                     for j in 0..n {
                         deriv[i][j] = deriv[l][j] * v;
+                    }
+                }
+                Op::Sin => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    for j in 0..n {
+                        deriv[i][j] = deriv[l][j] * lv.cos();
+                    }
+                }
+                Op::Cos => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    for j in 0..n {
+                        deriv[i][j] = -deriv[l][j] * lv.sin();
+                    }
+                }
+                Op::Sqrt => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    for j in 0..n {
+                        deriv[i][j] = deriv[l][j] * 0.5 / lv.sqrt();
+                    }
+                }
+                Op::Abs => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    let s = if lv > 0.0 { 1.0 } else if lv < 0.0 { -1.0 } else { 0.0 };
+                    for j in 0..n {
+                        deriv[i][j] = deriv[l][j] * s;
                     }
                 }
             }
@@ -382,6 +573,40 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                         hess[l][j] += hess[i][j] * v + grad[i] * v * deriv[l][j];
                     }
                 }
+                Op::Sin => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    grad[l] += grad[i] * lv.cos();
+                    for j in 0..n {
+                        hess[l][j] += hess[i][j] * lv.cos() - grad[i] * lv.sin() * deriv[l][j];
+                    }
+                }
+                Op::Cos => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    grad[l] -= grad[i] * lv.sin();
+                    for j in 0..n {
+                        hess[l][j] += hess[i][j] * (-lv.sin()) - grad[i] * lv.cos() * deriv[l][j];
+                    }
+                }
+                Op::Sqrt => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    let d = 0.5 / lv.sqrt();
+                    grad[l] += grad[i] * d;
+                    for j in 0..n {
+                        hess[l][j] += hess[i][j] * d + grad[i] * (-0.25 / (lv * lv.sqrt())) * deriv[l][j];
+                    }
+                }
+                Op::Abs => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    let s = if lv > 0.0 { 1.0 } else if lv < 0.0 { -1.0 } else { 0.0 };
+                    grad[l] += grad[i] * s;
+                    for j in 0..n {
+                        hess[l][j] += hess[i][j] * s;
+                    }
+                }
             }
         }
 
@@ -395,6 +620,10 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
 
         (gradient, hessian)
     })
+}
+
+pub fn hessian(result: &Var, inputs: &[Var]) -> Vec<Vec<f64>> {
+    grad_hessian(result, inputs).1
 }
 
 #[cfg(test)]
@@ -455,6 +684,54 @@ mod tests {
         assert!((hess[0][1] - 1.0).abs() < 1e-12);
         assert!((hess[1][0] - 1.0).abs() < 1e-12);
         assert!((hess[1][1] - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn sin_cos_test() {
+        reset_tape();
+        let x = Var::new(std::f64::consts::FRAC_PI_4); // 45 degrees
+        let y = x.sin() + x.cos();
+        let grad = backward(&y);
+        let expected = x.value().cos() - x.value().sin();
+        assert!((grad[x.id()] - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn sqrt_test() {
+        reset_tape();
+        let x = Var::new(4.0);
+        let y = x.sqrt();
+        let grad = backward(&y);
+        assert!((grad[x.id()] - 0.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn abs_test() {
+        reset_tape();
+        let x = Var::new(-3.0);
+        let y = x.abs();
+        let grad = backward(&y);
+        assert!((grad[x.id()] + 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn float_ops_test() {
+        reset_tape();
+        let x = Var::new(2.0);
+        let y = x + 3.0 * x - 1.0;
+        let grad = backward(&y);
+        assert!((grad[x.id()] - 4.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn comparison_test() {
+        reset_tape();
+        let x = Var::new(2.0);
+        let y = Var::new(3.0);
+        assert!(y > x);
+        assert!(x < y);
+        assert!(x == 2.0);
+        assert!(3.0 > x);
     }
 }
 
