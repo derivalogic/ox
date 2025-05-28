@@ -1,3 +1,4 @@
+use num_traits::real::Real;
 use rustatlas::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -15,9 +16,9 @@ use crate::utils::errors::{Result, ScriptingError};
 /// in the scripting language. We could say that this language
 /// is dynamically typed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Value {
+pub enum Value<T: Real = f64> {
     Bool(bool),
-    Number(f64),
+    Number(T),
     String(String),
     Null,
 }
@@ -91,9 +92,9 @@ pub type Numeraries = Vec<f64>;
 
 /// # ExprEvaluator
 /// Visitor that evaluates the expression tree
-pub struct ExprEvaluator<'a> {
+pub struct ExprEvaluator<'a, T: Real = f64> {
     variables: Mutex<Vec<Value>>,
-    digit_stack: Mutex<Vec<f64>>,
+    digit_stack: Mutex<Vec<T>>,
     boolean_stack: Mutex<Vec<bool>>,
     string_stack: Mutex<Vec<String>>,
     is_lhs_variable: Mutex<bool>,
