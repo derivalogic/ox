@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 thread_local! {
@@ -18,6 +19,7 @@ enum Op {
     Sin,
     Cos,
     Sqrt,
+    Abs,
 }
 
 #[derive(Clone, Copy)]
@@ -123,6 +125,17 @@ impl Var {
         Var { id }
     }
 
+    pub fn abs(self) -> Var {
+        let v = self.value().abs();
+        let id = push(Node {
+            value: v,
+            op: Op::Abs,
+            lhs: Some(self.id),
+            rhs: None,
+        });
+        Var { id }
+    }
+
     pub fn powf(self, rhs: Var) -> Var {
         (self.ln() * rhs).exp()
     }
@@ -137,6 +150,42 @@ impl From<f64> for Var {
 impl From<Var> for f64 {
     fn from(v: Var) -> Self {
         v.value()
+    }
+}
+
+impl PartialEq for Var {
+    fn eq(&self, other: &Var) -> bool {
+        self.value().eq(&other.value())
+    }
+}
+
+impl PartialEq<f64> for Var {
+    fn eq(&self, other: &f64) -> bool {
+        self.value().eq(other)
+    }
+}
+
+impl PartialEq<Var> for f64 {
+    fn eq(&self, other: &Var) -> bool {
+        self.eq(&other.value())
+    }
+}
+
+impl PartialOrd for Var {
+    fn partial_cmp(&self, other: &Var) -> Option<Ordering> {
+        self.value().partial_cmp(&other.value())
+    }
+}
+
+impl PartialOrd<f64> for Var {
+    fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
+        self.value().partial_cmp(other)
+    }
+}
+
+impl PartialOrd<Var> for f64 {
+    fn partial_cmp(&self, other: &Var) -> Option<Ordering> {
+        self.partial_cmp(&other.value())
     }
 }
 
@@ -332,6 +381,12 @@ pub fn backward(result: &Var) -> Vec<f64> {
                     let lv = tape[l].value;
                     grad[l] += grad[i] * 0.5 / lv.sqrt();
                 }
+                Op::Abs => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    grad[l] += grad[i] * lv.signum();
+                }
+
             }
         }
         grad
@@ -428,6 +483,14 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                         deriv[i][j] = deriv[l][j] * 0.5 / lv.sqrt();
                     }
                 }
+                Op::Abs => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    for j in 0..n {
+                        deriv[i][j] = deriv[l][j] * lv.signum();
+                    }
+                }
+
             }
         }
 
@@ -535,6 +598,16 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                         hess[l][j] += hess[i][j] * d + grad[i] * (-0.25 / (lv * lv.sqrt())) * deriv[l][j];
                     }
                 }
+                Op::Abs => {
+                    let l = node.lhs.unwrap();
+                    let lv = tape[l].value;
+                    let sign = lv.signum();
+                    grad[l] += grad[i] * sign;
+                    for j in 0..n {
+                        hess[l][j] += hess[i][j] * sign;
+                    }
+                }
+
             }
         }
 
@@ -640,6 +713,25 @@ mod tests {
         let y = x + 3.0 * x - 1.0;
         let grad = backward(&y);
         assert!((grad[x.id()] - 4.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn abs_test() {
+        reset_tape();
+        let x = Var::new(-3.0);
+        let y = x.abs();
+        let grad = backward(&y);
+        assert!((grad[x.id()] + 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn comparison_test() {
+        let x = Var::new(1.0);
+        let y = Var::new(2.0);
+        assert!(x < y);
+        assert!(x <= 1.0);
+        assert!(2.0 > x);
+        assert!(y >= 2.0);
     }
 }
 
