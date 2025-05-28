@@ -144,12 +144,20 @@ impl Parser {
                     self.advance();
                 }
                 Ok(expr)
-            },
+            }
             Token::EOF => Err(self.invalid_syntax_err("Unexpected end of expression")),
             _ => {
                 let lhs = self.parse_variable()?;
                 match self.current_token() {
                     Token::Assign => self.parse_assign(lhs),
+                    Token::Pays => {
+                        let pays_expr = self.parse_pays()?;
+                        if self.current_token() == Token::Semicolon {
+                            self.advance();
+                        }
+                        let rhs = Box::new(Node::Add(vec![lhs.clone(), pays_expr]));
+                        Ok(Box::new(Node::Assign(vec![lhs, rhs])))
+                    }
                     Token::EOF => Err(self.invalid_syntax_err("Unexpected end of expression")),
                     Token::Newline => Err(self.invalid_syntax_err("Unexpected newline")),
                     _ => Err(self.invalid_syntax_err("Unexpected token")),
@@ -1518,6 +1526,29 @@ mod test_pays_expression {
                 ]))],
                 OnceLock::new(),
             )),
+        ]))]));
+
+        assert_eq!(nodes, expected);
+    }
+}
+
+#[cfg(test)]
+mod test_pays_assignment {
+    use super::*;
+
+    #[test]
+    fn test_variable_pays_assignment() {
+        let script = "prd pays 100;".to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "prd".to_string(), OnceLock::new())),
+            Box::new(Node::Add(vec![
+                Box::new(Node::Variable(Vec::new(), "prd".to_string(), OnceLock::new())),
+                Box::new(Node::Pays(vec![Box::new(Node::Constant(100.0))], OnceLock::new())),
+            ])),
         ]))]));
 
         assert_eq!(nodes, expected);
