@@ -154,7 +154,8 @@ impl From<Var> for f64 {
 }
 
 impl PartialEq for Var {
-    fn eq(&self, other: &Var) -> bool {
+    fn eq(&self, other: &Self) -> bool {
+
         self.value().eq(&other.value())
     }
 }
@@ -172,7 +173,8 @@ impl PartialEq<Var> for f64 {
 }
 
 impl PartialOrd for Var {
-    fn partial_cmp(&self, other: &Var) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+
         self.value().partial_cmp(&other.value())
     }
 }
@@ -384,7 +386,8 @@ pub fn backward(result: &Var) -> Vec<f64> {
                 Op::Abs => {
                     let l = node.lhs.unwrap();
                     let lv = tape[l].value;
-                    grad[l] += grad[i] * lv.signum();
+                    let s = if lv > 0.0 { 1.0 } else if lv < 0.0 { -1.0 } else { 0.0 };
+                    grad[l] += grad[i] * s;
                 }
 
             }
@@ -486,8 +489,9 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                 Op::Abs => {
                     let l = node.lhs.unwrap();
                     let lv = tape[l].value;
+                    let s = if lv > 0.0 { 1.0 } else if lv < 0.0 { -1.0 } else { 0.0 };
                     for j in 0..n {
-                        deriv[i][j] = deriv[l][j] * lv.signum();
+                        deriv[i][j] = deriv[l][j] * s;
                     }
                 }
 
@@ -601,10 +605,10 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                 Op::Abs => {
                     let l = node.lhs.unwrap();
                     let lv = tape[l].value;
-                    let sign = lv.signum();
-                    grad[l] += grad[i] * sign;
+                    let s = if lv > 0.0 { 1.0 } else if lv < 0.0 { -1.0 } else { 0.0 };
+                    grad[l] += grad[i] * s;
                     for j in 0..n {
-                        hess[l][j] += hess[i][j] * sign;
+                        hess[l][j] += hess[i][j] * s;
                     }
                 }
 
@@ -707,15 +711,6 @@ mod tests {
     }
 
     #[test]
-    fn float_ops_test() {
-        reset_tape();
-        let x = Var::new(2.0);
-        let y = x + 3.0 * x - 1.0;
-        let grad = backward(&y);
-        assert!((grad[x.id()] - 4.0).abs() < 1e-12);
-    }
-
-    #[test]
     fn abs_test() {
         reset_tape();
         let x = Var::new(-3.0);
@@ -725,13 +720,25 @@ mod tests {
     }
 
     #[test]
+    fn float_ops_test() {
+        reset_tape();
+        let x = Var::new(2.0);
+        let y = x + 3.0 * x - 1.0;
+        let grad = backward(&y);
+        assert!((grad[x.id()] - 4.0).abs() < 1e-12);
+
+    }
+
+    #[test]
     fn comparison_test() {
-        let x = Var::new(1.0);
-        let y = Var::new(2.0);
+        reset_tape();
+        let x = Var::new(2.0);
+        let y = Var::new(3.0);
+        assert!(y > x);
         assert!(x < y);
-        assert!(x <= 1.0);
-        assert!(2.0 > x);
-        assert!(y >= 2.0);
+        assert!(x == 2.0);
+        assert!(3.0 > x);
+
     }
 }
 
