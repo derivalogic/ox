@@ -1335,6 +1335,28 @@ mod expr_evaluator_tests {
             Value::String("String".to_string())
         );
     }
+
+    #[test]
+    fn test_boolean_assignment_from_expression() {
+        let script = "
+            x = 1 < 2;
+        "
+        .to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let indexer = EventIndexer::new();
+        indexer.visit(&nodes).unwrap();
+
+        let evaluator = ExprEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(nodes).unwrap();
+
+        assert_eq!(
+            *evaluator.variables().get(0).unwrap(),
+            Value::Bool(true)
+        );
+    }
 }
 
 #[cfg(test)]

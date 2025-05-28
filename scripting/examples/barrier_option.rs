@@ -56,7 +56,7 @@ fn main() -> Result<()> {
         opt pays 0;
     } else {
         opt pays payoff;
-    };
+    }
     ";
 
     let events = EventStream::try_from(vec![
