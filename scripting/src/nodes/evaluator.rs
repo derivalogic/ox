@@ -1,4 +1,3 @@
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rustatlas::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -1560,7 +1559,9 @@ mod ai_gen_tests {
         let evaluator = ExprEvaluator::new().with_scenario(&scenario);
         evaluator.const_visit(base).unwrap();
 
-        assert!((evaluator.digit_stack().pop().unwrap() - (152.0 / 360.0) / 2.0).abs() < f64::EPSILON);
+        assert!(
+            (evaluator.digit_stack().pop().unwrap() - (152.0 / 360.0) / 2.0).abs() < f64::EPSILON
+        );
     }
 
     #[test]

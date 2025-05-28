@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 
+use num_traits::real::Real;
 use rustatlas::prelude::*;
 
 use crate::prelude::*;
@@ -7,12 +8,12 @@ use crate::prelude::*;
 pub type ExprTree = Box<Node>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Node {
+pub enum Node<T: Real = f64> {
     Base(Vec<ExprTree>),
 
     // variables
     Variable(Vec<ExprTree>, String, OnceLock<usize>),
-    Constant(f64),
+    Constant(T),
     String(String),
 
     // financial
@@ -496,7 +497,10 @@ mod ai_gen_tests {
         let start = Date::new(2024, 1, 1);
         let end = Date::new(2024, 2, 1);
         let node = Node::new_rate_index("0".to_string(), start, end);
-        assert_eq!(node, Node::RateIndex("0".to_string(), start, end, OnceLock::new()));
+        assert_eq!(
+            node,
+            Node::RateIndex("0".to_string(), start, end, OnceLock::new())
+        );
     }
 
     #[test]
@@ -529,7 +533,11 @@ mod ai_gen_tests {
     #[test]
     #[should_panic(expected = "Cannot add child to rate index node")]
     fn test_add_child_to_rate_index() {
-        let mut node = Node::new_rate_index("0".to_string(), Date::new(2024,1,1), Date::new(2024,2,1));
+        let mut node = Node::new_rate_index(
+            "0".to_string(),
+            Date::new(2024, 1, 1),
+            Date::new(2024, 2, 1),
+        );
         node.add_child(Box::new(Node::new_add()));
     }
 
@@ -571,7 +579,11 @@ mod ai_gen_tests {
     #[test]
     #[should_panic(expected = "Cannot get children from rate index node")]
     fn test_children_of_rate_index() {
-        let node = Node::new_rate_index("0".to_string(), Date::new(2024,1,1), Date::new(2024,2,1));
+        let node = Node::new_rate_index(
+            "0".to_string(),
+            Date::new(2024, 1, 1),
+            Date::new(2024, 2, 1),
+        );
         node.children();
     }
 
