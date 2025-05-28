@@ -19,6 +19,20 @@ pub trait Real:
     fn sin(self) -> Self;
     fn cos(self) -> Self;
     fn abs(self) -> Self;
+    fn min(self, other: Self) -> Self {
+        if self < other {
+            self
+        } else {
+            other
+        }
+    }
+    fn max(self, other: Self) -> Self {
+        if self > other {
+            self
+        } else {
+            other
+        }
+    }
 }
 
 impl Real for f64 {
@@ -78,5 +92,21 @@ impl Real for crate::math::ad::Var {
 
     fn abs(self) -> Self {
         self.abs()
+    }
+
+    fn min(self, other: Self) -> Self {
+        if self < other {
+            self
+        } else {
+            other
+        }
+    }
+
+    fn max(self, other: Self) -> Self {
+        if self > other {
+            self
+        } else {
+            other
+        }
     }
 }
