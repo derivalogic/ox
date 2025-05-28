@@ -147,9 +147,21 @@ impl From<f64> for Var {
     }
 }
 
+impl From<f32> for Var {
+    fn from(value: f32) -> Self {
+        Var::new(value as f64)
+    }
+}
+
 impl From<Var> for f64 {
     fn from(v: Var) -> Self {
         v.value()
+    }
+}
+
+impl From<Var> for f32 {
+    fn from(v: Var) -> Self {
+        v.value() as f32
     }
 }
 
@@ -166,9 +178,21 @@ impl PartialEq<f64> for Var {
     }
 }
 
+impl PartialEq<f32> for Var {
+    fn eq(&self, other: &f32) -> bool {
+        self.value().eq(&(*other as f64))
+    }
+}
+
 impl PartialEq<Var> for f64 {
     fn eq(&self, other: &Var) -> bool {
         self.eq(&other.value())
+    }
+}
+
+impl PartialEq<Var> for f32 {
+    fn eq(&self, other: &Var) -> bool {
+        (*self as f64).eq(&other.value())
     }
 }
 
@@ -185,9 +209,21 @@ impl PartialOrd<f64> for Var {
     }
 }
 
+impl PartialOrd<f32> for Var {
+    fn partial_cmp(&self, other: &f32) -> Option<Ordering> {
+        self.value().partial_cmp(&(*other as f64))
+    }
+}
+
 impl PartialOrd<Var> for f64 {
     fn partial_cmp(&self, other: &Var) -> Option<Ordering> {
         self.partial_cmp(&other.value())
+    }
+}
+
+impl PartialOrd<Var> for f32 {
+    fn partial_cmp(&self, other: &Var) -> Option<Ordering> {
+        (*self as f64).partial_cmp(&other.value())
     }
 }
 
@@ -212,10 +248,24 @@ impl Add<f64> for Var {
     }
 }
 
+impl Add<f32> for Var {
+    type Output = Var;
+    fn add(self, rhs: f32) -> Var {
+        self + Var::new(rhs as f64)
+    }
+}
+
 impl Add<Var> for f64 {
     type Output = Var;
     fn add(self, rhs: Var) -> Var {
         Var::new(self) + rhs
+    }
+}
+
+impl Add<Var> for f32 {
+    type Output = Var;
+    fn add(self, rhs: Var) -> Var {
+        Var::new(self as f64) + rhs
     }
 }
 
@@ -240,10 +290,24 @@ impl Sub<f64> for Var {
     }
 }
 
+impl Sub<f32> for Var {
+    type Output = Var;
+    fn sub(self, rhs: f32) -> Var {
+        self - Var::new(rhs as f64)
+    }
+}
+
 impl Sub<Var> for f64 {
     type Output = Var;
     fn sub(self, rhs: Var) -> Var {
         Var::new(self) - rhs
+    }
+}
+
+impl Sub<Var> for f32 {
+    type Output = Var;
+    fn sub(self, rhs: Var) -> Var {
+        Var::new(self as f64) - rhs
     }
 }
 
@@ -268,10 +332,24 @@ impl Mul<f64> for Var {
     }
 }
 
+impl Mul<f32> for Var {
+    type Output = Var;
+    fn mul(self, rhs: f32) -> Var {
+        self * Var::new(rhs as f64)
+    }
+}
+
 impl Mul<Var> for f64 {
     type Output = Var;
     fn mul(self, rhs: Var) -> Var {
         Var::new(self) * rhs
+    }
+}
+
+impl Mul<Var> for f32 {
+    type Output = Var;
+    fn mul(self, rhs: Var) -> Var {
+        Var::new(self as f64) * rhs
     }
 }
 
@@ -296,10 +374,24 @@ impl Div<f64> for Var {
     }
 }
 
+impl Div<f32> for Var {
+    type Output = Var;
+    fn div(self, rhs: f32) -> Var {
+        self / Var::new(rhs as f64)
+    }
+}
+
 impl Div<Var> for f64 {
     type Output = Var;
     fn div(self, rhs: Var) -> Var {
         Var::new(self) / rhs
+    }
+}
+
+impl Div<Var> for f32 {
+    type Output = Var;
+    fn div(self, rhs: Var) -> Var {
+        Var::new(self as f64) / rhs
     }
 }
 
@@ -724,6 +816,16 @@ mod tests {
         reset_tape();
         let x = Var::new(2.0);
         let y = x + 3.0 * x - 1.0;
+        let grad = backward(&y);
+        assert!((grad[x.id()] - 4.0).abs() < 1e-12);
+
+    }
+
+    #[test]
+    fn float_ops_f32_test() {
+        reset_tape();
+        let x = Var::new(2.0);
+        let y = x + 3f32 * x - 1f32;
         let grad = backward(&y);
         assert!((grad[x.id()] - 4.0).abs() < 1e-12);
 
