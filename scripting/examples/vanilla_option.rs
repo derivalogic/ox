@@ -44,9 +44,10 @@ fn main() -> Result<()> {
     // European call option on CLP/USD with strike 900 and maturity in one year
     let maturity = Date::new(2025, 1, 1);
     let script = "
-    s = spot(\"CLP\", \"USD\");
+    opt = 0;
+    s = Spot(\"CLP\", \"USD\");
     call =  max(s - 900.0, 0); 
-    pays call;
+    opt pays call;
     ";
 
     // Create event stream from the scripted payoff

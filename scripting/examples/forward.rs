@@ -43,8 +43,9 @@ fn create_market_store() -> MarketStore {
 fn main() -> Result<()> {
     let maturity = Date::new(2025, 1, 1);
     let script = "
-    s = spot(\"CLP\", \"USD\");
-    pays s - 900.0;
+    opt = 0;
+    s = Spot(\"CLP\", \"USD\");
+    opt pays s - 900.0;
     ";
 
     let events = EventStream::try_from(vec![CodedEvent::new(maturity, script.to_string())])?;

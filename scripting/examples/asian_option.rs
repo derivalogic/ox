@@ -45,12 +45,15 @@ fn main() -> Result<()> {
     let obs2 = Date::new(2024, 12, 1);
     let maturity = Date::new(2025, 1, 1);
 
-    let script1 = "s1 = spot(\"CLP\", \"USD\");";
-    let script2 = "s2 = spot(\"CLP\", \"USD\");";
+    let script1 = "
+    opt = 0;
+    s1 = Spot(\"CLP\", \"USD\");
+    ";
+    let script2 = "s2 = Spot(\"CLP\", \"USD\");";
     let script_payoff = "
     avg = (s1 + s2) / 2.0;
     call = max(avg - 900.0, 0);
-    pays call;
+    opt pays call;
     ";
 
     let events = EventStream::try_from(vec![
@@ -69,8 +72,8 @@ fn main() -> Result<()> {
     let scenarios = RiskFreeMonteCarloModel::scenarios_to_f64(scenarios_var);
 
     let var_map = indexer.get_variable_indexes();
-    let evaluator = EventStreamEvaluator::new(indexer.get_variables_size())
-        .with_scenarios(&scenarios);
+    let evaluator =
+        EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
     let vars = evaluator.visit_events(&events, &var_map)?;
 
     println!("Asian option price: {:?}", vars);

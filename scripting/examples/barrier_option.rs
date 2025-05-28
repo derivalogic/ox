@@ -44,16 +44,19 @@ fn main() -> Result<()> {
     let obs_date = Date::new(2024, 7, 1);
     let maturity = Date::new(2025, 1, 1);
 
-    let script_obs = "hit = spot(\"CLP\", \"USD\") < 800.0;";
+    let script_obs = "
+    opt = 0;
+    hit = Spot(\"CLP\", \"USD\") < 800.0;
+    ";
 
     let script_payoff = "
-    s = spot(\"CLP\", \"USD\");
-    call = max(s - 900.0, 0);
+    s = Spot(\"CLP\", \"USD\");
+    payoff = max(s - 900.0, 0);
     if hit == True {
-        pays 0;
+        opt pays 0;
     } else {
-        pays call;
-    }
+        opt pays payoff;
+    };
     ";
 
     let events = EventStream::try_from(vec![
