@@ -6,11 +6,16 @@ pub trait Real:
     + PartialEq
     + PartialOrd
     + Add<Output = Self>
+    + Add<f64, Output = Self>
     + Sub<Output = Self>
+    + Sub<f64, Output = Self>
     + Mul<Output = Self>
+    + Mul<f64, Output = Self>
     + Div<Output = Self>
+    + Div<f64, Output = Self>
     + Neg<Output = Self>
     + From<f64>
+    + From<f32>
 {
     fn ln(self) -> Self;
     fn exp(self) -> Self;
