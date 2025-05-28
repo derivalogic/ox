@@ -9,7 +9,7 @@ pub enum ScriptingError {
     InvalidToken(String),
     #[error("Error while parsing: {0}")]
     ParsingError(#[from] std::num::ParseFloatError),
-    #[error("Unexpected token")]
+    #[error("Unexpected token: {0}")]
     UnexpectedToken(String),
     #[error("Error while evaluating: {0}")]
     EvaluationError(String),
