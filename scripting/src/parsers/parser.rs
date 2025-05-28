@@ -32,7 +32,8 @@ impl Parser {
                 "or".to_string(),
                 "true".to_string(),
                 "false".to_string(),
-                "spot".to_string(),
+                "Spot".to_string(),
+                "RateIndex".to_string(),
                 "pays".to_string(),
                 "exp".to_string(),
                 "ln".to_string(),
@@ -399,8 +400,11 @@ impl Parser {
                     max_args = 3;
                     expr = Some(Node::new_cvg());
                 }
-                "spot" => {
+                "Spot" => {
                     return self.parse_spot();
+                }
+                "RateIndex" => {
+                    return self.parse_rate_index();
                 }
                 _ => (),
             },
@@ -447,7 +451,7 @@ impl Parser {
 
     /// Parse a spot expression
     fn parse_spot(&self) -> Result<ExprTree> {
-        self.expect_token(Token::Identifier("spot".to_string()))?;
+        self.expect_token(Token::Identifier("Spot".to_string()))?;
         self.advance();
         self.expect_token(Token::OpenParen)?;
         self.advance();
@@ -466,6 +470,37 @@ impl Parser {
         self.expect_token(Token::CloseParen)?;
         self.advance();
         Ok(Box::new(Node::Spot(first, second, OnceLock::new())))
+    }
+
+    fn parse_rate_index(&self) -> Result<ExprTree> {
+        self.expect_token(Token::Identifier("RateIndex".to_string()))?;
+        self.advance();
+        self.expect_token(Token::OpenParen)?;
+        self.advance();
+
+        let name = match *self.parse_string()? {
+            Node::String(s) => s,
+            _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
+        };
+        self.expect_token(Token::Comma)?;
+        self.advance();
+        let start_str = match *self.parse_string()? {
+            Node::String(s) => s,
+            _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
+        };
+        self.expect_token(Token::Comma)?;
+        self.advance();
+        let end_str = match *self.parse_string()? {
+            Node::String(s) => s,
+            _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
+        };
+        self.expect_token(Token::CloseParen)?;
+        self.advance();
+
+        let start = Date::from_str(&start_str, "%Y-%m-%d").map_err(|_| self.invalid_syntax_err("Invalid date"))?;
+        let end = Date::from_str(&end_str, "%Y-%m-%d").map_err(|_| self.invalid_syntax_err("Invalid date"))?;
+
+        Ok(Box::new(Node::RateIndex(name, start, end, OnceLock::new())))
     }
 
     /// Parse an expression
@@ -621,6 +656,7 @@ mod tests_expect_token {
     use std::sync::OnceLock;
 
     use rustatlas::currencies::enums::Currency;
+    use rustatlas::prelude::*;
 
     use crate::{
         nodes::node::Node,
@@ -1129,7 +1165,7 @@ mod tests_expect_token {
     #[test]
     fn test_spot_function() {
         let script = "
-            x = spot(\"USD\", \"EUR\");
+            x = Spot(\"USD\", \"EUR\");
         "
         .to_string();
 
@@ -1142,6 +1178,29 @@ mod tests_expect_token {
             Box::new(Node::Spot(
                 Currency::try_from("USD".to_string()).unwrap(),
                 Some(Currency::try_from("EUR".to_string()).unwrap()),
+                OnceLock::new(),
+            )),
+        ]))]));
+
+        assert_eq!(nodes, expected);
+    }
+
+    #[test]
+    fn test_rate_index_function() {
+        let script = "
+            x = RateIndex(\"0\", \"2024-01-01\", \"2024-02-01\");
+        "
+        .to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+            Box::new(Node::RateIndex(
+                "0".to_string(),
+                Date::new(2024, 1, 1),
+                Date::new(2024, 2, 1),
                 OnceLock::new(),
             )),
         ]))]));
@@ -1311,7 +1370,21 @@ mod test_reserved_keywords {
     #[test]
     fn test_spot_reserved() {
         let script = "
-            spot = 1;
+            Spot = 1;
+        "
+        .to_string();
+
+        let tokens = crate::parsers::lexer::Lexer::new(script)
+            .tokenize()
+            .unwrap();
+        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+        assert!(nodes.is_err());
+    }
+
+    #[test]
+    fn test_rate_index_reserved() {
+        let script = "
+            RateIndex = 1;
         "
         .to_string();
 
@@ -1503,7 +1576,7 @@ mod test_pays_expression {
     #[test]
     fn test_pays_as_expression() {
         let script = "
-            call = pays max(spot(\"CLP\", \"USD\") - 900.0, 0);
+            call = pays max(Spot(\"CLP\", \"USD\") - 900.0, 0);
         "
         .to_string();
 

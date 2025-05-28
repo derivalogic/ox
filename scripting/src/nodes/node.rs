@@ -17,6 +17,7 @@ pub enum Node {
 
     // financial
     Spot(Currency, Option<Currency>, OnceLock<usize>),
+    RateIndex(String, Date, Date, OnceLock<usize>),
     Pays(Vec<ExprTree>, OnceLock<usize>),
 
     // math
@@ -178,6 +179,10 @@ impl Node {
         Node::Spot(first, second, OnceLock::new())
     }
 
+    pub fn new_rate_index(name: String, start: Date, end: Date) -> Node {
+        Node::RateIndex(name, start, end, OnceLock::new())
+    }
+
     pub fn add_child(&mut self, child: ExprTree) {
         match self {
             Node::Base(children) => children.push(child),
@@ -207,6 +212,7 @@ impl Node {
             Node::NotEqual(children) => children.push(child),
             Node::Pays(children, _) => children.push(child),
             Node::Spot(_, _, _) => panic!("Cannot add child to spot node"),
+            Node::RateIndex(_, _, _, _) => panic!("Cannot add child to rate index node"),
             Node::True => panic!("Cannot add child to true node"),
             Node::False => panic!("Cannot add child to false node"),
             Node::Constant(_) => panic!("Cannot add child to constant node"),
@@ -243,6 +249,9 @@ impl Node {
             Node::NotEqual(children) => children,
             Node::Pays(children, _) => children,
             Node::Spot(_, _, _) => panic!("Cannot get children from spot node"),
+            Node::RateIndex(_, _, _, _) => {
+                panic!("Cannot get children from rate index node")
+            }
             Node::True => panic!("Cannot get children from true node"),
             Node::False => panic!("Cannot get children from false node"),
             Node::Constant(_) => panic!("Cannot get children from constant node"),
@@ -483,6 +492,14 @@ mod ai_gen_tests {
     }
 
     #[test]
+    fn test_new_rate_index() {
+        let start = Date::new(2024, 1, 1);
+        let end = Date::new(2024, 2, 1);
+        let node = Node::new_rate_index("0".to_string(), start, end);
+        assert_eq!(node, Node::RateIndex("0".to_string(), start, end, OnceLock::new()));
+    }
+
+    #[test]
     fn test_add_child_to_base() {
         // Test adding a child to a base node
         let mut node = Node::new_base();
@@ -507,6 +524,13 @@ mod ai_gen_tests {
         let mut node = Node::Spot(Currency::USD, None, OnceLock::new());
         let child = Box::new(Node::new_add());
         node.add_child(child);
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot add child to rate index node")]
+    fn test_add_child_to_rate_index() {
+        let mut node = Node::new_rate_index("0".to_string(), Date::new(2024,1,1), Date::new(2024,2,1));
+        node.add_child(Box::new(Node::new_add()));
     }
 
     #[test]
@@ -541,6 +565,13 @@ mod ai_gen_tests {
     fn test_children_of_spot() {
         // Test getting children of a spot node, which should panic
         let node = Node::Spot(Currency::USD, None, OnceLock::new());
+        node.children();
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot get children from rate index node")]
+    fn test_children_of_rate_index() {
+        let node = Node::new_rate_index("0".to_string(), Date::new(2024,1,1), Date::new(2024,2,1));
         node.children();
     }
 

@@ -193,6 +193,32 @@ impl NodeVisitor for EventIndexer {
                 };
                 Ok(())
             }
+            Node::RateIndex(name, start, end, opt_idx) => {
+                match opt_idx.get() {
+                    Some(_) => {}
+                    None => {
+                        let size = self.market_requests.borrow_mut().len();
+                        let provider_id = name.parse::<usize>().map_err(|_| {
+                            ScriptingError::InvalidSyntax(
+                                "Invalid rate index name".to_string(),
+                            )
+                        })?;
+                        let fwd_request = ForwardRateRequest::new(
+                            provider_id,
+                            *start,
+                            *start,
+                            *end,
+                            Compounding::Simple,
+                            Frequency::Annual,
+                        );
+                        let request =
+                            MarketRequest::new(size, None, Some(fwd_request), None);
+                        self.market_requests.borrow_mut().push(request.clone());
+                        opt_idx.set(size).unwrap();
+                    }
+                }
+                Ok(())
+            }
             Node::Pays(children, opt_idx) => {
                 children.iter().try_for_each(|child| self.visit(child))?;
                 match opt_idx.get() {
@@ -354,6 +380,25 @@ mod tests {
         assert_eq!(request.fx().unwrap().first_currency(), Currency::EUR);
         assert_eq!(request.fx().unwrap().second_currency(), None);
         assert_eq!(request.fx().unwrap().reference_date(), None);
+    }
+
+    #[test]
+    fn test_rate_index_indexer() {
+        let indexer = EventIndexer::new();
+        let node = Box::new(Node::new_rate_index(
+            "1".to_string(),
+            Date::new(2024, 1, 1),
+            Date::new(2024, 2, 1),
+        ));
+        indexer.visit(&node).unwrap();
+        let market_requests = indexer.get_market_requests();
+        assert_eq!(market_requests.len(), 1);
+
+        let request = market_requests.get(0).unwrap();
+        assert_eq!(request.id(), 0);
+        assert_eq!(request.fwd().unwrap().provider_id(), 1);
+        assert_eq!(request.fwd().unwrap().start_date(), Date::new(2024, 1, 1));
+        assert_eq!(request.fwd().unwrap().end_date(), Date::new(2024, 2, 1));
     }
 }
 
