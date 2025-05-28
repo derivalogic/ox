@@ -386,6 +386,7 @@ pub fn backward(result: &Var) -> Vec<f64> {
                     let lv = tape[l].value;
                     grad[l] += grad[i] * lv.signum();
                 }
+
             }
         }
         grad
@@ -489,6 +490,7 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                         deriv[i][j] = deriv[l][j] * lv.signum();
                     }
                 }
+
             }
         }
 
@@ -605,6 +607,7 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                         hess[l][j] += hess[i][j] * sign;
                     }
                 }
+
             }
         }
 
