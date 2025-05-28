@@ -57,7 +57,16 @@ impl TryFrom<CodedEvent> for Event {
     type Error = ScriptingError;
 
     fn try_from(event: CodedEvent) -> Result<Event> {
-        let expr = ExprTree::try_from(event.script().clone())?;
+        let expr = match ExprTree::try_from(event.script().clone()) {
+            Ok(expr) => expr,
+            Err(e) => {
+                return Err(ScriptingError::InvalidSyntax(format!(
+                    "{} (event date: {})",
+                    e,
+                    event.event_date()
+                )));
+            }
+        };
         Ok(Event::new(event.event_date(), expr))
     }
 }
