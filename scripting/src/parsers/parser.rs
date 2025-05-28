@@ -330,6 +330,36 @@ impl Parser {
         Ok(comparison_node)
     }
 
+    /// Parse a comparison expression used outside of conditions
+    fn parse_comparison(&self) -> Result<ExprTree> {
+        let mut lhs = self.parse_expr_l2()?;
+
+        while matches!(
+            self.current_token(),
+            Token::Equal
+                | Token::NotEqual
+                | Token::Superior
+                | Token::Inferior
+                | Token::SuperiorOrEqual
+                | Token::InferiorOrEqual
+        ) {
+            let comparator = self.current_token();
+            self.advance();
+            let rhs = self.parse_expr_l2()?;
+            lhs = match comparator {
+                Token::Equal => Box::new(Node::Equal(vec![lhs, rhs])),
+                Token::NotEqual => Box::new(Node::NotEqual(vec![lhs, rhs])),
+                Token::Superior => Box::new(Node::Superior(vec![lhs, rhs])),
+                Token::Inferior => Box::new(Node::Inferior(vec![lhs, rhs])),
+                Token::SuperiorOrEqual => Box::new(Node::SuperiorOrEqual(vec![lhs, rhs])),
+                Token::InferiorOrEqual => Box::new(Node::InferiorOrEqual(vec![lhs, rhs])),
+                _ => unreachable!(),
+            };
+        }
+
+        Ok(lhs)
+    }
+
     /// Parse a function arguments
     fn parse_function_args(&self) -> Result<Vec<ExprTree>> {
         self.expect_token(Token::OpenParen)?;
@@ -505,7 +535,7 @@ impl Parser {
 
     /// Parse an expression
     fn parse_expr(&self) -> Result<ExprTree> {
-        let mut lhs = self.parse_expr_l2()?;
+        let mut lhs = self.parse_comparison()?;
 
         while self.current_token() == Token::Plus
             || self.current_token() == Token::Minus
@@ -515,9 +545,11 @@ impl Parser {
             let token = self.current_token();
             self.advance();
             match self.current_token() {
-                Token::EOF => return Err(self.invalid_syntax_err("Unexpected end of expression")),
+                Token::EOF => {
+                    return Err(self.invalid_syntax_err("Unexpected end of expression"))
+                }
                 _ => {
-                    let rhs = self.parse_expr_l2()?;
+                    let rhs = self.parse_comparison()?;
                     lhs = match token {
                         Token::Plus => Box::new(Node::Add(vec![lhs, rhs])),
                         Token::Minus => Box::new(Node::Subtract(vec![lhs, rhs])),
@@ -702,6 +734,23 @@ mod tests_expect_token {
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
             Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
             Box::new(Node::Constant(1.0)),
+        ]))]));
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_boolean_expression_assignment() {
+        let tokens = Lexer::new("a = 1 < 2;".to_string()).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let result = parser.parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+            Box::new(Node::Inferior(vec![
+                Box::new(Node::Constant(1.0)),
+                Box::new(Node::Constant(2.0)),
+            ])),
         ]))]));
 
         assert_eq!(result, expected);
