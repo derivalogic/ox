@@ -155,6 +155,7 @@ impl From<Var> for f64 {
 
 impl PartialEq for Var {
     fn eq(&self, other: &Self) -> bool {
+
         self.value().eq(&other.value())
     }
 }
@@ -173,6 +174,7 @@ impl PartialEq<Var> for f64 {
 
 impl PartialOrd for Var {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+
         self.value().partial_cmp(&other.value())
     }
 }
@@ -387,6 +389,7 @@ pub fn backward(result: &Var) -> Vec<f64> {
                     let s = if lv > 0.0 { 1.0 } else if lv < 0.0 { -1.0 } else { 0.0 };
                     grad[l] += grad[i] * s;
                 }
+
             }
         }
         grad
@@ -491,6 +494,7 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                         deriv[i][j] = deriv[l][j] * s;
                     }
                 }
+
             }
         }
 
@@ -607,6 +611,7 @@ pub fn grad_hessian(result: &Var, inputs: &[Var]) -> (Vec<f64>, Vec<Vec<f64>>) {
                         hess[l][j] += hess[i][j] * s;
                     }
                 }
+
             }
         }
 
@@ -721,6 +726,7 @@ mod tests {
         let y = x + 3.0 * x - 1.0;
         let grad = backward(&y);
         assert!((grad[x.id()] - 4.0).abs() < 1e-12);
+
     }
 
     #[test]
@@ -732,6 +738,7 @@ mod tests {
         assert!(x < y);
         assert!(x == 2.0);
         assert!(3.0 > x);
+
     }
 }
 
