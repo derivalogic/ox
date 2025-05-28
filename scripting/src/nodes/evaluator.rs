@@ -200,6 +200,24 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                 self.digit_stack.lock().unwrap().push(market_data.fx()?);
                 Ok(())
             }
+            Node::RateIndex(_, _, _, index) => {
+                let id = index.get().ok_or(ScriptingError::EvaluationError(
+                    "RateIndex not indexed".to_string(),
+                ))?;
+
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError(
+                        "No scenario set".to_string(),
+                    ))?
+                    .get(*id)
+                    .ok_or(ScriptingError::EvaluationError(
+                        "RateIndex not found".to_string(),
+                    ))?;
+
+                self.digit_stack.lock().unwrap().push(market_data.fwd()?);
+                Ok(())
+            }
             Node::Pays(children, index) => {
                 children
                     .iter()
@@ -1563,6 +1581,34 @@ mod ai_gen_tests {
         evaluator.const_visit(base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 50.0);
+    }
+
+    #[test]
+    fn test_rate_index_eval() {
+        let mut base = Box::new(Node::new_base());
+        let rate = Node::new_rate_index(
+            "0".to_string(),
+            Date::new(2024, 1, 1),
+            Date::new(2024, 2, 1),
+        );
+        base.add_child(Box::new(rate));
+
+        let scenario = vec![MarketData::new(
+            0,
+            Date::new(2024, 1, 1),
+            None,
+            Some(0.05),
+            None,
+            1.0,
+        )];
+
+        let indexer = EventIndexer::new();
+        indexer.visit(&base).unwrap();
+
+        let evaluator = ExprEvaluator::new().with_scenario(&scenario);
+        evaluator.const_visit(base).unwrap();
+
+        assert!((evaluator.digit_stack().pop().unwrap() - 0.05).abs() < f64::EPSILON);
     }
 
     #[test]
