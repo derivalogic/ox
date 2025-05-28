@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::sync::OnceLock;
 
 use rustatlas::currencies::enums::Currency;
+use rustatlas::prelude::*;
 
 use crate::prelude::*;
 use crate::utils::errors::{Result, ScriptingError};
@@ -38,6 +39,7 @@ impl Parser {
                 "pow".to_string(),
                 "min".to_string(),
                 "max".to_string(),
+                "cvg".to_string(),
             ],
         }
     }
@@ -384,6 +386,11 @@ impl Parser {
                     max_args = 100;
                     expr = Some(Node::new_max());
                 }
+                "cvg" => {
+                    min_args = 3;
+                    max_args = 3;
+                    expr = Some(Node::new_cvg());
+                }
                 "spot" => {
                     return self.parse_spot();
                 }
@@ -404,8 +411,25 @@ impl Parser {
             if args.len() < min_args || args.len() > max_args {
                 return Err(self.invalid_syntax_err("Invalid number of arguments"));
             }
-            args.iter()
-                .for_each(|arg| expr.as_mut().unwrap().add_child(arg.clone()));
+
+            if matches!(expr, Some(Node::Cvg(_))) {
+                if let [a, b, c] = &args[..] {
+                    let get_str = |n: &ExprTree| match n.as_ref() {
+                        Node::String(s) => Ok(s.clone()),
+                        _ => Err(self.invalid_syntax_err("Invalid argument, expected string")),
+                    };
+                    let s1 = get_str(a)?;
+                    let s2 = get_str(b)?;
+                    let s3 = get_str(c)?;
+                    Date::from_str(&s1, "%Y-%m-%d").map_err(|_| self.invalid_syntax_err("Invalid date"))?;
+                    Date::from_str(&s2, "%Y-%m-%d").map_err(|_| self.invalid_syntax_err("Invalid date"))?;
+                    DayCounter::try_from(s3).map_err(|_| self.invalid_syntax_err("Invalid day counter"))?;
+                } else {
+                    return Err(self.invalid_syntax_err("Invalid number of arguments"));
+                }
+            }
+
+            args.iter().for_each(|arg| expr.as_mut().unwrap().add_child(arg.clone()));
             return Ok(Box::new(expr.unwrap()));
         }
 
@@ -1032,6 +1056,28 @@ mod tests_expect_token {
     }
 
     #[test]
+    fn test_cvg_function() {
+        let script = "
+            x = cvg(\"2020-01-01\", \"2020-06-01\", \"Actual360\");
+        "
+        .to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+            Box::new(Node::Cvg(vec![
+                Box::new(Node::String("2020-01-01".to_string())),
+                Box::new(Node::String("2020-06-01".to_string())),
+                Box::new(Node::String("Actual360".to_string())),
+            ])),
+        ]))]));
+
+        assert_eq!(nodes, expected);
+    }
+
+    #[test]
     fn test_max_function() {
         let script = "
             z = max(1, 2);
@@ -1272,6 +1318,20 @@ mod test_reserved_keywords {
     fn test_pays_reserved() {
         let script = "
             pays = 1;
+        "
+        .to_string();
+
+        let tokens = crate::parsers::lexer::Lexer::new(script)
+            .tokenize()
+            .unwrap();
+        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+        assert!(nodes.is_err());
+    }
+
+    #[test]
+    fn test_cvg_reserved() {
+        let script = "
+            cvg = 1;
         "
         .to_string();
 

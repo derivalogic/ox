@@ -30,6 +30,7 @@ pub enum Node {
     Exp(Vec<ExprTree>),
     Pow(Vec<ExprTree>),
     Ln(Vec<ExprTree>),
+    Cvg(Vec<ExprTree>),
 
     // unary
     UnaryPlus(Vec<ExprTree>),
@@ -99,6 +100,10 @@ impl Node {
 
     pub fn new_pow() -> Node {
         Node::Pow(Vec::new())
+    }
+
+    pub fn new_cvg() -> Node {
+        Node::Cvg(Vec::new())
     }
 
     pub fn new_constant(value: f64) -> Node {
@@ -198,6 +203,7 @@ impl Node {
             Node::Exp(children) => children.push(child),
             Node::Ln(children) => children.push(child),
             Node::Pow(children) => children.push(child),
+            Node::Cvg(children) => children.push(child),
             Node::NotEqual(children) => children.push(child),
             Node::Pays(children, _) => children.push(child),
             Node::Spot(_, _, _) => panic!("Cannot add child to spot node"),
@@ -233,6 +239,7 @@ impl Node {
             Node::Exp(children) => children,
             Node::Ln(children) => children,
             Node::Pow(children) => children,
+            Node::Cvg(children) => children,
             Node::NotEqual(children) => children,
             Node::Pays(children, _) => children,
             Node::Spot(_, _, _) => panic!("Cannot get children from spot node"),
@@ -347,6 +354,13 @@ mod ai_gen_tests {
         // Test the creation of a new pow node
         let node = Node::new_pow();
         assert_eq!(node, Node::Pow(Vec::new()));
+    }
+
+    #[test]
+    fn test_new_cvg() {
+        // Test the creation of a new cvg node
+        let node = Node::new_cvg();
+        assert_eq!(node, Node::Cvg(Vec::new()));
     }
 
     #[test]

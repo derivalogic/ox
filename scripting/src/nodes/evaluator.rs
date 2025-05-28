@@ -503,6 +503,22 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                 self.digit_stack.lock().unwrap().push(top.exp());
                 Ok(())
             }
+            Node::Cvg(children) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+
+                let basis_str = self.string_stack.lock().unwrap().pop().unwrap();
+                let end_str = self.string_stack.lock().unwrap().pop().unwrap();
+                let start_str = self.string_stack.lock().unwrap().pop().unwrap();
+
+                let start = Date::from_str(&start_str, "%Y-%m-%d")?;
+                let end = Date::from_str(&end_str, "%Y-%m-%d")?;
+                let basis = DayCounter::try_from(basis_str)?;
+                let yf = basis.year_fraction(start, end);
+                self.digit_stack.lock().unwrap().push(yf);
+                Ok(())
+            }
             Node::If(children, first_else) => {
                 // Evaluate the condition
                 children.get(0).unwrap().const_accept(self);
@@ -1489,6 +1505,44 @@ mod ai_gen_tests {
         evaluator.const_visit(base).unwrap();
 
         assert!((evaluator.digit_stack().pop().unwrap() - 2.718281828459045).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_cvg_node() {
+        let mut base = Box::new(Node::new_base());
+        let mut cvg = Box::new(Node::new_cvg());
+        cvg.add_child(Box::new(Node::String("2020-01-01".to_string())));
+        cvg.add_child(Box::new(Node::String("2020-06-01".to_string())));
+        cvg.add_child(Box::new(Node::String("Actual360".to_string())));
+        base.add_child(cvg);
+
+        let evaluator = ExprEvaluator::new();
+        evaluator.const_visit(base).unwrap();
+
+        assert!((evaluator.digit_stack().pop().unwrap() - (152.0 / 360.0)).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_cvg_with_pays() {
+        let mut base = Box::new(Node::new_base());
+        let mut pays = Box::new(Node::new_pays());
+        let mut cvg = Box::new(Node::new_cvg());
+        cvg.add_child(Box::new(Node::String("2020-01-01".to_string())));
+        cvg.add_child(Box::new(Node::String("2020-06-01".to_string())));
+        cvg.add_child(Box::new(Node::String("Actual360".to_string())));
+        pays.add_child(cvg);
+        base.add_child(pays);
+
+        let event_date = Date::from_str("2020-06-01", "%Y-%m-%d").unwrap();
+        let scenario = vec![MarketData::new(0, event_date, None, None, None, 2.0)];
+
+        let indexer = EventIndexer::new();
+        indexer.visit(&base).unwrap();
+
+        let evaluator = ExprEvaluator::new().with_scenario(&scenario);
+        evaluator.const_visit(base).unwrap();
+
+        assert!((evaluator.digit_stack().pop().unwrap() - (152.0 / 360.0) / 2.0).abs() < f64::EPSILON);
     }
 
     #[test]
