@@ -65,9 +65,10 @@ fn main() -> Result<()> {
     let scenarios = RiskFreeMonteCarloModel::scenarios_to_f64(scenarios_var);
 
     // Evaluate the script under all scenarios and average the result
+    let var_map = indexer.get_variable_indexes();
     let evaluator =
         EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
-    let vars = evaluator.visit_events(&events)?;
+    let vars = evaluator.visit_events(&events, &var_map)?;
 
     println!("Call price: {:?}", vars);
     Ok(())
