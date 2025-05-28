@@ -40,6 +40,25 @@ pub trait Real:
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::math::ad::{backward, reset_tape, Var};
+
+    #[test]
+    fn real_trait_float_ops() {
+        reset_tape();
+        let x: Var = Var::new(2.0);
+        let y = x + 3.0f64 * x - 1.0f64;
+        let grad = backward(&y);
+        assert!((grad[x.id()] - 4.0).abs() < 1e-12);
+
+        let z: f64 = 2.0;
+        let result = z + 1.0f64 - 0.5f64 * 2.0f64;
+        assert!((result - 2.0).abs() < 1e-12);
+    }
+}
+
 impl Real for f64 {
     fn ln(self) -> Self {
         f64::ln(self)
