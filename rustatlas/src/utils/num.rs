@@ -13,6 +13,8 @@ pub trait Real:
     fn ln(self) -> Self;
     fn exp(self) -> Self;
     fn powf(self, rhs: Self) -> Self;
+    fn min(self, rhs: Self) -> Self;
+    fn max(self, rhs: Self) -> Self;
 }
 
 impl Real for f64 {
@@ -27,6 +29,14 @@ impl Real for f64 {
     fn powf(self, rhs: Self) -> Self {
         f64::powf(self, rhs)
     }
+
+    fn min(self, rhs: Self) -> Self {
+        f64::min(self, rhs)
+    }
+
+    fn max(self, rhs: Self) -> Self {
+        f64::max(self, rhs)
+    }
 }
 
 impl Real for crate::math::ad::Var {
@@ -40,5 +50,13 @@ impl Real for crate::math::ad::Var {
 
     fn powf(self, rhs: Self) -> Self {
         self.powf(rhs)
+    }
+
+    fn min(self, rhs: Self) -> Self {
+        self.min(rhs)
+    }
+
+    fn max(self, rhs: Self) -> Self {
+        self.max(rhs)
     }
 }
