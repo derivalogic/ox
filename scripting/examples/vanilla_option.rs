@@ -1,75 +1,67 @@
-use std::sync::{Arc, RwLock};
 
 use lefi::prelude::*;
 use lefi::utils::errors::Result;
-use rustatlas::core::marketstore::MarketStore;
 use rustatlas::currencies::enums::Currency;
-use rustatlas::models::montecarlo::RiskFreeMonteCarloModel;
-use rustatlas::models::traits::MonteCarloModel;
-use rustatlas::prelude::{FlatForwardTermStructure, OvernightIndex, RateDefinition};
-use rustatlas::time::date::Date;
+use rustatlas::math::ad::{backward, reset_tape, Var};
+use rustatlas::models::black_scholes::{
+    bs_price_delta_gamma_theta, BlackScholesModel,
+};
+use rustatlas::time::{date::Date, daycounter::DayCounter};
 
-fn create_market_store() -> MarketStore<f64> {
-    let ref_date = Date::new(2024, 1, 1);
-    let mut store = MarketStore::new(ref_date, Currency::USD);
-    store
-        .mut_exchange_rate_store()
-        .add_exchange_rate(Currency::CLP, Currency::USD, 850.0);
-
-    let clp_curve = Arc::new(FlatForwardTermStructure::new(
-        ref_date,
-        0.05,
-        RateDefinition::default(),
-    ));
-    let clp_index = Arc::new(RwLock::new(
-        OvernightIndex::new(ref_date).with_term_structure(clp_curve),
-    ));
-    let _ = store.mut_index_store().add_index(0, clp_index);
-    store.mut_index_store().add_currency_curve(Currency::CLP, 0);
-
-    let usd_curve = Arc::new(FlatForwardTermStructure::new(
-        ref_date,
-        0.03,
-        RateDefinition::default(),
-    ));
-    let usd_index = Arc::new(RwLock::new(
-        OvernightIndex::new(ref_date).with_term_structure(usd_curve),
-    ));
-    let _ = store.mut_index_store().add_index(1, usd_index);
-    store.mut_index_store().add_currency_curve(Currency::USD, 1);
-    store
-}
 
 fn main() -> Result<()> {
-    // European call option on CLP/USD with strike 900 and maturity in one year
+    // Model parameters
+    let ref_date = Date::new(2024, 1, 1);
     let maturity = Date::new(2025, 1, 1);
+    let t = DayCounter::Actual365.year_fraction::<f64>(ref_date, maturity);
+    let s0 = 850.0;
+    let k = 900.0;
+    let r = 0.03;
+    let vol = 0.2;
+
+    // Scripted payoff of a call option
     let script = "
     opt = 0;
     s = Spot(\"CLP\", \"USD\");
-    call =  max(s - 900.0, 0); 
+    call = max(s - 900.0, 0);
     opt pays call;
     ";
 
-    // Create event stream from the scripted payoff
+    // Build the event stream
     let coded = CodedEvent::new(maturity, script.to_string());
     let events = EventStream::try_from(vec![coded])?;
-
-    // Index variables and market data requests
     let indexer = EventIndexer::new().with_local_currency(Currency::USD);
     indexer.visit_events(&events)?;
-
-    // Generate Monte Carlo scenarios for required market data
-    let store = create_market_store();
-    let model = RiskFreeMonteCarloModel::new(&store);
     let requests = indexer.get_market_requests();
-    let scenarios = model.gen_scenarios(&requests, 10)?;
 
-    // Evaluate the script under all scenarios and average the result
+    // Monte Carlo scenarios with Black-Scholes dynamics using AD variables
+    reset_tape();
+    let s0_var = Var::new(s0);
+    let model = BlackScholesModel::new(s0_var, Var::from(r), Var::from(vol), Var::from(t), ref_date);
+    let scenarios = model.gen_scenarios(&requests, 5000, 42)?;
+
+    // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();
-    let evaluator =
-        EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
+    let evaluator = EventStreamEvaluator::<Var>::new_with_type(indexer.get_variables_size())
+        .with_scenarios(&scenarios);
     let vars = evaluator.visit_events(&events, &var_map)?;
+    let price_var = match vars.get("opt").unwrap() {
+        Value::Number(v) => *v,
+        _ => Var::from(0.0),
+    };
+    let price_mc = price_var.value();
 
-    println!("Call price: {:?}", vars);
+    // Derivative with respect to the spot
+    let grad = backward(&price_var);
+    let delta_ad = grad[s0_var.id()];
+
+    // Analytic Black-Scholes results
+    let (price_bs, delta_bs, gamma_bs, theta_bs) = bs_price_delta_gamma_theta(s0, k, r, vol, t);
+
+    println!("Monte Carlo price: {:.6}", price_mc);
+    println!("Black-Scholes price: {:.6}", price_bs);
+    println!("Delta analytic vs AD:  {:.6}  {:.6}", delta_bs, delta_ad);
+    println!("Gamma analytic: {:.6}", gamma_bs);
+    println!("Theta analytic: {:.6}", theta_bs);
     Ok(())
 }
