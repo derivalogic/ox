@@ -70,7 +70,7 @@ impl<T: Real> IndexStore<T> {
     pub fn link_term_structure(
         &self,
         id: usize,
-        term_structure: Arc<dyn YieldTermStructureTrait>,
+        term_structure: Arc<dyn YieldTermStructureTrait<T>>,
     ) -> Result<()> {
         self.index_map
             .get(&id)
@@ -233,7 +233,7 @@ impl<T: Real> IndexStore<T> {
         first_currency: Currency,
         second_currency: Currency,
         date: Date,
-    ) -> Result<f64> {
+    ) -> Result<T> {
         let first_id = self.get_currency_curve(first_currency)?;
         let second_id = self.get_currency_curve(second_currency)?;
 

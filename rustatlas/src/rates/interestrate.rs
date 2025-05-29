@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     time::{date::Date, daycounter::DayCounter, enums::Frequency},
     utils::{errors::{AtlasError, Result}, num::Real},
+
 };
 
 use super::enums::Compounding;
@@ -161,6 +162,8 @@ impl<T: Real> InterestRate<T> {
             match comp {
                 Compounding::Simple => r = (compound - T::from(1.0)) / t,
                 Compounding::Compounded => r = (compound.powf(T::from(1.0) / (f * t)) - T::from(1.0)) * f,
+
+
                 Compounding::Continuous => r = compound.ln() / t,
                 Compounding::SimpleThenCompounded => {
                     if t <= T::from(1.0) / f {
@@ -183,7 +186,7 @@ impl<T: Real> InterestRate<T> {
 
     pub fn compound_factor(&self, start: Date, end: Date) -> T {
         let day_counter = self.day_counter();
-        let year_fraction = day_counter.year_fraction(start, end);
+        let year_fraction = day_counter.year_fraction::<T>(start, end);
         return self.compound_factor_from_yf(year_fraction);
     }
 
@@ -194,6 +197,7 @@ impl<T: Real> InterestRate<T> {
         match compounding {
             Compounding::Simple => rate * year_fraction + T::from(1.0),
             Compounding::Compounded => (T::from(1.0) + rate / f).powf(f * year_fraction),
+
             Compounding::Continuous => (rate * year_fraction).exp(),
             Compounding::SimpleThenCompounded => {
                 if year_fraction <= T::from(1.0) / f {
