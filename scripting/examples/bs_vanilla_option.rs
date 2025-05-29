@@ -10,6 +10,7 @@ use rustatlas::time::{date::Date, daycounter::DayCounter};
 
 fn main() -> Result<()> {
     // Model parameters
+
     let ref_date = Date::new(2024, 1, 1);
     let maturity_date = Date::new(2025, 1, 1);
     let t = DayCounter::Actual365.year_fraction::<f64>(ref_date, maturity_date);
@@ -19,6 +20,7 @@ fn main() -> Result<()> {
     let vol = 0.2;
 
     // Scripted payoff of a call option
+
     let script = "
     opt = 0;
     s = Spot(\"CLP\", \"USD\");
@@ -71,6 +73,5 @@ fn main() -> Result<()> {
     println!("Delta analytic vs AD:  {:.6}  {:.6}", delta_bs, delta_ad);
     println!("Gamma analytic vs AD:  {:.6}  {:.6}", gamma_bs, gamma_ad);
     println!("Theta analytic vs AD:  {:.6}  {:.6}", theta_bs, theta_ad);
-
     Ok(())
 }

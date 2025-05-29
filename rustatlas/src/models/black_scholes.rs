@@ -43,6 +43,7 @@ impl<T: Real> BlackScholesModel<T> {
             let x: T = drift + diffusion;
             let st = self.s0 * x.exp();
             let scenario: Vec<MarketData<T>> = reqs
+
                 .iter()
                 .map(|req| {
                     let fx = req.fx().map(|_| st);
@@ -50,6 +51,7 @@ impl<T: Real> BlackScholesModel<T> {
                 })
                 .collect();
             scenarios.push(scenario);
+
         }
         Ok(scenarios)
     }
