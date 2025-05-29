@@ -2,10 +2,22 @@ use core::fmt;
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    currencies::{enums::Currency, exchangeratestore::ExchangeRateStore, traits::{AdvanceExchangeRateStoreInTime, CurrencyDetails}}, rates::{
-        indexstore::{IndexStore, ReadIndex}, interestrateindex::traits::InterestRateIndexTrait,
+    currencies::{
+        enums::Currency,
+        exchangeratestore::ExchangeRateStore,
+        traits::{AdvanceExchangeRateStoreInTime, CurrencyDetails},
+    },
+    rates::{
+        indexstore::{IndexStore, ReadIndex},
+        interestrateindex::traits::InterestRateIndexTrait,
         traits::HasReferenceDate,
-    }, time::{date::Date, enums::TimeUnit, period::Period}, utils::{errors::{AtlasError, Result}, tools}
+    },
+    time::{date::Date, enums::TimeUnit, period::Period},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+        tools,
+    },
 };
 
 /// # MarketStore
@@ -17,15 +29,15 @@ use crate::{
 /// * `exchange_rate_store` - The exchange rate store
 /// * `index_store` - The index store
 #[derive(Clone)]
-pub struct MarketStore {
+pub struct MarketStore<T: Real> {
     reference_date: Date,
     local_currency: Currency,
-    exchange_rate_store: ExchangeRateStore,
-    index_store: IndexStore,
+    exchange_rate_store: ExchangeRateStore<T>,
+    index_store: IndexStore<T>,
 }
 
-impl MarketStore {
-    pub fn new(reference_date: Date, local_currency: Currency) -> MarketStore {
+impl<T: Real> MarketStore<T> {
+    pub fn new(reference_date: Date, local_currency: Currency) -> MarketStore<T> {
         MarketStore {
             reference_date,
             local_currency,
@@ -38,19 +50,19 @@ impl MarketStore {
         self.local_currency
     }
 
-    pub fn exchange_rate_store(&self) -> &ExchangeRateStore {
+    pub fn exchange_rate_store(&self) -> &ExchangeRateStore<T> {
         &self.exchange_rate_store
     }
 
-    pub fn mut_exchange_rate_store(&mut self) -> &mut ExchangeRateStore {
+    pub fn mut_exchange_rate_store(&mut self) -> &mut ExchangeRateStore<T> {
         &mut self.exchange_rate_store
     }
 
-    pub fn index_store(&self) -> &IndexStore {
+    pub fn index_store(&self) -> &IndexStore<T> {
         &self.index_store
     }
 
-    pub fn mut_index_store(&mut self) -> &mut IndexStore {
+    pub fn mut_index_store(&mut self) -> &mut IndexStore<T> {
         &mut self.index_store
     }
 
@@ -58,7 +70,7 @@ impl MarketStore {
         &self,
         first_currency: Currency,
         second_currency: Option<Currency>,
-    ) -> Result<f64> {
+    ) -> Result<T> {
         let second_currency = match second_currency {
             Some(ccy) => ccy,
             None => self.local_currency,
@@ -68,11 +80,11 @@ impl MarketStore {
             .get_exchange_rate(first_currency, second_currency);
     }
 
-    pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>> {
+    pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
         return self.index_store.get_index(id);
     }
 
-    pub fn advance_to_period(&self, period: Period) -> Result<MarketStore> {
+    pub fn advance_to_period(&self, period: Period) -> Result<MarketStore<T>> {
         if period.length() < 0 {
             return Err(AtlasError::InvalidValueErr(format!(
                 "Negative periods are not allowed when advancing market store in time ({:?})",
@@ -80,9 +92,11 @@ impl MarketStore {
             )));
         }
         let new_reference_date = self.reference_date + period;
-        let new_exchange_rate_store = self.exchange_rate_store.advance_to_period(period, &self.index_store)?;
+        let new_exchange_rate_store = self
+            .exchange_rate_store
+            .advance_to_period(period, &self.index_store)?;
         let new_index_store = self.index_store.advance_to_period(period)?;
-        
+
         Ok(MarketStore {
             reference_date: new_reference_date,
             local_currency: self.local_currency,
@@ -91,7 +105,7 @@ impl MarketStore {
         })
     }
 
-    pub fn advance_to_date(&self, date: Date) -> Result<MarketStore> {
+    pub fn advance_to_date(&self, date: Date) -> Result<MarketStore<T>> {
         if date < self.reference_date {
             return Err(AtlasError::InvalidValueErr(format!(
                 "Date {} is before reference date {}",
@@ -104,16 +118,15 @@ impl MarketStore {
     }
 }
 
-impl HasReferenceDate for MarketStore {
+impl<T: Real> HasReferenceDate for MarketStore<T> {
     fn reference_date(&self) -> Date {
         self.reference_date
     }
 }
 
 // fecha, moneda, qué curvas tiene cargadas, paridades
-impl fmt::Display for MarketStore {
+impl<T: Real + fmt::Display> fmt::Display for MarketStore<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-
         let mut msg = "=====================================\n".to_string();
         msg.push_str("======= MarketStore features! =======\n");
         msg.push_str("=====================================\n");
@@ -140,7 +153,7 @@ impl fmt::Display for MarketStore {
             };
             if indice_name != "".to_string() {
                 indices_names.push(indice_name);
-            }   
+            }
         }
 
         let indices_map = index_store.get_index_map().unwrap();
@@ -151,7 +164,6 @@ impl fmt::Display for MarketStore {
         msg.push_str(&indices_names.len().to_string());
         msg.push_str("):\n");
         for indice_name in indices_names {
-
             let indice_idx = match indices_map.get(&indice_name) {
                 Some(idx) => idx.to_string(),
                 None => "".to_string(),

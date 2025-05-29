@@ -7,7 +7,7 @@ use crate::{
         traits::{HasReferenceDate, YieldProvider},
     },
     time::{date::Date, enums::Frequency, period::Period},
-    utils::errors::{AtlasError, Result},
+    utils::{errors::{AtlasError, Result}, num::Real},
 };
 
 use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
@@ -60,7 +60,7 @@ impl HasReferenceDate for FlatForwardTermStructure {
     }
 }
 
-impl YieldProvider for FlatForwardTermStructure {
+impl<T: Real> YieldProvider<T> for FlatForwardTermStructure {
     fn discount_factor(&self, date: Date) -> Result<f64> {
         if date < self.reference_date() {
             return Err(AtlasError::InvalidValueErr(format!(

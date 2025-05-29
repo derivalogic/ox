@@ -1,7 +1,7 @@
 use super::enums::Compounding;
 use crate::{
     time::{date::Date, enums::Frequency},
-    utils::errors::Result,
+    utils::{errors::Result, num::Real},
 };
 
 /// # HasReferenceDate
@@ -12,13 +12,13 @@ pub trait HasReferenceDate {
 
 /// # YieldProvider
 /// Implement this trait for a struct that provides yield information.
-pub trait YieldProvider: HasReferenceDate {
-    fn discount_factor(&self, date: Date) -> Result<f64>;
+pub trait YieldProvider<T: Real>: HasReferenceDate {
+    fn discount_factor(&self, date: Date) -> Result<T>;
     fn forward_rate(
         &self,
         start_date: Date,
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<f64>;
+    ) -> Result<T>;
 }

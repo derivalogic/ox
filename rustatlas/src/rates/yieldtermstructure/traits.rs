@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     rates::traits::{HasReferenceDate, YieldProvider},
     time::{date::Date, period::Period},
-    utils::errors::Result,
+    utils::{errors::Result, num::Real},
 };
 
 // /// # YieldTermStructureTraitClone
@@ -30,9 +30,9 @@ use crate::{
 /// # AdvanceTermStructureInTime
 /// Trait for advancing in time a given object. Returns a represation of the object
 /// as it would be after the given period.
-pub trait AdvanceTermStructureInTime {
-    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait>>;
-    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait>>;
+pub trait AdvanceTermStructureInTime<T: Real> {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>>;
+    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>>;
 }
 
 /// # YieldTermStructureTrait
@@ -46,7 +46,7 @@ pub trait AdvanceTermStructureInTime {
 /// - Send
 ///
 /// Send is required to be able to send the trait to another thread.
-pub trait YieldTermStructureTrait:
-    YieldProvider + HasReferenceDate + AdvanceTermStructureInTime + Send + Sync
+pub trait YieldTermStructureTrait<T: Real>:
+    YieldProvider<T> + HasReferenceDate + AdvanceTermStructureInTime<T> + Send + Sync
 {
 }
