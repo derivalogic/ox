@@ -32,23 +32,23 @@ pub trait FixingProvider<T: Real> {
                 .map(|(k, v)| (*k, *v))
                 .collect::<BTreeMap<Date, T>>();
 
-            let x: Vec<f64> = aux_btreemap
+            let x: Vec<T> = aux_btreemap
                 .keys()
-                .map(|&d| (d - first_date) as f64)
-                .collect::<Vec<f64>>();
+                .map(|&d| T::from((d - first_date) as f64))
+                .collect();
 
             let y = aux_btreemap
                 .values()
-                .map(|r| *r.into())
-                .collect::<Vec<f64>>();
+                .cloned()
+                .collect::<Vec<T>>();
 
             let mut current_date = first_date.clone();
 
             while current_date <= last_date {
                 if !self.fixings().contains_key(&current_date) {
-                    let days = (current_date - first_date) as f64;
+                    let days = T::from((current_date - first_date) as f64);
                     let rate = interpolator.interpolate(days, &x, &y, false);
-                    self.add_fixing(current_date, T::from(rate));
+                    self.add_fixing(current_date, rate);
                 }
                 current_date = current_date + Period::new(1, TimeUnit::Days);
             }
