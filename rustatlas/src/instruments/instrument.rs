@@ -11,8 +11,10 @@ use crate::{
 };
 
 use super::{
-    doublerateinstrument::DoubleRateInstrument, fixedrateinstrument::FixedRateInstrument, floatingrateinstrument::FloatingRateInstrument, hybridrateinstrument::HybridRateInstrument, traits::Structure
+    doublerateinstrument::DoubleRateInstrument, fixedrateinstrument::FixedRateInstrument,
+    floatingrateinstrument::FloatingRateInstrument, hybridrateinstrument::HybridRateInstrument, traits::Structure
 };
+use crate::utils::num::Real;
 
 /// # RateType
 /// Represents the type of rate.
@@ -60,14 +62,14 @@ impl From<RateType> for String {
 /// # Instrument
 /// Represents an instrument. This is a wrapper around the FixedRateInstrument and FloatingRateInstrument.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Instrument {
-    FixedRateInstrument(FixedRateInstrument),
-    FloatingRateInstrument(FloatingRateInstrument),
-    HybridRateInstrument(HybridRateInstrument),
-    DoubleRateInstrument(DoubleRateInstrument),
+pub enum Instrument<R: Real = f64> {
+    FixedRateInstrument(FixedRateInstrument<R>),
+    FloatingRateInstrument(FloatingRateInstrument<R>),
+    HybridRateInstrument(HybridRateInstrument<R>),
+    DoubleRateInstrument(DoubleRateInstrument<R>),
 }
 
-impl HasCashflows for Instrument {
+impl<R: Real> HasCashflows for Instrument<R> {
     fn cashflows(&self) -> &[Cashflow] {
         match self {
             Instrument::FixedRateInstrument(fri) => fri.cashflows(),
@@ -87,8 +89,8 @@ impl HasCashflows for Instrument {
     }
 }
 
-impl Instrument {
-    pub fn notional(&self) -> f64 {
+impl<R: Real> Instrument<R> {
+    pub fn notional(&self) -> R {
         match self {
             Instrument::FixedRateInstrument(fri) => fri.notional(),
             Instrument::FloatingRateInstrument(fri) => fri.notional(),
@@ -169,7 +171,7 @@ impl Instrument {
         }
     }
 
-    pub fn rate(&self) -> Option<f64> {
+    pub fn rate(&self) -> Option<R> {
         match self {
             Instrument::FixedRateInstrument(fri) => Some(fri.rate().rate()),
             Instrument::FloatingRateInstrument(_) => None,
@@ -178,7 +180,7 @@ impl Instrument {
         }
     }
 
-    pub fn spread(&self) -> Option<f64> {
+    pub fn spread(&self) -> Option<R> {
         match self {
             Instrument::FixedRateInstrument(_) => None,
             Instrument::FloatingRateInstrument(fri) => Some(fri.spread()),
