@@ -2,7 +2,7 @@ use crate::{
     cashflows::{cashflow::Side, traits::Payable},
     core::{meta::MarketData, traits::Registrable},
     time::date::Date,
-    utils::errors::{AtlasError, Result},
+    utils::{errors::{AtlasError, Result}, num::Real},
 };
 
 use super::traits::{ConstVisit, HasCashflows};
@@ -12,16 +12,16 @@ use std::collections::BTreeMap;
 /// NPVByDateConstVisitor is a visitor that calculates the NPV of an instrument and returns the result in a BTreeMap
 /// where the key is the payment date of the cashflow and the value is the NPV of the cashflow.
 /// It assumes that the cashflows of the instrument have already been indexed and fixed.
-pub struct NPVByDateConstVisitor<'a> {
-    market_data: &'a [MarketData],
+pub struct NPVByDateConstVisitor<'a, R: Real = f64> {
+    market_data: &'a [MarketData<R>],
     include_today_cashflows: bool,
     reference_date: Date,
 }
 
-impl<'a> NPVByDateConstVisitor<'a> {
+impl<'a, R: Real> NPVByDateConstVisitor<'a, R> {
     pub fn new(
         reference_date: Date,
-        market_data: &'a [MarketData],
+        market_data: &'a [MarketData<R>],
         include_today_cashflows: bool,
     ) -> Self {
         NPVByDateConstVisitor {
@@ -35,11 +35,11 @@ impl<'a> NPVByDateConstVisitor<'a> {
     }
 }
 
-impl<'a, T: HasCashflows> ConstVisit<T> for NPVByDateConstVisitor<'a> {
-    type Output = Result<BTreeMap<Date, f64>>;
+impl<'a, T: HasCashflows, R: Real> ConstVisit<T> for NPVByDateConstVisitor<'a, R> {
+    type Output = Result<BTreeMap<Date, R>>;
     fn visit(&self, visitable: &T) -> Self::Output {
         let mut npv_result = BTreeMap::new();
-        npv_result.insert(self.reference_date, 0.0);
+        npv_result.insert(self.reference_date, R::from(0.0));
         visitable
             .cashflows()
             .iter()
@@ -63,13 +63,13 @@ impl<'a, T: HasCashflows> ConstVisit<T> for NPVByDateConstVisitor<'a> {
                 let df = cf_market_data.df()?;
                 let fx = cf_market_data.fx()?;
                 let flag = match cf.side() {
-                    Side::Pay => -1.0,
-                    Side::Receive => 1.0,
+                    Side::Pay => R::from(-1.0),
+                    Side::Receive => R::from(1.0),
                 };
-                let amount = cf.amount()?;
+                let amount = R::from(cf.amount()?);
                 let npv = amount * df * fx * flag;
-                let acc = npv_result.entry(cf.payment_date()).or_insert(0.0);
-                *acc += npv;
+                let acc = npv_result.entry(cf.payment_date()).or_insert(R::from(0.0));
+                *acc = *acc + npv;
                 Ok(())
             })?;
         Ok(npv_result)

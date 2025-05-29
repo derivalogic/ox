@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::traits::Structure;
+use crate::utils::num::Real;
 use crate::{
     cashflows::{
         cashflow::{Cashflow, Side},
@@ -24,12 +25,37 @@ use crate::{
 /// * `rate` - The rate.
 /// * `cashflows` - The cashflows.
 /// * `structure` - The structure.
+///
+/// ## Example
+/// ```
+/// use rustatlas::prelude::*;
+/// use rustatlas::math::ad::Var;
+/// let start = Date::new(2024,1,1);
+/// let end = start + Period::new(1, TimeUnit::Years);
+/// let rate = InterestRate::new(Var::from(0.05), Compounding::Simple, Frequency::Annual, DayCounter::Actual365);
+/// let instrument = FixedRateInstrument::<Var>::new(
+///     start,
+///     end,
+///     Var::from(100.0),
+///     rate,
+///     Frequency::Annual,
+///     vec![],
+///     Structure::Bullet,
+///     Side::Receive,
+///     Currency::USD,
+///     None,
+///     None,
+///     None,
+///     None,
+/// );
+/// assert_eq!(instrument.notional().value(), 100.0);
+/// ```
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FixedRateInstrument {
+pub struct FixedRateInstrument<R: Real = f64> {
     start_date: Date,
     end_date: Date,
-    notional: f64,
-    rate: InterestRate,
+    notional: R,
+    rate: InterestRate<R>,
     payment_frequency: Frequency,
     cashflows: Vec<Cashflow>,
     structure: Structure,
@@ -38,15 +64,15 @@ pub struct FixedRateInstrument {
     discount_curve_id: Option<usize>,
     id: Option<String>,
     issue_date: Option<Date>,
-    yield_rate: Option<InterestRate>,
+    yield_rate: Option<InterestRate<R>>,
 }
 
-impl FixedRateInstrument {
+impl<R: Real> FixedRateInstrument<R> {
     pub fn new(
         start_date: Date,
         end_date: Date,
-        notional: f64,
-        rate: InterestRate,
+        notional: R,
+        rate: InterestRate<R>,
         payment_frequency: Frequency,
         cashflows: Vec<Cashflow>,
         structure: Structure,
@@ -55,7 +81,7 @@ impl FixedRateInstrument {
         discount_curve_id: Option<usize>,
         id: Option<String>,
         issue_date: Option<Date>,
-        yield_rate: Option<InterestRate>,
+        yield_rate: Option<InterestRate<R>>,
     ) -> Self {
         FixedRateInstrument {
             start_date,
@@ -86,11 +112,11 @@ impl FixedRateInstrument {
         self.end_date
     }
 
-    pub fn notional(&self) -> f64 {
+    pub fn notional(&self) -> R {
         self.notional
     }
 
-    pub fn rate(&self) -> InterestRate {
+    pub fn rate(&self) -> InterestRate<R> {
         self.rate
     }
 
@@ -123,7 +149,7 @@ impl FixedRateInstrument {
         self
     }
 
-    pub fn set_rate(mut self, rate: InterestRate) -> Self {
+    pub fn set_rate(mut self, rate: InterestRate<R>) -> Self {
         self.rate = rate;
         self.mut_cashflows().iter_mut().for_each(|cf| {
             match cf {
@@ -148,10 +174,10 @@ impl HasCurrency for FixedRateInstrument {
 /// Implements fixed rate bond accrual using a yield rate.  
 /// The yield rate is used to discount the cashflows to between the start and
 /// end dates and calculate the accrued amount.
-pub trait BondAccrual: HasCashflows {
-    fn yield_rate(&self) -> Option<InterestRate>;
+pub trait BondAccrual<R: Real>: HasCashflows {
+    fn yield_rate(&self) -> Option<InterestRate<R>>;
 
-    fn bond_accrued_amount(&self, start_date: Date, end_date: Date) -> Result<f64> {
+    fn bond_accrued_amount(&self, start_date: Date, end_date: Date) -> Result<R> {
         let ini_pv = self.discounted_cashflows(start_date)?;
         let end_pv = self.discounted_cashflows(end_date)?;
         let accrual = self.matured_amount_accrual(start_date, end_date)?;
@@ -165,7 +191,7 @@ pub trait BondAccrual: HasCashflows {
     }
 
     /// Calculates the accrual of cash paid between two dates.
-    fn matured_amount_accrual(&self, from: Date, to: Date) -> Result<f64> {
+    fn matured_amount_accrual(&self, from: Date, to: Date) -> Result<R> {
         // let rate = self
         //     .yield_rate()
         //     .ok_or(AtlasError::NotFoundErr("Yield rate".to_string()))?;
@@ -176,15 +202,14 @@ pub trait BondAccrual: HasCashflows {
             .filter(|cf| cf.payment_date() >= from && cf.payment_date() < to)
             .collect::<Vec<&Cashflow>>();
 
-        let mut amount = 0.0;
+        let mut amount = R::from(0.0);
         cashflows.iter().for_each(|cf| {
-            //amount += cf.amount().unwrap() / rate.discount_factor(cf.payment_date(), to);
-            amount += cf.amount().unwrap();
+            amount = amount + R::from(cf.amount().unwrap());
         });
         Ok(amount)
     }
 
-    fn discounted_cashflows(&self, evaluation_date: Date) -> Result<f64> {
+    fn discounted_cashflows(&self, evaluation_date: Date) -> Result<R> {
         let rate = self
             .yield_rate()
             .ok_or(AtlasError::NotFoundErr("Yield rate".to_string()))?;
@@ -193,17 +218,17 @@ pub trait BondAccrual: HasCashflows {
             .cashflows()
             .iter()
             .filter(|cf| cf.payment_date() >= evaluation_date)
-            .fold(0.0, |acc, cf| {
-                let npv = cf.amount().unwrap()
-                    * rate.discount_factor(evaluation_date, cf.payment_date())
-                    * cf.side().sign();
-                acc + npv
+            .fold(R::from(0.0), |acc, cf| {
+                let amount = R::from(cf.amount().unwrap());
+                let df = rate.discount_factor(evaluation_date, cf.payment_date());
+                let flag = R::from(cf.side().sign());
+                acc + amount * df * flag
             }))
     }
 }
 
-impl BondAccrual for FixedRateInstrument {
-    fn yield_rate(&self) -> Option<InterestRate> {
+impl<R: Real> BondAccrual<R> for FixedRateInstrument<R> {
+    fn yield_rate(&self) -> Option<InterestRate<R>> {
         self.yield_rate
     }
 }

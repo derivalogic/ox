@@ -7,9 +7,9 @@ This document outlines the remaining work required to complete the introduction 
 The following modules expose types with hard coded `f64` values.  They must become generic over `T: Real`.
 
 - `cashflows`: `Cashflow`, `SimpleCashflow`, `FixedRateCoupon`, `FloatingRateCoupon`.
-- `instruments`: all instrument structs (`FixedRateInstrument`, `FloatingRateInstrument`, `LoanDepo`, etc.) and builders (`Make*` helpers).
+- `instruments`: all instrument structs (`FixedRateInstrument`, `FloatingRateInstrument`, `LoanDepo`, etc.) and builders (`Make*` helpers). **(done)**
 - `alm` (asset/liability management) structs such as `CashAccount`, `PositionGenerator` and `RolloverSimulationEngine`.
-- visitors expecting `f64` market data – e.g. `NPVConstVisitor` already generic but some visitors and helpers still assume `f64`.
+- visitors expecting `f64` market data – e.g. `NPVConstVisitor` already generic but some visitors and helpers still assume `f64`. **(in progress)**
 - any pricing models still using `f64` (check models under `models` folder).
 
 Each struct should take a type parameter `<T: Real>` and store numeric fields as `T` instead of `f64`.  Associated methods and traits should be updated accordingly.  Builders should also be generic and default to `f64` for ergonomic use.
