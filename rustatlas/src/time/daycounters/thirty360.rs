@@ -13,7 +13,7 @@ use crate::{time::date::Date, utils::num::Real};
 /// let start = Date::new(2020, 1, 1);
 /// let end = Date::new(2020, 2, 1);
 /// assert_eq!(Thirty360::day_count(start, end), 30);
-/// assert_eq!(Thirty360::year_fraction(start, end), 30.0 / 360.0);
+/// assert_eq!(Thirty360::year_fraction::<f64>(start, end), 30.0 / 360.0);
 /// ```
 pub struct Thirty360;
 
@@ -52,7 +52,7 @@ impl DayCountProvider for Thirty360 {
 /// let start = Date::new(2020, 1, 1);
 /// let end = Date::new(2020, 2, 1);
 /// assert_eq!(Thirty360US::day_count(start, end), 30);
-/// assert_eq!(Thirty360US::year_fraction(start, end), 30.0 / 360.0);
+/// assert_eq!(Thirty360US::year_fraction::<f64>(start, end), 30.0 / 360.0);
 /// ```
 pub struct Thirty360US;
 

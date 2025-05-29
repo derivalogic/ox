@@ -36,7 +36,7 @@ use crate::{
 /// let instrument = FixedRateInstrument::<Var>::new(
 ///     start,
 ///     end,
-///     Var::from(100.0),
+///     100.0,
 ///     rate,
 ///     Frequency::Annual,
 ///     vec![],
@@ -48,7 +48,7 @@ use crate::{
 ///     None,
 ///     None,
 /// );
-/// assert_eq!(instrument.notional().value(), 100.0);
+/// assert_eq!(instrument.notional(), 100.0);
 /// ```
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FixedRateInstrument<R: Real = f64> {
