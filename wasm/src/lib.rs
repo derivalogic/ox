@@ -1,9 +1,15 @@
 use std::collections::HashMap;
+use std::cell::RefCell;
+
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{Request, RequestInit, RequestMode, Response};
+use wasm_bindgen::JsCast;
 
 use lefi::prelude::*;
 use rustatlas::math::ad::{backward, reset_tape, Var};
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json;
 
 #[derive(Deserialize)]
 struct PricingInput {
@@ -19,6 +25,38 @@ struct PricingOutput {
 struct RiskOutput {
     price: f64,
     sensitivities: HashMap<String, f64>,
+}
+
+thread_local! {
+    static BASE_URL: RefCell<Option<String>> = RefCell::new(None);
+    static SPOT_CACHE: RefCell<HashMap<String, f64>> = RefCell::new(HashMap::new());
+    static CURVE_CACHE: RefCell<HashMap<String, JsValue>> = RefCell::new(HashMap::new());
+}
+
+fn build_url(path: &str) -> Result<String, JsValue> {
+    BASE_URL.with(|b| {
+        b.borrow()
+            .as_ref()
+            .map(|base| format!("{}/rest/v1{}", base, path))
+            .ok_or_else(|| JsValue::from_str("base url not set"))
+    })
+}
+
+async fn fetch_json(url: String, api_key: &str) -> Result<JsValue, JsValue> {
+    let mut opts = RequestInit::new();
+    opts.method("GET");
+    opts.mode(RequestMode::Cors);
+
+    let request = Request::new_with_str_and_init(&url, &opts)?;
+    request.headers().set("apikey", api_key)?;
+    request
+        .headers()
+        .set("Authorization", &format!("Bearer {}", api_key))?;
+
+    let window = web_sys::window().ok_or_else(|| JsValue::from_str("no window"))?;
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+    let resp: Response = resp_value.dyn_into()?;
+    JsFuture::from(resp.json()?).await
 }
 
 #[wasm_bindgen]
@@ -108,4 +146,43 @@ pub fn run_pricing_with_risk(script_json: &str, target: &str) -> Result<JsValue,
 
     serde_wasm_bindgen::to_value(&RiskOutput { price, sensitivities: sens })
         .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+#[wasm_bindgen]
+pub fn init_market_data(base_url: &str) {
+    BASE_URL.with(|b| {
+        *b.borrow_mut() = Some(base_url.to_string());
+    });
+}
+
+#[wasm_bindgen]
+pub async fn get_spot_rate(api_key: &str, symbol: &str, date: &str) -> Result<f64, JsValue> {
+    let key = format!("{symbol}:{date}");
+    if let Some(rate) = SPOT_CACHE.with(|c| c.borrow().get(&key).copied()) {
+        return Ok(rate);
+    }
+
+    let url = build_url(&format!("/spot_rates?symbol=eq.{symbol}&date=eq.{date}&select=rate"))?;
+    let val = fetch_json(url, api_key).await?;
+    let parsed: Vec<serde_json::Value> = serde_wasm_bindgen::from_value(val.clone())
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let rate = parsed
+        .get(0)
+        .and_then(|v| v.get("rate"))
+        .and_then(|r| r.as_f64())
+        .unwrap_or(0.0);
+    SPOT_CACHE.with(|c| { c.borrow_mut().insert(key, rate); });
+    Ok(rate)
+}
+
+#[wasm_bindgen]
+pub async fn get_curve(api_key: &str, name: &str) -> Result<JsValue, JsValue> {
+    if let Some(data) = CURVE_CACHE.with(|c| c.borrow().get(name).cloned()) {
+        return Ok(data);
+    }
+
+    let url = build_url(&format!("/curves?name=eq.{name}"))?;
+    let val = fetch_json(url, api_key).await?;
+    CURVE_CACHE.with(|c| { c.borrow_mut().insert(name.to_string(), val.clone()); });
+    Ok(val)
 }
