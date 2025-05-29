@@ -1,4 +1,4 @@
-use num_traits::real::Real;
+use rustatlas::utils::num::Real;
 use rustatlas::prelude::*;
 use serde::{Deserialize, Serialize};
 

@@ -9,7 +9,7 @@ use rustatlas::models::traits::MonteCarloModel;
 use rustatlas::prelude::{FlatForwardTermStructure, OvernightIndex, RateDefinition};
 use rustatlas::time::date::Date;
 
-fn create_market_store() -> MarketStore {
+fn create_market_store() -> MarketStore<f64> {
     let ref_date = Date::new(2024, 1, 1);
     let mut store = MarketStore::new(ref_date, Currency::USD);
     store
@@ -63,8 +63,7 @@ fn main() -> Result<()> {
     let store = create_market_store();
     let model = RiskFreeMonteCarloModel::new(&store);
     let requests = indexer.get_market_requests();
-    let scenarios_var = model.gen_scenarios(&requests, 10)?;
-    let scenarios = RiskFreeMonteCarloModel::scenarios_to_f64(scenarios_var);
+    let scenarios = model.gen_scenarios(&requests, 10)?;
 
     let var_map = indexer.get_variable_indexes();
     let evaluator = EventStreamEvaluator::new(indexer.get_variables_size())

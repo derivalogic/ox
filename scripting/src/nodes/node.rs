@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use num_traits::real::Real;
+use rustatlas::utils::num::Real;
 use rustatlas::prelude::*;
 
 use crate::prelude::*;
