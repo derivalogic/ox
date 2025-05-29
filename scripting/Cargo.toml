@@ -10,3 +10,4 @@ rustatlas = { path = "../rustatlas"}
 rayon = "1.10.0"
 serde = { version = "1.0", features = ["derive"] }
 num-traits = "0.2.19"
+rand = "0.8"
