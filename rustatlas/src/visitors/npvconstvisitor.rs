@@ -1,7 +1,10 @@
 use crate::{
     cashflows::traits::Payable,
     core::{meta::MarketData, traits::Registrable},
-    utils::{errors::{AtlasError, Result}, num::Real},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+    },
 };
 
 use super::traits::{ConstVisit, HasCashflows};
@@ -30,38 +33,42 @@ impl<'a, R: Real> NPVConstVisitor<'a, R> {
     }
 }
 
-impl<'a, V, R> ConstVisit<V> for NPVConstVisitor<'a, R>
+impl<'a, V, R: Real> ConstVisit<V> for NPVConstVisitor<'a, R>
 where
-    V: HasCashflows,
+    V: HasCashflows<R>,
     R: Real,
 {
     type Output = Result<R>;
     fn visit(&self, visitable: &V) -> Self::Output {
-        let npv = visitable.cashflows().iter().try_fold(R::from(0.0), |acc, cf| {
-            let id = cf.id()?;
+        let npv = visitable
+            .cashflows()
+            .iter()
+            .try_fold(R::from(0.0), |acc, cf| {
+                let id = cf.id()?;
 
-            let cf_market_data =
-                self.market_data
-                    .get(id)
-                    .ok_or(AtlasError::NotFoundErr(format!(
-                        "Market data for cashflow with id {}",
-                        id
-                    )))?;
+                let cf_market_data =
+                    self.market_data
+                        .get(id)
+                        .ok_or(AtlasError::NotFoundErr(format!(
+                            "Market data for cashflow with id {}",
+                            id
+                        )))?;
 
-            if cf_market_data.reference_date() == cf.payment_date() && !self.include_today_cashflows
-                || cf.payment_date() < cf_market_data.reference_date()
-            {
-                return Ok(acc);
-            }
+                if cf_market_data.reference_date() == cf.payment_date()
+                    && !self.include_today_cashflows
+                    || cf.payment_date() < cf_market_data.reference_date()
+                {
+                    return Ok(acc);
+                }
 
-            let df = cf_market_data.df()?;
-            let fx = cf_market_data.fx()?;
-            let flag = cf.side().sign();
+                let df = cf_market_data.df()?;
+                let fx = cf_market_data.fx()?;
+                let flag = cf.side().sign();
 
-            let numerarie = cf_market_data.numerarie();
-            let amount = cf.amount()?;
-            Ok(acc + df * R::from(amount) / fx * R::from(flag) / numerarie)
-        });
+                let numerarie = cf_market_data.numerarie();
+                let amount = cf.amount()?;
+                Ok(acc + df * R::from(amount) / fx * R::from(flag) / numerarie)
+            });
         return npv;
     }
 }
@@ -79,22 +86,34 @@ mod tests {
     };
 
     use crate::{
-        core::marketstore::MarketStore, currencies::enums::Currency, instruments::{
-            fixedrateinstrument::FixedRateInstrument, makefixedrateinstrument::MakeFixedRateInstrument, makefloatingrateinstrument::MakeFloatingRateInstrument
-        }, models::{simplemodel::SimpleModel, traits::Model}, prelude::Side, rates::{
+        core::marketstore::MarketStore,
+        currencies::enums::Currency,
+        instruments::{
+            fixedrateinstrument::FixedRateInstrument,
+            makefixedrateinstrument::MakeFixedRateInstrument,
+            makefloatingrateinstrument::MakeFloatingRateInstrument,
+        },
+        models::{simplemodel::SimpleModel, traits::Model},
+        prelude::Side,
+        rates::{
             enums::Compounding,
             interestrate::{InterestRate, RateDefinition},
             interestrateindex::{iborindex::IborIndex, overnightindex::OvernightIndex},
             traits::HasReferenceDate,
             yieldtermstructure::flatforwardtermstructure::FlatForwardTermStructure,
-        }, time::{
-            date::Date, daycounter::DayCounter, enums::{Frequency, TimeUnit}, period::Period
-        }, visitors::{fixingvisitor::FixingVisitor, indexingvisitor::IndexingVisitor, traits::Visit}
+        },
+        time::{
+            date::Date,
+            daycounter::DayCounter,
+            enums::{Frequency, TimeUnit},
+            period::Period,
+        },
+        visitors::{fixingvisitor::FixingVisitor, indexingvisitor::IndexingVisitor, traits::Visit},
     };
 
     use super::*;
 
-    pub fn create_store() -> Result<MarketStore> {
+    pub fn create_store() -> Result<MarketStore<f64>> {
         let ref_date = Date::new(2021, 9, 1);
         let local_currency = Currency::USD;
         let mut market_store = MarketStore::new(ref_date, local_currency);
@@ -118,7 +137,7 @@ mod tests {
                 DayCounter::Thirty360,
                 Compounding::Compounded,
                 Frequency::Annual,
-            )
+            ),
         ));
 
         let mut ibor_fixings = HashMap::new();
@@ -192,7 +211,7 @@ mod tests {
             .with_notional(notional)
             .build()?;
 
-        let indexer = IndexingVisitor::new();
+        let indexer: IndexingVisitor<f64> = IndexingVisitor::new();
         indexer.visit(&mut instrument)?;
 
         let model = SimpleModel::new(&market_store);
@@ -241,7 +260,7 @@ mod tests {
 
         let npv_visitor = NPVConstVisitor::new(&data, true);
         let npv = npv_visitor.visit(&instrument)?;
-        
+
         assert!(npv.abs() > 70000.0);
         Ok(())
     }
@@ -302,25 +321,24 @@ mod tests {
             0.05,
             Compounding::Compounded,
             Frequency::Annual,
-            DayCounter::Thirty360
+            DayCounter::Thirty360,
         );
 
         let mut instrument = MakeFixedRateInstrument::new()
-                .with_start_date(start_date)
-                .with_end_date(end_date)
-                .with_rate(rate)
-                .with_payment_frequency(Frequency::Semiannual)
-                .with_side(Side::Receive)
-                .with_currency(Currency::USD)
-                .with_discount_curve_id(Some(2))
-                .with_notional(notional)
-                .equal_payments()
-                .build()?;
-
+            .with_start_date(start_date)
+            .with_end_date(end_date)
+            .with_rate(rate)
+            .with_payment_frequency(Frequency::Semiannual)
+            .with_side(Side::Receive)
+            .with_currency(Currency::USD)
+            .with_discount_curve_id(Some(2))
+            .with_notional(notional)
+            .equal_payments()
+            .build()?;
 
         let builder = MakeFixedRateInstrument::from(&instrument.clone());
         let mut instrument_rebuilt = builder.build()?;
-                    
+
         let indexer = IndexingVisitor::new();
         indexer.visit(&mut instrument)?;
         indexer.visit(&mut instrument_rebuilt)?;
@@ -334,8 +352,8 @@ mod tests {
 
         assert!(npv.abs() < 1e-6);
         assert!(npv_rebuilt.abs() < 1e-6);
-        
-        Ok(())  
+
+        Ok(())
     }
 
     #[test]

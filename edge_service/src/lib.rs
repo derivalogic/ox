@@ -23,7 +23,7 @@ pub struct PricingResponse {
     pub sensitivities: Vec<Vec<f64>>,
 }
 
-fn create_market_store() -> MarketStore {
+fn create_market_store() -> MarketStore<f64> {
     let ref_date = rustatlas::time::date::Date::new(2024, 1, 1);
     let mut store = MarketStore::new(ref_date, Currency::USD);
     store
@@ -82,10 +82,9 @@ fn handle_connection(mut stream: TcpStream) {
     let requests = indexer.get_market_requests();
     let store = create_market_store();
     let model = RiskFreeMonteCarloModel::new(&store);
-    let scenarios_var = model
+    let scenarios = model
         .gen_scenarios(&requests, req.num_scenarios.max(1))
         .unwrap_or_default();
-    let scenarios = RiskFreeMonteCarloModel::scenarios_to_f64(scenarios_var);
     let var_map = indexer.get_variable_indexes();
     let evaluator = EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
     let variables = evaluator

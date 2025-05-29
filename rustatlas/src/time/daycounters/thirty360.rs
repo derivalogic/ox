@@ -1,5 +1,5 @@
 use super::traits::DayCountProvider;
-use crate::time::date::Date;
+use crate::{time::date::Date, utils::num::Real};
 
 /// # Thirty360 (ISMA)
 /// Convention: if the starting date is the 31st of a
@@ -13,7 +13,7 @@ use crate::time::date::Date;
 /// let start = Date::new(2020, 1, 1);
 /// let end = Date::new(2020, 2, 1);
 /// assert_eq!(Thirty360::day_count(start, end), 30);
-/// assert_eq!(Thirty360::year_fraction(start, end), 30.0 / 360.0);
+/// assert_eq!(Thirty360::year_fraction::<f64>(start, end), 30.0 / 360.0);
 /// ```
 pub struct Thirty360;
 
@@ -32,8 +32,8 @@ impl DayCountProvider for Thirty360 {
         return 360 * (y2 - y1) + 30 * (m2 - m1) + (dd2 - dd1);
     }
 
-    fn year_fraction(start: Date, end: Date) -> f64 {
-        return Thirty360::day_count(start, end) as f64 / 360.0;
+    fn year_fraction<T: Real>(start: Date, end: Date) -> T {
+        T::from(Thirty360::day_count(start, end) as f64) / T::from(360.0)
     }
 }
 
@@ -52,17 +52,16 @@ impl DayCountProvider for Thirty360 {
 /// let start = Date::new(2020, 1, 1);
 /// let end = Date::new(2020, 2, 1);
 /// assert_eq!(Thirty360US::day_count(start, end), 30);
-/// assert_eq!(Thirty360US::year_fraction(start, end), 30.0 / 360.0);
+/// assert_eq!(Thirty360US::year_fraction::<f64>(start, end), 30.0 / 360.0);
 /// ```
 pub struct Thirty360US;
-
 
 fn is_last_of_february(d: i64, m: i64, y: i32) -> bool {
     if Date::is_leap_year(y) {
         return m == 2 && d == 28 + 1;
     } else {
         return m == 2 && d == 28;
-    }    
+    }
 }
 
 impl DayCountProvider for Thirty360US {
@@ -77,13 +76,21 @@ impl DayCountProvider for Thirty360US {
         let dd1 = if d1 == 31 { 30 } else { d1 };
         let dd2 = if d2 == 31 && dd1 >= 30 { 30 } else { d2 };
 
-        let dd1 = if is_last_of_february(dd1, m1, y1) { 30 } else { dd1 };
-        let dd2 = if is_last_of_february(dd2, m2, y2) { 30 } else { dd2 };
+        let dd1 = if is_last_of_february(dd1, m1, y1) {
+            30
+        } else {
+            dd1
+        };
+        let dd2 = if is_last_of_february(dd2, m2, y2) {
+            30
+        } else {
+            dd2
+        };
 
         return 360 * ((y2 as i64) - (y1 as i64)) + 30 * (m2 - m1) + (dd2 - dd1);
     }
 
-    fn year_fraction(start: Date, end: Date) -> f64 {
-        return Thirty360US::day_count(start, end) as f64 / 360.0;
+    fn year_fraction<T: Real>(start: Date, end: Date) -> T {
+        T::from(Thirty360US::day_count(start, end) as f64) / T::from(360.0)
     }
 }

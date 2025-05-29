@@ -41,7 +41,7 @@ pub fn print_title(title: &str) {
 }
 
 #[allow(dead_code)]
-pub fn print_table(cashflows: &[Cashflow], market_data: Rc<Vec<MarketData>>) {
+pub fn print_table(cashflows: &[Cashflow<f64>], market_data: Rc<Vec<MarketData>>) {
     println!(
         "{:10} | {:10} | {:10} | {:10}| {:10}",
         "Date", "Amount", "DF", "FWD", "FX"
@@ -83,7 +83,7 @@ fn make_fixings(start: Date, end: Date, rate: f64) -> HashMap<Date, f64> {
 }
 
 #[allow(dead_code)]
-pub fn create_store() -> Result<MarketStore> {
+pub fn create_store() -> Result<MarketStore<f64>> {
     let ref_date = Date::new(2021, 9, 1);
     let local_currency = Currency::USD;
     let mut market_store = MarketStore::new(ref_date, local_currency);

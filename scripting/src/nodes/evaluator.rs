@@ -1,4 +1,4 @@
-use num_traits::real::Real;
+use rustatlas::utils::num::Real;
 use rustatlas::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +21,69 @@ pub enum Value<T: Real = f64> {
     Number(T),
     String(String),
     Null,
+}
+
+#[cfg(test)]
+mod autodiff_tests {
+    use super::*;
+    use rustatlas::math::ad::{backward, reset_tape, Var};
+
+    #[test]
+    fn test_autodiff_square() {
+        reset_tape();
+        let script = "y = x * x;".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let indexer = EventIndexer::new();
+        indexer.visit(&nodes).unwrap();
+        let var_map = indexer.get_variable_indexes();
+        let x_idx = *var_map.get("x").unwrap();
+        let y_idx = *var_map.get("y").unwrap();
+
+        let x_var = Var::new(3.0);
+        let mut evaluator =
+            ExprEvaluator::<Var>::new_with_type().with_variables(indexer.get_variables_size());
+        evaluator.variables.lock().unwrap()[x_idx] = Value::Number(x_var);
+
+        evaluator.const_visit(nodes).unwrap();
+        let vars = evaluator.variables();
+        let y_var = match vars.get(y_idx).unwrap() {
+            Value::Number(v) => *v,
+            _ => panic!("y not number"),
+        };
+        let grad = backward(&y_var);
+        assert!((grad[x_var.id()] - 6.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_autodiff_exp() {
+        reset_tape();
+        let script = "y = exp(x);".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let indexer = EventIndexer::new();
+        indexer.visit(&nodes).unwrap();
+        let var_map = indexer.get_variable_indexes();
+        let x_idx = *var_map.get("x").unwrap();
+        let y_idx = *var_map.get("y").unwrap();
+
+        let x_val = 0.7;
+        let x_var = Var::new(x_val);
+        let mut evaluator =
+            ExprEvaluator::<Var>::new_with_type().with_variables(indexer.get_variables_size());
+        evaluator.variables.lock().unwrap()[x_idx] = Value::Number(x_var);
+
+        evaluator.const_visit(nodes).unwrap();
+        let vars = evaluator.variables();
+        let y_var = match vars.get(y_idx).unwrap() {
+            Value::Number(v) => *v,
+            _ => panic!("y not number"),
+        };
+        let grad = backward(&y_var);
+        assert!((grad[x_var.id()] - x_val.exp()).abs() < 1e-12);
+    }
 }
 
 impl Add for Value {
@@ -87,24 +150,24 @@ impl Div for Value {
     }
 }
 
-pub type Scenario = Vec<MarketData>;
-pub type Numeraries = Vec<f64>;
+pub type Scenario<T = f64> = Vec<MarketData<T>>;
+pub type Numeraries<T = f64> = Vec<T>;
 
 /// # ExprEvaluator
 /// Visitor that evaluates the expression tree
 pub struct ExprEvaluator<'a, T: Real = f64> {
-    variables: Mutex<Vec<Value>>,
+    variables: Mutex<Vec<Value<T>>>,
     digit_stack: Mutex<Vec<T>>,
     boolean_stack: Mutex<Vec<bool>>,
     string_stack: Mutex<Vec<String>>,
     is_lhs_variable: Mutex<bool>,
     lhs_variable: Mutex<Option<Box<Node>>>,
 
-    scenario: Option<&'a Scenario>,
+    scenario: Option<&'a Scenario<T>>,
 }
 
-impl<'a> ExprEvaluator<'a> {
-    pub fn new() -> Self {
+impl<'a, T: Real> ExprEvaluator<'a, T> {
+    pub fn new_with_type() -> Self {
         ExprEvaluator {
             variables: Mutex::new(Vec::new()),
             digit_stack: Mutex::new(Vec::new()),
@@ -116,7 +179,7 @@ impl<'a> ExprEvaluator<'a> {
         }
     }
 
-    pub fn with_scenario(mut self, scenario: &'a Scenario) -> Self {
+    pub fn with_scenario(mut self, scenario: &'a Scenario<T>) -> Self {
         self.scenario = Some(scenario);
         self
     }
@@ -126,11 +189,11 @@ impl<'a> ExprEvaluator<'a> {
         self
     }
 
-    pub fn variables(&self) -> Vec<Value> {
+    pub fn variables(&self) -> Vec<Value<T>> {
         self.variables.lock().unwrap().clone()
     }
 
-    pub fn digit_stack(&self) -> Vec<f64> {
+    pub fn digit_stack(&self) -> Vec<T> {
         self.digit_stack.lock().unwrap().clone()
     }
 
@@ -139,7 +202,13 @@ impl<'a> ExprEvaluator<'a> {
     }
 }
 
-impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
+impl<'a> ExprEvaluator<'a> {
+    pub fn new() -> Self {
+        ExprEvaluator::<'a, f64>::new_with_type()
+    }
+}
+
+impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
     type Output = Result<()>;
     fn const_visit(&self, node: Box<Node>) -> Self::Output {
         let eval: Result<()> = match node.as_ref() {
@@ -197,7 +266,10 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                         "Spot not found".to_string(),
                     ))?;
 
-                self.digit_stack.lock().unwrap().push(market_data.fx()?);
+                self.digit_stack
+                    .lock()
+                    .unwrap()
+                    .push(T::from(market_data.fx()?));
                 Ok(())
             }
             Node::RateIndex(_, _, _, index) => {
@@ -215,7 +287,10 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                         "RateIndex not found".to_string(),
                     ))?;
 
-                self.digit_stack.lock().unwrap().push(market_data.fwd()?);
+                self.digit_stack
+                    .lock()
+                    .unwrap()
+                    .push(T::from(market_data.fwd()?));
                 Ok(())
             }
             Node::Pays(children, index) => {
@@ -245,7 +320,7 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                 Ok(())
             }
             Node::Constant(value) => {
-                self.digit_stack.lock().unwrap().push(*value);
+                self.digit_stack.lock().unwrap().push(T::from(*value));
                 Ok(())
             }
             Node::String(value) => {
@@ -347,7 +422,7 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                 self.boolean_stack
                     .lock()
                     .unwrap()
-                    .push((right - left).abs() >= f64::EPSILON);
+                    .push((right - left).abs() >= T::from(f64::EPSILON));
 
                 Ok(())
             }
@@ -448,7 +523,7 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                 self.boolean_stack
                     .lock()
                     .unwrap()
-                    .push((right - left).abs() < f64::EPSILON);
+                    .push((right - left).abs() < T::from(f64::EPSILON));
 
                 Ok(())
             }
@@ -574,20 +649,20 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
 
 /// # EventStreamEvaluator
 /// Visitor that evaluates the event stream
-pub struct EventStreamEvaluator<'a> {
+pub struct EventStreamEvaluator<'a, T: Real = f64> {
     n_vars: usize,
-    scenarios: Option<&'a Vec<Scenario>>,
+    scenarios: Option<&'a Vec<Scenario<T>>>,
 }
 
-impl<'a> EventStreamEvaluator<'a> {
-    pub fn new(n_vars: usize) -> Self {
+impl<'a, T: Real> EventStreamEvaluator<'a, T> {
+    pub fn new_with_type(n_vars: usize) -> Self {
         EventStreamEvaluator {
             n_vars,
             scenarios: None,
         }
     }
 
-    pub fn with_scenarios(mut self, scenarios: &'a Vec<Scenario>) -> Self {
+    pub fn with_scenarios(mut self, scenarios: &'a Vec<Scenario<T>>) -> Self {
         self.scenarios = Some(scenarios);
         self
     }
@@ -596,13 +671,13 @@ impl<'a> EventStreamEvaluator<'a> {
         &self,
         event_stream: &EventStream,
         var_indexes: &HashMap<String, usize>,
-    ) -> Result<HashMap<String, Value>> {
+    ) -> Result<HashMap<String, Value<T>>> {
         let scenarios = self.scenarios.ok_or(ScriptingError::EvaluationError(
             "No scenarios set".to_string(),
         ))?;
 
         // Evaluate the events to get the variables using the first scenario
-        let mut evaluator = ExprEvaluator::new().with_variables(self.n_vars);
+        let mut evaluator = ExprEvaluator::<'_, T>::new_with_type().with_variables(self.n_vars);
         if let Some(first) = scenarios.first() {
             evaluator = evaluator.with_scenario(first);
         }
@@ -614,11 +689,11 @@ impl<'a> EventStreamEvaluator<'a> {
                 Ok(())
             })?;
 
-        let v: Vec<Value> = evaluator
+        let v: Vec<Value<T>> = evaluator
             .variables()
             .iter()
             .map(|v| match v {
-                Value::Number(_) => Value::Number(0.0),
+                Value::Number(_) => Value::Number(T::from(0.0)),
                 _ => v.clone(),
             })
             .collect();
@@ -626,7 +701,7 @@ impl<'a> EventStreamEvaluator<'a> {
         let global_variables = Mutex::new(v);
 
         scenarios.iter().try_for_each(|scenario| -> Result<()> {
-            let evaluator = ExprEvaluator::new()
+            let evaluator = ExprEvaluator::<T>::new_with_type()
                 .with_variables(self.n_vars)
                 .with_scenario(scenario);
 
@@ -643,7 +718,7 @@ impl<'a> EventStreamEvaluator<'a> {
             vars.iter_mut()
                 .zip(local_variables.iter())
                 .for_each(|(g, l)| match (g, l) {
-                    (Value::Number(g), Value::Number(l)) => *g += l,
+                    (Value::Number(g), Value::Number(l)) => *g = *g + *l,
                     _ => (),
                 });
 
@@ -652,10 +727,10 @@ impl<'a> EventStreamEvaluator<'a> {
 
         //avg
         let mut vars = global_variables.lock().unwrap();
-        let len = scenarios.len() as f64;
+        let len = T::from(scenarios.len() as f64);
 
         vars.iter_mut().for_each(|v| match v {
-            Value::Number(v) => *v /= len,
+            Value::Number(v) => *v = *v / len,
             _ => (),
         });
 
@@ -667,6 +742,12 @@ impl<'a> EventStreamEvaluator<'a> {
         }
 
         Ok(map)
+    }
+}
+
+impl<'a> EventStreamEvaluator<'a> {
+    pub fn new(n_vars: usize) -> Self {
+        EventStreamEvaluator::<'a, f64>::new_with_type(n_vars)
     }
 }
 

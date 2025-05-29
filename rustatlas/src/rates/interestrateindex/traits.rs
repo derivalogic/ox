@@ -10,15 +10,15 @@ use crate::{
         yieldtermstructure::traits::YieldTermStructureTrait,
     },
     time::{date::Date, enums::TimeUnit, period::Period},
-    utils::errors::Result,
+    utils::{errors::Result, num::Real},
 };
 
 /// # FixingProvider
 /// Implement this trait for a struct that provides fixing information.
-pub trait FixingProvider {
-    fn fixing(&self, date: Date) -> Result<f64>;
-    fn fixings(&self) -> &HashMap<Date, f64>;
-    fn add_fixing(&mut self, date: Date, rate: f64);
+pub trait FixingProvider<T: Real> {
+    fn fixing(&self, date: Date) -> Result<T>;
+    fn fixings(&self) -> &HashMap<Date, T>;
+    fn add_fixing(&mut self, date: Date, rate: T);
 
     /// Fill missing fixings using interpolation.
     fn fill_missing_fixings(&mut self, interpolator: Interpolator) {
@@ -30,20 +30,23 @@ pub trait FixingProvider {
                 .fixings()
                 .iter()
                 .map(|(k, v)| (*k, *v))
-                .collect::<BTreeMap<Date, f64>>();
+                .collect::<BTreeMap<Date, T>>();
 
-            let x: Vec<f64> = aux_btreemap
+            let x: Vec<T> = aux_btreemap
                 .keys()
-                .map(|&d| (d - first_date) as f64)
-                .collect::<Vec<f64>>();
+                .map(|&d| T::from((d - first_date) as f64))
+                .collect();
 
-            let y = aux_btreemap.values().map(|r| *r).collect::<Vec<f64>>();
+            let y = aux_btreemap
+                .values()
+                .cloned()
+                .collect::<Vec<T>>();
 
             let mut current_date = first_date.clone();
 
             while current_date <= last_date {
                 if !self.fixings().contains_key(&current_date) {
-                    let days = (current_date - first_date) as f64;
+                    let days = T::from((current_date - first_date) as f64);
                     let rate = interpolator.interpolate(days, &x, &y, false);
                     self.add_fixing(current_date, rate);
                 }
@@ -77,9 +80,12 @@ pub trait FixingProvider {
 /// # AdvanceInterestRateIndexInTime
 /// Trait for advancing in time a given object. Returns a represation of the object
 /// as it would be after the given period/time.
-pub trait AdvanceInterestRateIndexInTime {
-    fn advance_to_period(&self, period: Period) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>>;
-    fn advance_to_date(&self, date: Date) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>>;
+pub trait AdvanceInterestRateIndexInTime<T: Real> {
+    fn advance_to_period(
+        &self,
+        period: Period,
+    ) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>>;
+    fn advance_to_date(&self, date: Date) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>>;
 }
 /// # HasTenor
 /// Implement this trait for a struct that holds a tenor.
@@ -89,8 +95,8 @@ pub trait HasTenor {
 
 /// # HasTermStructure
 /// Implement this trait for a struct that holds a term structure.
-pub trait HasTermStructure {
-    fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait>>;
+pub trait HasTermStructure<T: Real> {
+    fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait<T>>>;
 }
 
 /// # HasName
@@ -101,22 +107,20 @@ pub trait HasName {
 
 /// # RelinkableTermStructure
 /// Allows to link a term structure to another.
-pub trait RelinkableTermStructure {
-    fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait>);
+pub trait RelinkableTermStructure<T: Real> {
+    fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait<T>>);
 }
 
 /// # InterestRateIndexTrait
 /// Implement this trait for a struct that holds interest rate index information.
-pub trait InterestRateIndexTrait:
-    FixingProvider
-    + YieldProvider
+pub trait InterestRateIndexTrait<T: Real>:
+    FixingProvider<T>
+    + YieldProvider<T>
     + HasReferenceDate
-    + AdvanceInterestRateIndexInTime
-    + HasTermStructure
-    + RelinkableTermStructure
+    + AdvanceInterestRateIndexInTime<T>
+    + HasTermStructure<T>
+    + RelinkableTermStructure<T>
     + HasTenor
     + HasName
-    + Send
-    + Sync
 {
 }

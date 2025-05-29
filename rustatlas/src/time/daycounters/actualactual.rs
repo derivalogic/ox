@@ -1,5 +1,5 @@
 use super::traits::DayCountProvider;
-use crate::time::date::Date;
+use crate::{time::date::Date, utils::num::Real};
 
 /// # ActualActual
 /// Actual/Actual day count convention.
@@ -16,7 +16,7 @@ use crate::time::date::Date;
 /// let start = Date::new(2020, 1, 1);
 /// let end = Date::new(2020, 2, 1);
 /// assert_eq!(ActualActual::day_count(start, end), 31);
-/// assert_eq!(ActualActual::year_fraction(start, end), 31.0 / 366.0);
+/// assert_eq!(ActualActual::year_fraction::<f64>(start, end), 31.0 / 366.0);
 /// ```
 
 pub struct ActualActual;
@@ -35,7 +35,7 @@ impl DayCountProvider for ActualActual {
         return end - start;
     }
 
-    fn year_fraction(start: Date, end: Date) -> f64 {
+    fn year_fraction<T: Real>(start: Date, end: Date) -> T {
 
         let days = ActualActual::day_count(start, end);
         
@@ -43,8 +43,8 @@ impl DayCountProvider for ActualActual {
         let y2 = end.year() as i32;
 
         if y1 == y2 {
-            return days as f64 / days_in_year(y1) as f64;
-        } 
+            return T::from(days as f64 / days_in_year(y1) as f64);
+        }
         else {
             if y2 > y1 {
                 let mut sum = 0.0;
@@ -54,8 +54,8 @@ impl DayCountProvider for ActualActual {
                 }
                 sum += (end - Date::new(y2 as i32, 1,1)) as f64 / days_in_year(y2 as i32) as f64;
 
-                return sum
-                
+                return T::from(sum)
+
             } else {
                 let mut sum = 0.0;
                 sum -= (Date::new(y2+1 as i32, 1, 1) - end) as f64  / days_in_year(y2 as i32) as f64 ;
@@ -63,7 +63,7 @@ impl DayCountProvider for ActualActual {
                     sum -= 1.0;
                 }
                 sum -= (start - Date::new(y1 as i32, 1,1)) as f64 / days_in_year(y1 as i32) as f64;
-                return sum;
+                return T::from(sum);
             }
         }
     }
@@ -90,7 +90,8 @@ mod tests {
         use super::ActualActual;
         let start = Date::new(2020, 1, 1);
         let end = Date::new(2020, 2, 1);
-        assert_eq!(ActualActual::year_fraction(start, end), 31.0 / 366.0);
+        let yf: f64 = ActualActual::year_fraction(start, end);
+        assert_eq!(yf, 31.0 / 366.0);
     }
 
     #[test]
@@ -99,7 +100,8 @@ mod tests {
         use super::ActualActual;
         let start = Date::new(2020, 1, 1);
         let end = Date::new(2021, 1, 1);
-        assert_eq!(ActualActual::year_fraction(start, end), 1.0);
+        let yf: f64 = ActualActual::year_fraction(start, end);
+        assert_eq!(yf, 1.0);
     }
 
 
@@ -109,7 +111,8 @@ mod tests {
         use super::ActualActual;
         let start = Date::new(2021, 1, 1);
         let end = Date::new(2020, 1, 1);
-        assert_eq!(ActualActual::year_fraction(start, end), -1.0);
+        let yf: f64 = ActualActual::year_fraction(start, end);
+        assert_eq!(yf, -1.0);
     }
 
 }

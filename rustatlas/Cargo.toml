@@ -23,9 +23,3 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 name = "fixedratepricing"
 harness = false
 
-[[example]]
-name = "fixedratepricing"
-
-[[example]]
-name = "floatingratepricing"
-

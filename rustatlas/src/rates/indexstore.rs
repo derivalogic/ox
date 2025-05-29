@@ -4,9 +4,12 @@ use std::{
 };
 
 use crate::{
-    currencies::enums::Currency, 
-    time::{date::Date, enums::TimeUnit, period::Period}, 
-    utils::errors::{AtlasError, Result}
+    currencies::enums::Currency,
+    time::{date::Date, enums::TimeUnit, period::Period},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+    },
 };
 
 use super::{
@@ -20,25 +23,25 @@ use super::{
 /// ## Parameters
 /// * `reference_date` - The reference date of the index store
 #[derive(Clone)]
-pub struct IndexStore {
+pub struct IndexStore<T: Real> {
     reference_date: Date,
-    index_map: HashMap<usize, Arc<RwLock<dyn InterestRateIndexTrait>>>,
+    index_map: HashMap<usize, Arc<RwLock<dyn InterestRateIndexTrait<T>>>>,
     currency_curve: HashMap<Currency, usize>,
 }
 
-pub trait ReadIndex {
-    fn read_index(&self) -> Result<RwLockReadGuard<dyn InterestRateIndexTrait>>;
+pub trait ReadIndex<T: Real> {
+    fn read_index(&self) -> Result<RwLockReadGuard<dyn InterestRateIndexTrait<T>>>;
 }
 
-impl ReadIndex for Arc<RwLock<dyn InterestRateIndexTrait>> {
-    fn read_index(&self) -> Result<RwLockReadGuard<dyn InterestRateIndexTrait>> {
+impl<T: Real> ReadIndex<T> for Arc<RwLock<dyn InterestRateIndexTrait<T>>> {
+    fn read_index(&self) -> Result<RwLockReadGuard<dyn InterestRateIndexTrait<T>>> {
         self.read()
             .map_err(|_| AtlasError::InvalidValueErr("Could not read index".to_string()))
     }
 }
 
-impl IndexStore {
-    pub fn new(reference_date: Date) -> IndexStore {
+impl<T: Real> IndexStore<T> {
+    pub fn new(reference_date: Date) -> IndexStore<T> {
         IndexStore {
             reference_date,
             index_map: HashMap::new(),
@@ -53,7 +56,7 @@ impl IndexStore {
     pub fn add_currency_curve(&mut self, currency: Currency, fx_curve: usize) {
         self.currency_curve.insert(currency, fx_curve);
     }
-    
+
     pub fn get_currency_curve(&self, currency: Currency) -> Result<usize> {
         self.currency_curve
             .get(&currency)
@@ -67,7 +70,7 @@ impl IndexStore {
     pub fn link_term_structure(
         &self,
         id: usize,
-        term_structure: Arc<dyn YieldTermStructureTrait>,
+        term_structure: Arc<dyn YieldTermStructureTrait<T>>,
     ) -> Result<()> {
         self.index_map
             .get(&id)
@@ -84,7 +87,7 @@ impl IndexStore {
     pub fn add_index(
         &mut self,
         id: usize,
-        index: Arc<RwLock<dyn InterestRateIndexTrait>>,
+        index: Arc<RwLock<dyn InterestRateIndexTrait<T>>>,
     ) -> Result<()> {
         if self.reference_date != index.read_index()?.reference_date() {
             return Err(AtlasError::InvalidValueErr(
@@ -113,7 +116,7 @@ impl IndexStore {
     pub fn replace_index(
         &mut self,
         id: usize,
-        index: Arc<RwLock<dyn InterestRateIndexTrait>>,
+        index: Arc<RwLock<dyn InterestRateIndexTrait<T>>>,
     ) -> Result<()> {
         if self.reference_date != index.read_index()?.reference_date() {
             return Err(AtlasError::InvalidValueErr(
@@ -139,7 +142,7 @@ impl IndexStore {
         Ok(())
     }
 
-    pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>> {
+    pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
         self.index_map
             .get(&id)
             .cloned()
@@ -152,7 +155,7 @@ impl IndexStore {
     pub fn get_index_by_name(
         &self,
         name: String,
-    ) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>> {
+    ) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
         for (id, index) in self.index_map.iter() {
             if index.read_index()?.name()? == name {
                 return self.get_index(*id);
@@ -180,7 +183,7 @@ impl IndexStore {
         Ok(map)
     }
 
-    pub fn get_all_indices(&self) -> Vec<Arc<RwLock<dyn InterestRateIndexTrait>>> {
+    pub fn get_all_indices(&self) -> Vec<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
         let mut indices = Vec::new();
         for index in self.index_map.values() {
             indices.push(index.clone());
@@ -199,7 +202,7 @@ impl IndexStore {
         max + 1
     }
 
-    pub fn advance_to_period(&self, period: Period) -> Result<IndexStore> {
+    pub fn advance_to_period(&self, period: Period) -> Result<IndexStore<T>> {
         let reference_date = self.reference_date + period;
         let mut store = IndexStore::new(reference_date);
         for (id, index) in self.index_map.iter() {
@@ -210,11 +213,11 @@ impl IndexStore {
         for (currency, curve) in self.currency_curve.iter() {
             store.add_currency_curve(*currency, *curve);
         }
-        
+
         Ok(store)
     }
 
-    pub fn advance_to_date(&self, date: Date) -> Result<IndexStore> {
+    pub fn advance_to_date(&self, date: Date) -> Result<IndexStore<T>> {
         let days = (date - self.reference_date) as i32;
         self.advance_to_period(Period::new(days, TimeUnit::Days))
     }
@@ -225,7 +228,12 @@ impl IndexStore {
         self.index_map.insert(to, index);
     }
 
-    pub fn currency_forescast_factor (&self,first_currency: Currency, second_currency: Currency, date: Date) -> Result<f64> {
+    pub fn currency_forescast_factor(
+        &self,
+        first_currency: Currency,
+        second_currency: Currency,
+        date: Date,
+    ) -> Result<T> {
         let first_id = self.get_currency_curve(first_currency)?;
         let second_id = self.get_currency_curve(second_currency)?;
 
@@ -235,6 +243,6 @@ impl IndexStore {
         let first_df = first_curve.read_index()?.discount_factor(date)?;
         let second_df = second_curve.read_index()?.discount_factor(date)?;
 
-        Ok(second_df/ first_df)
+        Ok(second_df / first_df)
     }
 }

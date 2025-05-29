@@ -18,7 +18,10 @@ use crate::{
         period::Period,
         schedule::MakeSchedule,
     },
-    utils::errors::{AtlasError, Result},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+    },
     visitors::traits::HasCashflows,
 };
 
@@ -669,11 +672,11 @@ impl MakeFloatingRateInstrument {
     }
 }
 
-fn build_coupons_from_notionals(
-    cashflows: &mut Vec<Cashflow>,
+fn build_coupons_from_notionals<R: Real>(
+    cashflows: &mut Vec<Cashflow<R>>,
     dates: &Vec<Date>,
     notionals: &Vec<f64>,
-    spread: f64,
+    spread: R,
     rate_definition: RateDefinition,
     side: Side,
     currency: Currency,
@@ -732,7 +735,6 @@ impl Into<MakeFloatingRateInstrument> for FloatingRateInstrument {
             .with_redemptions(redemptions)
             .with_additional_coupon_dates(additional_coupon_dates)
             .other()
-
     }
 }
 
@@ -747,12 +749,19 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use crate::{
-        cashflows::{cashflow::Side, traits::RequiresFixingRate}, core::traits::HasCurrency, currencies::enums::Currency, instruments::{makefloatingrateinstrument::MakeFloatingRateInstrument, traits::Structure}, rates::{enums::Compounding, interestrate::RateDefinition}, time::{
+        cashflows::{cashflow::Side, traits::RequiresFixingRate},
+        core::traits::HasCurrency,
+        currencies::enums::Currency,
+        instruments::{makefloatingrateinstrument::MakeFloatingRateInstrument, traits::Structure},
+        rates::{enums::Compounding, interestrate::RateDefinition},
+        time::{
             date::Date,
             daycounter::DayCounter,
             enums::{Frequency, TimeUnit},
             period::Period,
-        }, utils::errors::Result, visitors::traits::HasCashflows
+        },
+        utils::errors::Result,
+        visitors::traits::HasCashflows,
     };
 
     #[test]
@@ -960,17 +969,27 @@ mod tests {
         assert_eq!(instrument2.start_date(), instrument.start_date());
         assert_eq!(instrument2.end_date(), instrument.end_date());
         assert_eq!(instrument2.rate_definition(), instrument.rate_definition());
-        assert_ne!(instrument2.payment_frequency(), instrument.payment_frequency());
+        assert_ne!(
+            instrument2.payment_frequency(),
+            instrument.payment_frequency()
+        );
         assert_eq!(instrument2.spread(), instrument.spread());
         assert_eq!(instrument2.side(), instrument.side());
-        assert_eq!(instrument2.currency().unwrap(), instrument.currency().unwrap());
-        assert_eq!(instrument2.discount_curve_id(), instrument.discount_curve_id());
-        assert_eq!(instrument2.forecast_curve_id(), instrument.forecast_curve_id());
+        assert_eq!(
+            instrument2.currency().unwrap(),
+            instrument.currency().unwrap()
+        );
+        assert_eq!(
+            instrument2.discount_curve_id(),
+            instrument.discount_curve_id()
+        );
+        assert_eq!(
+            instrument2.forecast_curve_id(),
+            instrument.forecast_curve_id()
+        );
         assert_eq!(instrument2.structure(), Structure::Other);
         assert_eq!(instrument.structure(), Structure::Bullet);
 
         Ok(())
-
     }
-
 }

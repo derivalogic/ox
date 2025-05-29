@@ -4,6 +4,7 @@ use crate::{
         traits::Payable,
     },
     time::date::Date,
+    utils::num::Real,
 };
 
 pub trait Visit<T> {
@@ -16,10 +17,10 @@ pub trait ConstVisit<T> {
     fn visit(&self, visitable: &T) -> Self::Output;
 }
 
-pub trait HasCashflows {
-    fn cashflows(&self) -> &[Cashflow];
+pub trait HasCashflows<T: Real> {
+    fn cashflows(&self) -> &[Cashflow<T>];
 
-    fn mut_cashflows(&mut self) -> &mut [Cashflow];
+    fn mut_cashflows(&mut self) -> &mut [Cashflow<T>];
 
     fn set_discount_curve_id(&mut self, id: usize) {
         self.mut_cashflows()
@@ -33,7 +34,11 @@ pub trait HasCashflows {
         });
     }
 
-    fn next_cashflow(&self, reference_date: Date, cashflow_type: CashflowType) -> Option<Cashflow> {
+    fn next_cashflow(
+        &self,
+        reference_date: Date,
+        cashflow_type: CashflowType,
+    ) -> Option<Cashflow<T>> {
         match cashflow_type {
             CashflowType::Disbursement => self
                 .cashflows()

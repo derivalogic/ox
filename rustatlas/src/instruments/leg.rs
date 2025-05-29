@@ -2,6 +2,7 @@ use crate::{
     cashflows::cashflow::{Cashflow, Side},
     currencies::enums::Currency,
     rates::interestrate::RateDefinition,
+    utils::num::Real,
 };
 
 use super::{instrument::RateType, traits::Structure};
@@ -9,7 +10,7 @@ use super::{instrument::RateType, traits::Structure};
 /// # Leg
 /// A financial leg. Contains a stream of cashflows. Instruments have one or more legs.
 #[derive(Debug, Clone)]
-pub struct Leg {
+pub struct Leg<R: Real> {
     structure: Structure,
     rate_type: RateType,
     rate_value: f64,
@@ -18,10 +19,10 @@ pub struct Leg {
     side: Side,
     discount_curve_id: Option<usize>,
     forecast_curve_id: Option<usize>,
-    cashflows: Vec<Cashflow>,
+    cashflows: Vec<Cashflow<R>>,
 }
 
-impl Leg {
+impl<R: Real> Leg<R> {
     pub fn new(
         structure: Structure,
         rate_type: RateType,
@@ -31,7 +32,7 @@ impl Leg {
         side: Side,
         discount_curve_id: Option<usize>,
         forecast_curve_id: Option<usize>,
-        cashflows: Vec<Cashflow>,
+        cashflows: Vec<Cashflow<R>>,
     ) -> Self {
         Leg {
             structure,
@@ -46,7 +47,7 @@ impl Leg {
         }
     }
 
-    pub fn cashflows(&self) -> &[Cashflow] {
+    pub fn cashflows(&self) -> &[Cashflow<R>] {
         &self.cashflows
     }
 

@@ -5,7 +5,7 @@ use crate::{
     },
     rates::{indexstore::ReadIndex, traits::HasReferenceDate},
     time::date::Date,
-    utils::errors::Result,
+    utils::{errors::Result, num::Real},
 };
 
 use super::traits::Model;
@@ -19,40 +19,39 @@ use super::traits::Model;
 /// * `market_store` - The market store.
 /// * `transform_currencies` - If true, the model will transform the currencies to the local currency of the market store.
 #[derive(Clone)]
-pub struct SimpleModel<'a> {
-    market_store: &'a MarketStore,
+pub struct SimpleModel<'a, T: Real> {
+    market_store: &'a MarketStore<T>,
     transform_currencies: bool,
 }
 
-impl<'a> SimpleModel<'a> {
-    pub fn new(market_store: &'a MarketStore) -> SimpleModel {
+impl<'a, T: Real> SimpleModel<'a, T> {
+    pub fn new(market_store: &'a MarketStore<T>) -> SimpleModel<'a, T> {
         SimpleModel {
             market_store,
             transform_currencies: false,
         }
     }
 
-    pub fn with_transform_currencies(mut self, flag: bool) -> SimpleModel<'a> {
+    pub fn with_transform_currencies(mut self, flag: bool) -> SimpleModel<'a, T> {
         self.transform_currencies = flag;
         self
     }
 }
 
-impl<'a> Model for SimpleModel<'a> {
-    type Num = f64;
+impl<'a, T: Real> Model<T> for SimpleModel<'a, T> {
     fn reference_date(&self) -> Date {
         self.market_store.reference_date()
     }
 
-    fn gen_df_data(&self, df: DiscountFactorRequest) -> Result<Self::Num> {
+    fn gen_df_data(&self, df: DiscountFactorRequest) -> Result<T> {
         let date = df.date();
         let ref_date = self.market_store.reference_date();
 
         // eval today or before ref date
         if ref_date > date {
-            return Ok(0.0);
+            return Ok(T::from(0.0));
         } else if ref_date == date {
-            return Ok(1.0);
+            return Ok(T::from(1.0));
         }
 
         let id = df.provider_id();
@@ -61,12 +60,12 @@ impl<'a> Model for SimpleModel<'a> {
         Ok(curve.discount_factor(date)?)
     }
 
-    fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<Self::Num> {
+    fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<T> {
         let id = fwd.provider_id();
         let end_date = fwd.end_date();
         let ref_date = self.market_store.reference_date();
         if end_date <= ref_date {
-            return Ok(0.0);
+            return Ok(T::from(0.0));
         }
 
         let index = self.market_store.get_index(id)?;
@@ -80,11 +79,11 @@ impl<'a> Model for SimpleModel<'a> {
         )?)
     }
 
-    fn gen_numerarie(&self, _: &crate::prelude::MarketRequest) -> Result<Self::Num> {
-        Ok(1.0)
+    fn gen_numerarie(&self, _: &crate::prelude::MarketRequest) -> Result<T> {
+        Ok(T::from(1.0))
     }
 
-    fn gen_fx_data(&self, fx: ExchangeRateRequest) -> Result<Self::Num> {
+    fn gen_fx_data(&self, fx: ExchangeRateRequest) -> Result<T> {
         let first_currency = fx.first_currency();
         let second_currency = match fx.second_currency() {
             Some(ccy) => ccy,

@@ -2,15 +2,21 @@ use std::sync::Arc;
 
 use crate::{
     math::interpolation::enums::Interpolator,
-    rates::traits::HasReferenceDate,
-    rates::{enums::Compounding, interestrate::InterestRate, traits::YieldProvider},
+    rates::{
+        enums::Compounding,
+        interestrate::InterestRate,
+        traits::{HasReferenceDate, YieldProvider},
+    },
     time::{
         date::Date,
         daycounter::DayCounter,
         enums::{Frequency, TimeUnit},
         period::Period,
     },
-    utils::errors::{AtlasError, Result},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+    },
 };
 
 use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
@@ -59,24 +65,24 @@ use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 ///  ```
 
 #[derive(Clone)]
-pub struct DiscountTermStructure {
+pub struct DiscountTermStructure<T: Real> {
     reference_date: Date,
     dates: Vec<Date>,
-    year_fractions: Vec<f64>,
-    discount_factors: Vec<f64>,
+    year_fractions: Vec<T>,
+    discount_factors: Vec<T>,
     interpolator: Interpolator,
     day_counter: DayCounter,
     enable_extrapolation: bool,
 }
 
-impl DiscountTermStructure {
+impl<T: Real> DiscountTermStructure<T> {
     pub fn new(
         dates: Vec<Date>,
-        discount_factors: Vec<f64>,
+        discount_factors: Vec<T>,
         day_counter: DayCounter,
         interpolator: Interpolator,
         enable_extrapolation: bool,
-    ) -> Result<DiscountTermStructure> {
+    ) -> Result<DiscountTermStructure<T>> {
         // check if year_fractions and discount_factors have the same size
         if dates.len() != discount_factors.len() {
             return Err(AtlasError::InvalidValueErr(
@@ -85,20 +91,23 @@ impl DiscountTermStructure {
         }
 
         // order dates y discount_factors
-        let mut zipped = dates.into_iter().zip(discount_factors.into_iter()).collect::<Vec<_>>();
+        let mut zipped = dates
+            .into_iter()
+            .zip(discount_factors.into_iter())
+            .collect::<Vec<_>>();
         zipped.sort_by(|a, b| a.0.cmp(&b.0));
-        let (dates, discount_factors) : (Vec<Date>, Vec<f64>) = zipped.into_iter().unzip();
+        let (dates, discount_factors): (Vec<Date>, Vec<T>) = zipped.into_iter().unzip();
 
-        // discount_factors[0] needs to be 1.0 
-        if discount_factors[0] != 1.0 {
+        // discount_factors[0] needs to be 1.0
+        if discount_factors[0] != T::from(1.0) {
             return Err(AtlasError::InvalidValueErr(
                 "First discount factor needs to be 1.0".to_string(),
             ));
         }
         let reference_date = dates[0];
-        let year_fractions: Vec<f64> = dates
+        let year_fractions: Vec<T> = dates
             .iter()
-            .map(|x| day_counter.year_fraction(reference_date, *x))
+            .map(|x| T::from(day_counter.year_fraction::<T>(reference_date, *x)))
             .collect();
 
         Ok(DiscountTermStructure {
@@ -116,7 +125,7 @@ impl DiscountTermStructure {
         return &self.dates;
     }
 
-    pub fn discount_factors(&self) -> &Vec<f64> {
+    pub fn discount_factors(&self) -> &Vec<T> {
         return &self.discount_factors;
     }
 
@@ -133,26 +142,27 @@ impl DiscountTermStructure {
     }
 }
 
-impl HasReferenceDate for DiscountTermStructure {
+impl<T: Real> HasReferenceDate for DiscountTermStructure<T> {
     fn reference_date(&self) -> Date {
         return self.reference_date;
     }
 }
 
-impl YieldProvider for DiscountTermStructure {
-    fn discount_factor(&self, date: Date) -> Result<f64> {
+impl<T: Real> YieldProvider<T> for DiscountTermStructure<T> {
+    fn discount_factor(&self, date: Date) -> Result<T> {
         if date < self.reference_date() {
             return Err(AtlasError::InvalidValueErr(
                 "Date needs to be greater than reference date".to_string(),
             ));
         }
         if date == self.reference_date() {
-            return Ok(1.0);
+            return Ok(T::from(1.0));
         }
 
-        let year_fraction = self
-            .day_counter()
-            .year_fraction(self.reference_date(), date);
+        let year_fraction = T::from(
+            self.day_counter()
+                .year_fraction::<T>(self.reference_date(), date),
+        );
 
         let discount_factor = self.interpolator.interpolate(
             year_fraction,
@@ -169,22 +179,20 @@ impl YieldProvider for DiscountTermStructure {
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<f64> {
+    ) -> Result<T> {
         let discount_factor_to_star = self.discount_factor(start_date)?;
         let discount_factor_to_end = self.discount_factor(end_date)?;
 
         let comp_factor = discount_factor_to_star / discount_factor_to_end;
-        let t = self.day_counter().year_fraction(start_date, end_date);
+        let t = T::from(self.day_counter().year_fraction::<T>(start_date, end_date));
 
-        return Ok(
-            InterestRate::implied_rate(comp_factor, self.day_counter(), comp, freq, t)?.rate(),
-        );
+        Ok(InterestRate::implied_rate(comp_factor, self.day_counter(), comp, freq, t)?.rate())
     }
 }
 
 /// # AdvanceTermStructureInTime for DiscountTermStructure
-impl AdvanceTermStructureInTime for DiscountTermStructure {
-    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait>> {
+impl<T: Real + 'static> AdvanceTermStructureInTime<T> for DiscountTermStructure<T> {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_dates: Vec<Date> = self
             .dates()
             .iter()
@@ -192,7 +200,7 @@ impl AdvanceTermStructureInTime for DiscountTermStructure {
             .collect();
 
         let start_df = self.discount_factor(new_dates[0])?;
-        let shifted_dfs: Result<Vec<f64>> = new_dates
+        let shifted_dfs: Result<Vec<T>> = new_dates
             .iter()
             .map(|x| {
                 let df = self.discount_factor(*x)?;
@@ -209,7 +217,7 @@ impl AdvanceTermStructureInTime for DiscountTermStructure {
         )?))
     }
 
-    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait>> {
+    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let days = (date - self.reference_date()) as i32;
         if days < 0 {
             return Err(AtlasError::InvalidValueErr(
@@ -221,7 +229,7 @@ impl AdvanceTermStructureInTime for DiscountTermStructure {
     }
 }
 
-impl YieldTermStructureTrait for DiscountTermStructure {}
+impl<T: Real + 'static> YieldTermStructureTrait<T> for DiscountTermStructure<T> {}
 
 #[cfg(test)]
 mod tests {
@@ -386,7 +394,6 @@ mod tests {
                 .unwrap()
         );
     }
-
 
     #[test]
     fn order_dates() {

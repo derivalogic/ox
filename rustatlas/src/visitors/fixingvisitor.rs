@@ -1,7 +1,10 @@
 use crate::{
     cashflows::{cashflow::Cashflow, traits::RequiresFixingRate},
     core::{meta::MarketData, traits::Registrable},
-    utils::errors::{AtlasError, Result},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+    },
 };
 
 use super::traits::{HasCashflows, Visit};
@@ -11,19 +14,19 @@ use super::traits::{HasCashflows, Visit};
 ///
 /// ## Parameters
 /// * `market_data` - The market data to use for fixing
-pub struct FixingVisitor<'a> {
-    market_data: &'a [MarketData],
+pub struct FixingVisitor<'a, T: Real> {
+    market_data: &'a [MarketData<T>],
 }
 
-impl<'a> FixingVisitor<'a> {
-    pub fn new(market_data: &'a [MarketData]) -> Self {
+impl<'a, T: Real> FixingVisitor<'a, T> {
+    pub fn new(market_data: &'a [MarketData<T>]) -> Self {
         FixingVisitor {
             market_data: market_data,
         }
     }
 }
 
-impl<'a, T: HasCashflows> Visit<T> for FixingVisitor<'a> {
+impl<'a, R: Real, T: HasCashflows<R>> Visit<T> for FixingVisitor<'a, R> {
     type Output = Result<()>;
     fn visit(&self, has_cashflows: &mut T) -> Self::Output {
         has_cashflows
