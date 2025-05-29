@@ -225,4 +225,25 @@ mod tests {
             1.0 / (1.1 * 800.0)
         );
     }
+
+    #[test]
+    fn test_ad_triangulation_derivative() {
+        use crate::math::ad::{backward, reset_tape, Var};
+
+        reset_tape();
+        let ref_date = Date::new(2021, 1, 1);
+        let mut manager = ExchangeRateStore::new(ref_date);
+
+        let r1 = Var::new(800.0); // CLP/USD
+        let r2 = Var::new(1.1); // USD/EUR
+
+        manager.add_exchange_rate(CLP, USD, r1);
+        manager.add_exchange_rate(USD, EUR, r2);
+
+        let fx = manager.get_exchange_rate(CLP, EUR).unwrap();
+        let grad = backward(&fx);
+
+        assert!((grad[r1.id()] - r2.value()).abs() < 1e-12);
+        assert!((grad[r2.id()] - r1.value()).abs() < 1e-12);
+    }
 }
