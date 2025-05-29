@@ -193,6 +193,14 @@ impl<'a, T: Real> ExprEvaluator<'a, T> {
         self.variables.lock().unwrap().clone()
     }
 
+    pub fn set_variable(&self, idx: usize, val: Value<T>) {
+        let mut vars = self.variables.lock().unwrap();
+        if idx >= vars.len() {
+            vars.resize(idx + 1, Value::Null);
+        }
+        vars[idx] = val;
+    }
+
     pub fn digit_stack(&self) -> Vec<T> {
         self.digit_stack.lock().unwrap().clone()
     }
