@@ -4,7 +4,7 @@ use lefi::utils::errors::Result;
 use rustatlas::currencies::enums::Currency;
 use rustatlas::math::ad::{backward, reset_tape, Var};
 use rustatlas::models::black_scholes::{
-    bs_price_delta_gamma_theta, BlackScholesModel,
+    bs_delta, bs_price, bs_price_delta_gamma_theta, BlackScholesModel,
 };
 use rustatlas::time::{date::Date, daycounter::DayCounter};
 
@@ -51,9 +51,23 @@ fn main() -> Result<()> {
     };
     let price_mc = price_var.value();
 
-    // Derivative with respect to the spot
+    // Derivative with respect to the spot (Delta)
     let grad = backward(&price_var);
     let delta_ad = grad[s0_var.id()];
+
+    // Gamma via AD on the analytic delta expression
+    reset_tape();
+    let s_var = Var::new(s0);
+    let delta_var = bs_delta(s_var, Var::from(k), Var::from(r), Var::from(vol), Var::from(t));
+    let grad_delta = backward(&delta_var);
+    let gamma_ad = grad_delta[s_var.id()];
+
+    // Theta via AD on the analytic price expression
+    reset_tape();
+    let t_var = Var::new(t);
+    let price_var_bs = bs_price(Var::from(s0), Var::from(k), Var::from(r), Var::from(vol), t_var);
+    let grad_theta = backward(&price_var_bs);
+    let theta_ad = grad_theta[t_var.id()];
 
     // Analytic Black-Scholes results
     let (price_bs, delta_bs, gamma_bs, theta_bs) = bs_price_delta_gamma_theta(s0, k, r, vol, t);
@@ -61,7 +75,7 @@ fn main() -> Result<()> {
     println!("Monte Carlo price: {:.6}", price_mc);
     println!("Black-Scholes price: {:.6}", price_bs);
     println!("Delta analytic vs AD:  {:.6}  {:.6}", delta_bs, delta_ad);
-    println!("Gamma analytic: {:.6}", gamma_bs);
-    println!("Theta analytic: {:.6}", theta_bs);
+    println!("Gamma analytic vs AD:  {:.6}  {:.6}", gamma_bs, gamma_ad);
+    println!("Theta analytic vs AD:  {:.6}  {:.6}", theta_bs, theta_ad);
     Ok(())
 }
