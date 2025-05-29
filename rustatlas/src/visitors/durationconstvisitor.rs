@@ -2,7 +2,7 @@ use crate::{
     cashflows::traits::Payable,
     core::{meta::MarketData, traits::Registrable},
     time::daycounter::DayCounter,
-    utils::errors::{AtlasError, Result},
+    utils::{errors::{AtlasError, Result}, num::Real},
 };
 
 use super::traits::{ConstVisit, HasCashflows};
@@ -14,25 +14,25 @@ use super::traits::{ConstVisit, HasCashflows};
 /// ## Parameters
 /// * `market_data` - The market data to use for Duration calculation
 /// * `include_today_cashflows` - Flag to include cashflows with payment date equal to the reference date
-pub struct DurationConstVisitor<'a> {
-    market_data: &'a [MarketData],
+pub struct DurationConstVisitor<'a, R: Real = f64> {
+    market_data: &'a [MarketData<R>],
 }
 
-impl<'a> DurationConstVisitor<'a> {
-    pub fn new(market_data: &'a [MarketData]) -> Self {
+impl<'a, R: Real> DurationConstVisitor<'a, R> {
+    pub fn new(market_data: &'a [MarketData<R>]) -> Self {
         DurationConstVisitor {
             market_data: market_data,
         }
     }
 }
 
-impl<'a, T: HasCashflows> ConstVisit<T> for DurationConstVisitor<'a> {
-    type Output = Result<f64>;
+impl<'a, T: HasCashflows, R: Real> ConstVisit<T> for DurationConstVisitor<'a, R> {
+    type Output = Result<R>;
     fn visit(&self, visitable: &T) -> Self::Output {
         let duration = visitable
             .cashflows()
             .iter()
-            .try_fold((0.0, 0.0), |mut acc, cf| {
+            .try_fold((R::from(0.0), R::from(0.0)), |mut acc, cf| {
                 let id = cf.id()?;
 
                 let cf_market_data =
@@ -52,12 +52,12 @@ impl<'a, T: HasCashflows> ConstVisit<T> for DurationConstVisitor<'a> {
 
                 let df = cf_market_data.df()?;
                 let fx = cf_market_data.fx()?;
-                let flag = cf.side().sign();
+                let flag = R::from(cf.side().sign());
 
-                let aux_amount = cf.amount()? * df / fx * flag;
+                let aux_amount = R::from(cf.amount()?) * df / fx * flag;
 
-                acc.0 += aux_amount.clone() * year_fraction;
-                acc.1 += aux_amount.clone();
+                acc.0 = acc.0 + aux_amount * year_fraction;
+                acc.1 = acc.1 + aux_amount;
 
                 Ok(acc)
             });

@@ -7,15 +7,15 @@ use crate::{
     currencies::enums::Currency,
     rates::interestrate::RateDefinition,
     time::{date::Date, enums::Frequency},
-    utils::errors::Result,
+    utils::{errors::Result, num::Real},
     visitors::traits::HasCashflows,
 };
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DoubleRateInstrument {
+pub struct DoubleRateInstrument<R: Real = f64> {
     start_date: Date,
     end_date: Date,
-    notional: f64,
-    notional_at_change_rate: Option<f64>,
+    notional: R,
+    notional_at_change_rate: Option<R>,
     payment_frequency: Frequency,
     rate_type: RateType,
     side: Side,
@@ -24,20 +24,20 @@ pub struct DoubleRateInstrument {
     issue_date: Option<Date>,
     change_rate_date: Date,
     first_rate_definition: Option<RateDefinition>,
-    first_rate: Option<f64>,
+    first_rate: Option<R>,
     second_rate_definition: Option<RateDefinition>,
-    second_rate: Option<f64>,
+    second_rate: Option<R>,
     forecast_curve_id: Option<usize>,
     discount_curve_id: Option<usize>,
     cashflows: Vec<Cashflow>,
 }
 
-impl DoubleRateInstrument {
+impl<R: Real> DoubleRateInstrument<R> {
     pub fn new(
         start_date: Date,
         end_date: Date,
-        notional: f64,
-        notional_at_change_rate: Option<f64>,
+        notional: R,
+        notional_at_change_rate: Option<R>,
         payment_frequency: Frequency,
         side: Side,
         currency: Currency,
@@ -46,9 +46,9 @@ impl DoubleRateInstrument {
         change_rate_date: Date,
         rate_type: RateType,
         first_rate_definition: Option<RateDefinition>,
-        first_rate: Option<f64>,
+        first_rate: Option<R>,
         second_rate_definition: Option<RateDefinition>,
-        second_rate: Option<f64>,
+        second_rate: Option<R>,
         forecast_curve_id: Option<usize>,
         discount_curve_id: Option<usize>,
         cashflows: Vec<Cashflow>,
@@ -75,11 +75,11 @@ impl DoubleRateInstrument {
         }
     }
 
-    pub fn notional(&self) -> f64 {
+    pub fn notional(&self) -> R {
         self.notional
     }
 
-    pub fn notional_at_change_rate(&self) -> Option<f64> {
+    pub fn notional_at_change_rate(&self) -> Option<R> {
         self.notional_at_change_rate
     }
 
@@ -127,7 +127,7 @@ impl DoubleRateInstrument {
         self.first_rate_definition
     }
 
-    pub fn first_rate(&self) -> Option<f64> {
+    pub fn first_rate(&self) -> Option<R> {
         self.first_rate
     }
 
@@ -135,7 +135,7 @@ impl DoubleRateInstrument {
         self.second_rate_definition
     }
 
-    pub fn second_rate(&self) -> Option<f64> {
+    pub fn second_rate(&self) -> Option<R> {
         self.second_rate
     }
 
@@ -149,7 +149,7 @@ impl DoubleRateInstrument {
         self
     }
 
-    pub fn set_first_rate(mut self, rate: f64) -> Self {
+    pub fn set_first_rate(mut self, rate: R) -> Self {
         let change_rate_date = self.change_rate_date();
         self.mut_cashflows().iter_mut().for_each(|cf| {
             if cf.payment_date() <= change_rate_date {
@@ -160,10 +160,10 @@ impl DoubleRateInstrument {
                 }
             }
         });
-        self 
+        self
     }
 
-    pub fn set_second_rate(mut self, rate: f64) -> Self {
+    pub fn set_second_rate(mut self, rate: R) -> Self {
         let change_rate_date = self.change_rate_date();
         self.mut_cashflows().iter_mut().for_each(|cf| {
             if cf.payment_date() > change_rate_date {
@@ -177,7 +177,7 @@ impl DoubleRateInstrument {
         self 
     }
 
-    pub fn set_rates(mut self, first_rate: Option<f64>, second_rate: Option<f64>) -> Self {
+    pub fn set_rates(mut self, first_rate: Option<R>, second_rate: Option<R>) -> Self {
         if let Some(rate) = first_rate {
             self = self.set_first_rate(rate);
         }
@@ -188,14 +188,14 @@ impl DoubleRateInstrument {
     }
 }
 
-impl HasCurrency for DoubleRateInstrument {
+impl<R: Real> HasCurrency for DoubleRateInstrument<R> {
     fn currency(&self) -> Result<Currency> {
         Ok(self.currency)
     }
 }
 
 
-impl InterestAccrual for DoubleRateInstrument {
+impl<R: Real> InterestAccrual for DoubleRateInstrument<R> {
     fn accrual_start_date(&self) -> Result<Date> {
         Ok(self.start_date)
     }
@@ -212,7 +212,7 @@ impl InterestAccrual for DoubleRateInstrument {
     }
 }
 
-impl HasCashflows for DoubleRateInstrument {
+impl<R: Real> HasCashflows for DoubleRateInstrument<R> {
     fn cashflows(&self) -> &[Cashflow] {
         &self.cashflows
     }

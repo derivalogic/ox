@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::traits::Structure;
-use crate::utils::errors::Result;
+use crate::utils::{errors::Result, num::Real};
 
 /// # FloatingRateInstrument
 /// A floating rate instrument.
@@ -29,11 +29,11 @@ use crate::utils::errors::Result;
 /// * `rate_definition` - The rate definition.
 /// * `structure` - The structure.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FloatingRateInstrument {
+pub struct FloatingRateInstrument<R: Real = f64> {
     start_date: Date,
     end_date: Date,
-    notional: f64,
-    spread: f64,
+    notional: R,
+    spread: R,
     side: Side,
     cashflows: Vec<Cashflow>,
     payment_frequency: Frequency,
@@ -46,12 +46,12 @@ pub struct FloatingRateInstrument {
     issue_date: Option<Date>,
 }
 
-impl FloatingRateInstrument {
+impl<R: Real> FloatingRateInstrument<R> {
     pub fn new(
         start_date: Date,
         end_date: Date,
-        notional: f64,
-        spread: f64,
+        notional: R,
+        spread: R,
         side: Side,
         cashflows: Vec<Cashflow>,
         payment_frequency: Frequency,
@@ -97,11 +97,11 @@ impl FloatingRateInstrument {
         self.end_date
     }
 
-    pub fn notional(&self) -> f64 {
+    pub fn notional(&self) -> R {
         self.notional
     }
 
-    pub fn spread(&self) -> f64 {
+    pub fn spread(&self) -> R {
         self.spread
     }
 
@@ -145,7 +145,7 @@ impl FloatingRateInstrument {
         self
     }
 
-    pub fn set_spread(mut self, spread: f64) -> Self {
+    pub fn set_spread(mut self, spread: R) -> Self {
         self.spread = spread;
         self.mut_cashflows().iter_mut().for_each(|cf| {
             match cf {
@@ -159,13 +159,13 @@ impl FloatingRateInstrument {
     }
 }
 
-impl HasCurrency for FloatingRateInstrument {
+impl<R: Real> HasCurrency for FloatingRateInstrument<R> {
     fn currency(&self) -> Result<Currency> {
         Ok(self.currency)
     }
 }
 
-impl InterestAccrual for FloatingRateInstrument {
+impl<R: Real> InterestAccrual for FloatingRateInstrument<R> {
     fn accrual_start_date(&self) -> Result<Date> {
         Ok(self.start_date)
     }
@@ -180,7 +180,7 @@ impl InterestAccrual for FloatingRateInstrument {
     }
 }
 
-impl HasCashflows for FloatingRateInstrument {
+impl<R: Real> HasCashflows for FloatingRateInstrument<R> {
     fn cashflows(&self) -> &[Cashflow] {
         &self.cashflows
     }

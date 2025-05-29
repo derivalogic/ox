@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::instrument::RateType;
 use super::traits::Structure;
+use crate::utils::num::Real;
 use crate::{
     cashflows::cashflow::{Cashflow, Side},
     core::traits::HasCurrency,
@@ -12,10 +13,10 @@ use crate::{
     visitors::traits::HasCashflows,
 };
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HybridRateInstrument {
+pub struct HybridRateInstrument<R: Real = f64> {
     start_date: Date,
     end_date: Date,
-    notional: f64,
+    notional: R,
     payment_frequency: Frequency,
     structure: Structure,
     rate_type: RateType,
@@ -24,19 +25,19 @@ pub struct HybridRateInstrument {
     id: Option<String>,
     issue_date: Option<Date>,
     first_rate_definition: Option<RateDefinition>,
-    first_rate: Option<f64>,
+    first_rate: Option<R>,
     second_rate_definition: Option<RateDefinition>,
-    second_rate: Option<f64>,
+    second_rate: Option<R>,
     forecast_curve_id: Option<usize>,
     discount_curve_id: Option<usize>,
     cashflows: Vec<Cashflow>,
 }
 
-impl HybridRateInstrument {
+impl<R: Real> HybridRateInstrument<R> {
     pub fn new(
         start_date: Date,
         end_date: Date,
-        notional: f64,
+        notional: R,
         payment_frequency: Frequency,
         structure: Structure,
         side: Option<Side>,
@@ -45,9 +46,9 @@ impl HybridRateInstrument {
         issue_date: Option<Date>,
         rate_type: RateType,
         first_rate_definition: Option<RateDefinition>,
-        first_rate: Option<f64>,
+        first_rate: Option<R>,
         second_rate_definition: Option<RateDefinition>,
-        second_rate: Option<f64>,
+        second_rate: Option<R>,
         forecast_curve_id: Option<usize>,
         discount_curve_id: Option<usize>,
         cashflows: Vec<Cashflow>,
@@ -73,7 +74,7 @@ impl HybridRateInstrument {
         }
     }
 
-    pub fn notional(&self) -> f64 {
+    pub fn notional(&self) -> R {
         self.notional
     }
 
@@ -121,7 +122,7 @@ impl HybridRateInstrument {
         self.first_rate_definition
     }
 
-    pub fn first_rate(&self) -> Option<f64> {
+    pub fn first_rate(&self) -> Option<R> {
         self.first_rate
     }
 
@@ -129,7 +130,7 @@ impl HybridRateInstrument {
         self.second_rate_definition
     }
 
-    pub fn second_rate(&self) -> Option<f64> {
+    pub fn second_rate(&self) -> Option<R> {
         self.second_rate
     }
 
@@ -144,7 +145,7 @@ impl HybridRateInstrument {
     }
 }
 
-impl HasCurrency for HybridRateInstrument {
+impl<R: Real> HasCurrency for HybridRateInstrument<R> {
     fn currency(&self) -> Result<Currency> {
         match self.currency {
             Some(currency) => Ok(currency),
@@ -153,7 +154,7 @@ impl HasCurrency for HybridRateInstrument {
     }
 }
 
-impl HasCashflows for HybridRateInstrument {
+impl<R: Real> HasCashflows for HybridRateInstrument<R> {
     fn cashflows(&self) -> &[Cashflow] {
         &self.cashflows
     }
