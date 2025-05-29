@@ -34,7 +34,9 @@ use super::traits::{
 /// let ref_date = Date::new(2021, 1, 1);
 /// let tenor = Period::new(1, TimeUnit::Months);
 /// let rate_definition = RateDefinition::new(DayCounter::Actual360, Compounding::Simple, Frequency::Annual);
-/// let ibor_index = IborIndex::new(ref_date).with_tenor(tenor).with_rate_definition(rate_definition);
+/// let ibor_index = IborIndex::<f64>::new(ref_date)
+///     .with_tenor(tenor)
+///     .with_rate_definition(rate_definition);
 /// assert_eq!(ibor_index.tenor(), tenor);
 /// assert_eq!(ibor_index.rate_definition().compounding(), Compounding::Simple);
 /// assert_eq!(ibor_index.rate_definition().frequency(), Frequency::Annual);

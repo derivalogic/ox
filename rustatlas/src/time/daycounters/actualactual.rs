@@ -16,7 +16,7 @@ use crate::{time::date::Date, utils::num::Real};
 /// let start = Date::new(2020, 1, 1);
 /// let end = Date::new(2020, 2, 1);
 /// assert_eq!(ActualActual::day_count(start, end), 31);
-/// assert_eq!(ActualActual::year_fraction(start, end), 31.0 / 366.0);
+/// assert_eq!(ActualActual::year_fraction::<f64>(start, end), 31.0 / 366.0);
 /// ```
 
 pub struct ActualActual;

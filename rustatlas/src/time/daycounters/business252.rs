@@ -14,7 +14,7 @@ use crate::time::calendars::brazil::Market;
 /// let start = Date::new(2020, 1, 1);
 /// let end = Date::new(2020, 2, 1);
 /// assert_eq!(Business252::day_count(start, end), 22);
-/// assert_eq!(Business252::year_fraction(start, end), 22.0 / 252.0);
+/// assert_eq!(Business252::year_fraction::<f64>(start, end), 22.0 / 252.0);
 /// ```
 pub struct Business252;
 
