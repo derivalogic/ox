@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 use super::daycounters::{
-    actual360::Actual360, actual365::Actual365, actualactual::ActualActual, business252::Business252, thirty360::*, traits::DayCountProvider
+    actual360::Actual360, actual365::Actual365, actualactual::ActualActual,
+    business252::Business252, thirty360::*, traits::DayCountProvider,
 };
 use crate::{
     time::date::Date,
-    utils::errors::{AtlasError, Result}
+    utils::{errors::{AtlasError, Result}, num::Real},
 };
 
 /// # DayCounter
@@ -32,14 +33,14 @@ impl DayCounter {
         }
     }
 
-    pub fn year_fraction(&self, start: Date, end: Date) -> f64 {
+    pub fn year_fraction<T: Real>(&self, start: Date, end: Date) -> T {
         match self {
-            DayCounter::Actual360 => Actual360::year_fraction(start, end),
-            DayCounter::Actual365 => Actual365::year_fraction(start, end),
-            DayCounter::Thirty360 => Thirty360::year_fraction(start, end),
-            DayCounter::Thirty360US => Thirty360US::year_fraction(start, end),
-            DayCounter::ActualActual => ActualActual::year_fraction(start, end),
-            DayCounter::Business252 => Business252::year_fraction(start, end),
+            DayCounter::Actual360 => Actual360::year_fraction::<T>(start, end),
+            DayCounter::Actual365 => Actual365::year_fraction::<T>(start, end),
+            DayCounter::Thirty360 => Thirty360::year_fraction::<T>(start, end),
+            DayCounter::Thirty360US => Thirty360US::year_fraction::<T>(start, end),
+            DayCounter::ActualActual => ActualActual::year_fraction::<T>(start, end),
+            DayCounter::Business252 => Business252::year_fraction::<T>(start, end),
         }
     }
 }
@@ -121,15 +122,15 @@ mod tests {
         let start = Date::new(2020, 1, 1);
         let end = Date::new(2020, 1, 2);
 
-        let year_fraction = DayCounter::Actual360.year_fraction(start, end);
+        let year_fraction: f64 = DayCounter::Actual360.year_fraction(start, end);
         assert_eq!(year_fraction, 1.0 / 360.0);
-        let year_fraction = DayCounter::Actual365.year_fraction(start, end);
+        let year_fraction: f64 = DayCounter::Actual365.year_fraction(start, end);
         assert_eq!(year_fraction, 1.0 / 365.0);
-        let year_fraction = DayCounter::Thirty360.year_fraction(start, end);
+        let year_fraction: f64 = DayCounter::Thirty360.year_fraction(start, end);
         assert_eq!(year_fraction, 1.0 / 360.0);
-        let year_fraction = DayCounter::Thirty360US.year_fraction(start, end);
+        let year_fraction: f64 = DayCounter::Thirty360US.year_fraction(start, end);
         assert_eq!(year_fraction, 1.0 / 360.0);
-        let year_fraction = DayCounter::ActualActual.year_fraction(start, end);
+        let year_fraction: f64 = DayCounter::ActualActual.year_fraction(start, end);
         assert_eq!(year_fraction, 1.0 / 366.0);
     }
 
@@ -139,15 +140,15 @@ mod tests {
         let start = Date::new(2020, 1, 1);
         let end = Date::new(2020, 1, 2);
 
-        let year_fraction = DayCounter::Actual360.year_fraction(end, start);
+        let year_fraction: f64 = DayCounter::Actual360.year_fraction(end, start);
         assert_eq!(year_fraction, -1.0 / 360.0);
-        let year_fraction = DayCounter::Actual365.year_fraction(end, start);
+        let year_fraction: f64 = DayCounter::Actual365.year_fraction(end, start);
         assert_eq!(year_fraction, -1.0 / 365.0);
-        let year_fraction = DayCounter::Thirty360.year_fraction(end, start);
+        let year_fraction: f64 = DayCounter::Thirty360.year_fraction(end, start);
         assert_eq!(year_fraction, -1.0 / 360.0);
-        let year_fraction = DayCounter::Thirty360US.year_fraction(end, start);
+        let year_fraction: f64 = DayCounter::Thirty360US.year_fraction(end, start);
         assert_eq!(year_fraction, -1.0 / 360.0);
-        let year_fraction = DayCounter::ActualActual.year_fraction(end, start);
+        let year_fraction: f64 = DayCounter::ActualActual.year_fraction(end, start);
         assert_eq!(year_fraction, -1.0 / 366.0);
     }
 
@@ -158,8 +159,8 @@ mod tests {
         let end_1 = Date::new(2023, 12, 30);
         let end_2 = Date::new(2023, 12, 31);
 
-        let yf_1 = DayCounter::Thirty360.year_fraction(start, end_1);
-        let yf_2 = DayCounter::Thirty360.year_fraction(start, end_2);
+        let yf_1: f64 = DayCounter::Thirty360.year_fraction(start, end_1);
+        let yf_2: f64 = DayCounter::Thirty360.year_fraction(start, end_2);
         assert_ne!(yf_1, yf_2);
     }
 
@@ -170,8 +171,8 @@ mod tests {
         let end_1 = Date::new(2023, 12, 31);
         let end_2 = Date::new(2024, 1, 1);
 
-        let yf_1 = DayCounter::Thirty360.year_fraction(start, end_1);
-        let yf_2 = DayCounter::Thirty360.year_fraction(start, end_2);
+        let yf_1: f64 = DayCounter::Thirty360.year_fraction(start, end_1);
+        let yf_2: f64 = DayCounter::Thirty360.year_fraction(start, end_2);
         assert_eq!(yf_1, yf_2);
     }
 
@@ -182,8 +183,8 @@ mod tests {
         let end_1 = Date::new(2023, 12, 31);
         let end_2 = Date::new(2024, 1, 1);
 
-        let yf_1 = DayCounter::Thirty360.year_fraction(start, end_1);
-        let yf_2 = DayCounter::Thirty360.year_fraction(start, end_2);
+        let yf_1: f64 = DayCounter::Thirty360.year_fraction(start, end_1);
+        let yf_2: f64 = DayCounter::Thirty360.year_fraction(start, end_2);
         assert_ne!(yf_1, yf_2);
     }
 
@@ -194,8 +195,8 @@ mod tests {
         let end_1 = Date::new(2024, 2, 29);
         let end_2 = Date::new(2024, 3, 1);
 
-        let yf_1 = DayCounter::Thirty360.year_fraction(start, end_1);
-        let yf_2 = DayCounter::Thirty360.year_fraction(start, end_2);
+        let yf_1: f64 = DayCounter::Thirty360.year_fraction(start, end_1);
+        let yf_2: f64 = DayCounter::Thirty360.year_fraction(start, end_2);
       
         assert_ne!(yf_1, yf_2);
     }
@@ -207,8 +208,8 @@ mod tests {
         let end_1 = Date::new(2023, 2, 28);
         let end_2 = Date::new(2023, 3, 1);
 
-        let yf_1 = DayCounter::Thirty360.year_fraction(start, end_1);
-        let yf_2 = DayCounter::Thirty360.year_fraction(start, end_2);
+        let yf_1: f64 = DayCounter::Thirty360.year_fraction(start, end_1);
+        let yf_2: f64 = DayCounter::Thirty360.year_fraction(start, end_2);
        
         assert_ne!(yf_1, yf_2);
     }

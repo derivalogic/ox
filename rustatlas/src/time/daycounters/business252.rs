@@ -1,5 +1,6 @@
 use super::traits::DayCountProvider;
 use crate::time::{calendar::Calendar, calendars::{brazil::Brazil, traits::ImplCalendar}, date::Date};
+use crate::utils::num::Real;
 use crate::time::calendars::brazil::Market;
 
 
@@ -31,8 +32,8 @@ impl DayCountProvider for Business252 {
         }
     }
 
-    fn year_fraction(start: Date, end: Date) -> f64 {
-        Self::day_count(start, end) as f64 / 252.0
+    fn year_fraction<T: Real>(start: Date, end: Date) -> T {
+        T::from(Self::day_count(start, end) as f64) / T::from(252.0)
     }
 }
 
@@ -47,7 +48,8 @@ mod test {
         let start = Date::new(2020, 1, 1);
         let end = Date::new(2020, 2, 1);
         assert_eq!(Business252::day_count(start, end), 22);
-        assert_eq!(Business252::year_fraction(start, end), 22.0 / 252.0);
+        let yf: f64 = Business252::year_fraction(start, end);
+        assert_eq!(yf, 22.0 / 252.0);
     }
 
 }
