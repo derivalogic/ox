@@ -7,7 +7,10 @@ use crate::{
         traits::{HasReferenceDate, YieldProvider},
     },
     time::{date::Date, enums::Frequency, period::Period},
-    utils::{errors::{AtlasError, Result}, num::Real},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+    },
 };
 
 use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
@@ -92,20 +95,16 @@ impl<T: Real> YieldProvider<T> for FlatForwardTermStructure<T> {
         freq: Frequency,
     ) -> Result<T> {
         let comp_factor = self.discount_factor(start_date)? / self.discount_factor(end_date)?;
-        let t = T::from(self.rate.day_counter().year_fraction(start_date, end_date));
-        Ok(InterestRate::implied_rate(
-            comp_factor,
-            self.rate.day_counter(),
-            comp,
-            freq,
-            t,
-        )?
-        .rate())
+        let t = self
+            .rate
+            .day_counter()
+            .year_fraction::<T>(start_date, end_date);
+        Ok(InterestRate::implied_rate(comp_factor, self.rate.day_counter(), comp, freq, t)?.rate())
     }
 }
 
 /// # AdvanceTermStructureInTime for FlatForwardTermStructure
-impl<T: Real> AdvanceTermStructureInTime<T> for FlatForwardTermStructure<T> {
+impl<T: Real + 'static> AdvanceTermStructureInTime<T> for FlatForwardTermStructure<T> {
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_reference_date = self
             .reference_date()
@@ -126,7 +125,7 @@ impl<T: Real> AdvanceTermStructureInTime<T> for FlatForwardTermStructure<T> {
     }
 }
 
-impl<T: Real> YieldTermStructureTrait<T> for FlatForwardTermStructure<T> {}
+impl<T: Real + 'static> YieldTermStructureTrait<T> for FlatForwardTermStructure<T> {}
 
 #[cfg(test)]
 mod tests {

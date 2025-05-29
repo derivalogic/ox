@@ -145,7 +145,7 @@ impl<T: Real> YieldProvider<T> for OvernightIndex<T> {
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<f64> {
+    ) -> Result<T> {
         // mixed case - return w.a.
         if start_date < self.reference_date() && end_date > self.reference_date() {
             let first_fixing = self.fixing(self.reference_date())?;
@@ -185,7 +185,7 @@ impl<T: Real> YieldProvider<T> for OvernightIndex<T> {
     }
 }
 
-impl<T: Real> AdvanceInterestRateIndexInTime<T> for OvernightIndex<T> {
+impl<T: Real + 'static> AdvanceInterestRateIndexInTime<T> for OvernightIndex<T> {
     fn advance_to_period(
         &self,
         period: Period,
@@ -216,7 +216,7 @@ impl<T: Real> AdvanceInterestRateIndexInTime<T> for OvernightIndex<T> {
                 )))?;
                 seed = seed.advance(1, TimeUnit::Days);
                 let second_df = curve.discount_factor(seed)?;
-                let comp = last_fixing * first_df / second_df;
+                let comp = *last_fixing * first_df / second_df;
                 fixings.insert(seed, comp);
             }
         }
@@ -255,7 +255,7 @@ impl<T: Real> RelinkableTermStructure<T> for OvernightIndex<T> {
     }
 }
 
-impl<T: Real> InterestRateIndexTrait<T> for OvernightIndex<T> {}
+impl<T: Real + 'static> InterestRateIndexTrait<T> for OvernightIndex<T> {}
 
 #[cfg(test)]
 mod tests {
@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn test_new_overnight_index() {
         let date = Date::new(2021, 1, 1);
-        let overnight_index = OvernightIndex::new(date);
+        let overnight_index: OvernightIndex<f64> = OvernightIndex::new(date);
         assert!(overnight_index.fixings.is_empty());
         assert!(overnight_index.term_structure.is_none());
     }
@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn test_with_rate_definition() {
         let date = Date::new(2021, 1, 1);
-        let overnight_index =
+        let overnight_index: OvernightIndex<f64> =
             OvernightIndex::new(date).with_rate_definition(RateDefinition::default());
         assert_eq!(overnight_index.rate_definition, RateDefinition::default());
     }

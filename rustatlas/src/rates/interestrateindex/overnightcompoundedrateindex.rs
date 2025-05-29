@@ -46,7 +46,7 @@ pub fn calculate_overnight_index<T: Real>(
 ) -> T {
     let year_fraction = rate_definition
         .day_counter()
-        .year_fraction(start_date, end_date);
+        .year_fraction::<T>(start_date, end_date);
     let new_index = (rate * year_fraction + 1.0) * index;
     return new_index;
 }
@@ -182,7 +182,7 @@ impl<T: Real> YieldProvider<T> for OvernightCompoundedRateIndex<T> {
     }
 }
 
-impl<T: Real> AdvanceInterestRateIndexInTime<T> for OvernightCompoundedRateIndex<T> {
+impl<T: Real + 'static> AdvanceInterestRateIndexInTime<T> for OvernightCompoundedRateIndex<T> {
     fn advance_to_period(
         &self,
         period: Period,
@@ -209,7 +209,7 @@ impl<T: Real> RelinkableTermStructure<T> for OvernightCompoundedRateIndex<T> {
     }
 }
 
-impl<T: Real> InterestRateIndexTrait<T> for OvernightCompoundedRateIndex<T> {}
+impl<T: Real + 'static> InterestRateIndexTrait<T> for OvernightCompoundedRateIndex<T> {}
 
 #[cfg(test)]
 mod tests {
@@ -224,14 +224,15 @@ mod tests {
     #[test]
     fn test_new_overnight_index() {
         let date = Date::new(2021, 1, 1);
-        let overnight_index = OvernightCompoundedRateIndex::new(date);
+        let overnight_index: OvernightCompoundedRateIndex<f64> =
+            OvernightCompoundedRateIndex::new(date);
         assert!(overnight_index.fixings_rates.is_empty());
     }
 
     #[test]
     fn test_with_rate_definition() {
         let date = Date::new(2021, 1, 1);
-        let overnight_index =
+        let overnight_index: OvernightCompoundedRateIndex<f64> =
             OvernightCompoundedRateIndex::new(date).with_rate_definition(RateDefinition::default());
         assert_eq!(overnight_index.rate_definition(), RateDefinition::default());
     }

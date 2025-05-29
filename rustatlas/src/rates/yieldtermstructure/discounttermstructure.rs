@@ -107,7 +107,7 @@ impl<T: Real> DiscountTermStructure<T> {
         let reference_date = dates[0];
         let year_fractions: Vec<T> = dates
             .iter()
-            .map(|x| T::from(day_counter.year_fraction(reference_date, *x)))
+            .map(|x| T::from(day_counter.year_fraction::<T>(reference_date, *x)))
             .collect();
 
         Ok(DiscountTermStructure {
@@ -161,7 +161,7 @@ impl<T: Real> YieldProvider<T> for DiscountTermStructure<T> {
 
         let year_fraction = T::from(
             self.day_counter()
-                .year_fraction(self.reference_date(), date),
+                .year_fraction::<T>(self.reference_date(), date),
         );
 
         let discount_factor = self.interpolator.interpolate(
@@ -184,16 +184,14 @@ impl<T: Real> YieldProvider<T> for DiscountTermStructure<T> {
         let discount_factor_to_end = self.discount_factor(end_date)?;
 
         let comp_factor = discount_factor_to_star / discount_factor_to_end;
-        let t = T::from(self.day_counter().year_fraction(start_date, end_date));
+        let t = T::from(self.day_counter().year_fraction::<T>(start_date, end_date));
 
-        Ok(
-            InterestRate::implied_rate(comp_factor, self.day_counter(), comp, freq, t)?.rate(),
-        )
+        Ok(InterestRate::implied_rate(comp_factor, self.day_counter(), comp, freq, t)?.rate())
     }
 }
 
 /// # AdvanceTermStructureInTime for DiscountTermStructure
-impl<T: Real> AdvanceTermStructureInTime<T> for DiscountTermStructure<T> {
+impl<T: Real + 'static> AdvanceTermStructureInTime<T> for DiscountTermStructure<T> {
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_dates: Vec<Date> = self
             .dates()
@@ -231,7 +229,7 @@ impl<T: Real> AdvanceTermStructureInTime<T> for DiscountTermStructure<T> {
     }
 }
 
-impl<T: Real> YieldTermStructureTrait<T> for DiscountTermStructure<T> {}
+impl<T: Real + 'static> YieldTermStructureTrait<T> for DiscountTermStructure<T> {}
 
 #[cfg(test)]
 mod tests {

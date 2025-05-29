@@ -12,7 +12,10 @@ use crate::{
         enums::{Frequency, TimeUnit},
         period::Period,
     },
-    utils::{errors::{AtlasError, Result}, num::Real},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+    },
 };
 
 use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
@@ -98,7 +101,7 @@ impl<T: Real> ZeroRateTermStructure<T> {
                 T::from(
                     rate_definition
                         .day_counter()
-                        .year_fraction(reference_date, *x),
+                        .year_fraction::<T>(reference_date, *x),
                 )
             })
             .collect();
@@ -146,17 +149,16 @@ impl<T: Real> YieldProvider<T> for ZeroRateTermStructure<T> {
         let year_fraction = self
             .rate_definition()
             .day_counter()
-            .year_fraction(self.reference_date(), date);
-        let yf_t = T::from(year_fraction);
+            .year_fraction::<T>(self.reference_date(), date);
 
         let rate = self.interpolator.interpolate(
-            yf_t,
+            year_fraction,
             &self.year_fractions,
             &self.rates,
             self.enable_extrapolation,
         );
         let rt = InterestRate::from_rate_definition(rate, self.rate_definition());
-        let compound = rt.compound_factor_from_yf(yf_t);
+        let compound = rt.compound_factor_from_yf(year_fraction);
         Ok(T::from(1.0) / compound)
     }
 
@@ -172,11 +174,10 @@ impl<T: Real> YieldProvider<T> for ZeroRateTermStructure<T> {
 
         let comp_factor = df_to_star / df_to_end;
 
-        let t = T::from(
-            self.rate_definition()
-                .day_counter()
-                .year_fraction(start_date, end_date),
-        );
+        let t = self
+            .rate_definition()
+            .day_counter()
+            .year_fraction::<T>(start_date, end_date);
 
         let forward_rate = InterestRate::implied_rate(
             comp_factor,
@@ -192,7 +193,7 @@ impl<T: Real> YieldProvider<T> for ZeroRateTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for ZeroRateTermStructure
-impl<T: Real> AdvanceTermStructureInTime<T> for ZeroRateTermStructure<T> {
+impl<T: Real + 'static> AdvanceTermStructureInTime<T> for ZeroRateTermStructure<T> {
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_reference_date = self
             .reference_date()
@@ -237,7 +238,7 @@ impl<T: Real> AdvanceTermStructureInTime<T> for ZeroRateTermStructure<T> {
     }
 }
 
-impl<T: Real> YieldTermStructureTrait<T> for ZeroRateTermStructure<T> {}
+impl<T: Real + 'static> YieldTermStructureTrait<T> for ZeroRateTermStructure<T> {}
 
 #[cfg(test)]
 mod tests {

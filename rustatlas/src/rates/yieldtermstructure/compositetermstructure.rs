@@ -98,7 +98,7 @@ impl<T: Real> YieldProvider<T> for CompositeTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for CompositeTermStructure
-impl<T: Real> AdvanceTermStructureInTime<T> for CompositeTermStructure<T> {
+impl<T: Real + 'static> AdvanceTermStructureInTime<T> for CompositeTermStructure<T> {
     fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let base = self.base_curve().advance_to_date(date)?;
         let spread = self.spread_curve().advance_to_date(date)?;
@@ -112,7 +112,7 @@ impl<T: Real> AdvanceTermStructureInTime<T> for CompositeTermStructure<T> {
     }
 }
 
-impl<T: Real> YieldTermStructureTrait<T> for CompositeTermStructure<T> {}
+impl<T: Real + 'static> YieldTermStructureTrait<T> for CompositeTermStructure<T> {}
 
 #[cfg(test)]
 mod test {
