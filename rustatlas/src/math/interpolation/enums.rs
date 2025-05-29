@@ -21,14 +21,16 @@ pub enum Interpolator {
     LogLinear,
 }
 
+use crate::utils::num::Real;
+
 impl Interpolator {
-    pub fn interpolate(
+    pub fn interpolate<T: Real>(
         &self,
-        x: f64,
-        x_: &Vec<f64>,
-        y_: &Vec<f64>,
+        x: T,
+        x_: &Vec<T>,
+        y_: &Vec<T>,
         enable_extrapolation: bool,
-    ) -> f64 {
+    ) -> T {
         match self {
             Interpolator::Linear => {
                 LinearInterpolator::interpolate(x, x_, y_, enable_extrapolation)

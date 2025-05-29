@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     time::{date::Date, daycounter::DayCounter, enums::Frequency},
-    utils::errors::{AtlasError, Result},
+    utils::{errors::{AtlasError, Result}, num::Real},
 };
 
 use super::enums::Compounding;
@@ -72,33 +72,46 @@ impl Default for RateDefinition {
 /// assert_eq!(rate.frequency(), Frequency::Annual);
 /// assert_eq!(rate.day_counter(), DayCounter::Actual360);
 /// ```
+///
+/// Using the AD variable type:
+/// ```
+/// use rustatlas::prelude::*;
+/// use rustatlas::math::ad::Var;
+/// let rate = InterestRate::<Var>::new(
+///     Var::from(0.05),
+///     Compounding::Simple,
+///     Frequency::Annual,
+///     DayCounter::Actual360,
+/// );
+/// assert_eq!(rate.rate().value(), 0.05);
+/// ```
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-pub struct InterestRate {
-    rate: f64,
+pub struct InterestRate<T: Real = f64> {
+    rate: T,
     rate_definition: RateDefinition,
 }
 
-impl InterestRate {
+impl<T: Real> InterestRate<T> {
     pub fn new(
-        rate: f64,
+        rate: T,
         compounding: Compounding,
         frequency: Frequency,
         day_counter: DayCounter,
-    ) -> InterestRate {
+    ) -> InterestRate<T> {
         InterestRate {
             rate,
             rate_definition: RateDefinition::new(day_counter, compounding, frequency),
         }
     }
 
-    pub fn from_rate_definition(rate: f64, rate_definition: RateDefinition) -> InterestRate {
+    pub fn from_rate_definition(rate: T, rate_definition: RateDefinition) -> InterestRate<T> {
         InterestRate {
             rate,
             rate_definition,
         }
     }
 
-    pub fn rate(&self) -> f64 {
+    pub fn rate(&self) -> T {
         return self.rate;
     }
 
@@ -119,48 +132,48 @@ impl InterestRate {
     }
 
     pub fn implied_rate(
-        compound: f64,
+        compound: T,
         result_dc: DayCounter,
         comp: Compounding,
         freq: Frequency,
-        t: f64,
-    ) -> Result<InterestRate> {
-        if compound <= 0.0 {
+        t: T,
+    ) -> Result<InterestRate<T>> {
+        if compound <= T::from(0.0) {
             return Err(AtlasError::InvalidValueErr(
                 "Positive compound factor required".to_string(),
             ));
         }
-        let r: f64;
-        let f = freq as i64 as f64;
-        if compound == 1.0 {
-            if t < 0.0 {
+        let r: T;
+        let f = T::from(freq as i64 as f64);
+        if compound == T::from(1.0) {
+            if t < T::from(0.0) {
                 return Err(AtlasError::InvalidValueErr(
                     "Non-negative time required".to_string(),
                 ));
             }
-            r = 0.0;
+            r = T::from(0.0);
         } else {
-            if t <= 0.0 {
+            if t <= T::from(0.0) {
                 return Err(AtlasError::InvalidValueErr(
                     "Positive time required".to_string(),
                 ));
             }
             match comp {
-                Compounding::Simple => r = (compound - 1.0) / t,
-                Compounding::Compounded => r = (compound.powf(1.0 / (f * t)) - 1.0) * f,
-                Compounding::Continuous => r = (compound).ln() / t,
+                Compounding::Simple => r = (compound - T::from(1.0)) / t,
+                Compounding::Compounded => r = (compound.powf(T::from(1.0) / (f * t)) - T::from(1.0)) * f,
+                Compounding::Continuous => r = compound.ln() / t,
                 Compounding::SimpleThenCompounded => {
-                    if t <= 1.0 / f {
-                        r = (compound - 1.0) / t
+                    if t <= T::from(1.0) / f {
+                        r = (compound - T::from(1.0)) / t
                     } else {
-                        r = (compound.powf(1.0 / (f * t)) - 1.0) * f
+                        r = (compound.powf(T::from(1.0) / (f * t)) - T::from(1.0)) * f
                     }
                 }
                 Compounding::CompoundedThenSimple => {
-                    if t > 1.0 / f {
-                        r = (compound - 1.0) / t
+                    if t > T::from(1.0) / f {
+                        r = (compound - T::from(1.0)) / t
                     } else {
-                        r = (compound.powf(1.0 / (f * t)) - 1.0) * f
+                        r = (compound.powf(T::from(1.0) / (f * t)) - T::from(1.0)) * f
                     }
                 }
             }
@@ -168,39 +181,39 @@ impl InterestRate {
         return Ok(InterestRate::new(r, comp, freq, result_dc));
     }
 
-    pub fn compound_factor(&self, start: Date, end: Date) -> f64 {
+    pub fn compound_factor(&self, start: Date, end: Date) -> T {
         let day_counter = self.day_counter();
         let year_fraction = day_counter.year_fraction(start, end);
         return self.compound_factor_from_yf(year_fraction);
     }
 
-    pub fn compound_factor_from_yf(&self, year_fraction: f64) -> f64 {
+    pub fn compound_factor_from_yf(&self, year_fraction: T) -> T {
         let rate = self.rate();
         let compounding = self.compounding();
         let f = self.frequency() as i64 as f64;
         match compounding {
-            Compounding::Simple => 1.0 + rate * year_fraction,
-            Compounding::Compounded => (1.0 + rate / f).powf(f * year_fraction),
+            Compounding::Simple => rate * year_fraction + T::from(1.0),
+            Compounding::Compounded => (T::from(1.0) + rate / f).powf(f * year_fraction),
             Compounding::Continuous => (rate * year_fraction).exp(),
             Compounding::SimpleThenCompounded => {
-                if year_fraction <= 1.0 / f {
-                    1.0 + rate * year_fraction
+                if year_fraction <= T::from(1.0) / f {
+                    rate * year_fraction + T::from(1.0)
                 } else {
-                    (1.0 + rate / f).powf(year_fraction * f)
+                    (T::from(1.0) + rate / f).powf(year_fraction * f)
                 }
             }
             Compounding::CompoundedThenSimple => {
-                if year_fraction > 1.0 / f {
-                    1.0 + rate * year_fraction
+                if year_fraction > T::from(1.0) / f {
+                    T::from(1.0) + rate * year_fraction
                 } else {
-                    (1.0 + rate / f).powf(year_fraction * f)
+                    (T::from(1.0) + rate / f).powf(year_fraction * f)
                 }
             }
         }
     }
 
-    pub fn discount_factor(&self, start: Date, end: Date) -> f64 {
-        return 1.0 / self.compound_factor(start, end);
+    pub fn discount_factor(&self, start: Date, end: Date) -> T {
+        return T::from(1.0) / self.compound_factor(start, end);
     }
 
     pub fn forward_rate(
@@ -209,7 +222,7 @@ impl InterestRate {
         _end_date: Date,
         _comp: Compounding,
         _freq: Frequency,
-    ) -> f64 {
+    ) -> T {
         return self.rate;
     }
 }
