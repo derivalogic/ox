@@ -320,6 +320,12 @@ impl From<i32> for Var {
     }
 }
 
+impl From<Var> for f64 {
+    fn from(v: Var) -> Self {
+        v.value()
+    }
+}
+
 /* =======================================================================
  * 5.  Gradient (reverse sweep) – unchanged apart from new const-ops
  * ==================================================================== */

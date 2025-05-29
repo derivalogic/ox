@@ -6,7 +6,9 @@ This document outlines the remaining work required to complete the introduction 
 
 The following modules expose types with hard coded `f64` values.  They must become generic over `T: Real`.
 
-- `cashflows`: `Cashflow`, `SimpleCashflow`, `FixedRateCoupon`, `FloatingRateCoupon`.
+- `cashflows`: `Cashflow`, `SimpleCashflow`, `FixedRateCoupon`, `FloatingRateCoupon`. **(in progress)**
+
+
 - `instruments`: all instrument structs (`FixedRateInstrument`, `FloatingRateInstrument`, `LoanDepo`, etc.) and builders (`Make*` helpers). **(done)**
 - `alm` (asset/liability management) structs such as `CashAccount`, `PositionGenerator` and `RolloverSimulationEngine`.
 - visitors expecting `f64` market data – e.g. `NPVConstVisitor` already generic but some visitors and helpers still assume `f64`. **(in progress)**
