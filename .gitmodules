@@ -1,0 +1,3 @@
+[submodule "derivalogic"]
+	path = derivalogic
+	url = https://github.com/jmelo11/derivalogic.git
