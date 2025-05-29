@@ -23,6 +23,69 @@ pub enum Value<T: Real = f64> {
     Null,
 }
 
+#[cfg(test)]
+mod autodiff_tests {
+    use super::*;
+    use rustatlas::math::ad::{backward, reset_tape, Var};
+
+    #[test]
+    fn test_autodiff_square() {
+        reset_tape();
+        let script = "y = x * x;".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let indexer = EventIndexer::new();
+        indexer.visit(&nodes).unwrap();
+        let var_map = indexer.get_variable_indexes();
+        let x_idx = *var_map.get("x").unwrap();
+        let y_idx = *var_map.get("y").unwrap();
+
+        let x_var = Var::new(3.0);
+        let mut evaluator =
+            ExprEvaluator::<Var>::new_with_type().with_variables(indexer.get_variables_size());
+        evaluator.variables.lock().unwrap()[x_idx] = Value::Number(x_var);
+
+        evaluator.const_visit(nodes).unwrap();
+        let vars = evaluator.variables();
+        let y_var = match vars.get(y_idx).unwrap() {
+            Value::Number(v) => *v,
+            _ => panic!("y not number"),
+        };
+        let grad = backward(&y_var);
+        assert!((grad[x_var.id()] - 6.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_autodiff_exp() {
+        reset_tape();
+        let script = "y = exp(x);".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let indexer = EventIndexer::new();
+        indexer.visit(&nodes).unwrap();
+        let var_map = indexer.get_variable_indexes();
+        let x_idx = *var_map.get("x").unwrap();
+        let y_idx = *var_map.get("y").unwrap();
+
+        let x_val = 0.7;
+        let x_var = Var::new(x_val);
+        let mut evaluator =
+            ExprEvaluator::<Var>::new_with_type().with_variables(indexer.get_variables_size());
+        evaluator.variables.lock().unwrap()[x_idx] = Value::Number(x_var);
+
+        evaluator.const_visit(nodes).unwrap();
+        let vars = evaluator.variables();
+        let y_var = match vars.get(y_idx).unwrap() {
+            Value::Number(v) => *v,
+            _ => panic!("y not number"),
+        };
+        let grad = backward(&y_var);
+        assert!((grad[x_var.id()] - x_val.exp()).abs() < 1e-12);
+    }
+}
+
 impl Add for Value {
     type Output = Self;
 
