@@ -1,7 +1,10 @@
 //! Reverse-mode AD with constant folding and a `Real` trait.
 #![allow(clippy::many_single_char_names)]
 
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::{
+    fmt::{Debug, Display},
+    ops::{Add, Div, Mul, Neg, Sub},
+};
 
 /* ========================================================================
  *  1.  Real trait – kept small but expressive
@@ -11,6 +14,8 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 pub trait Real:
     Copy
+    + Debug
+    + Display
     + PartialEq
     + PartialOrd
     + Add<Output = Self>

@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::fmt::{Debug, Display};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::utils::num::Real;
@@ -412,6 +413,18 @@ pub fn backward(result: &Var) -> Vec<f64> {
 /* =======================================================================
  * 6.  Real impl for `Var`
  * ==================================================================== */
+
+impl Debug for Var {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Var(id={}, value={})", self.id, self.value)
+    }
+}
+
+impl Display for Var {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
 
 impl Real for Var {
     #[inline]

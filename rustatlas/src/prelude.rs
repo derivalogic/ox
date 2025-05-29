@@ -8,9 +8,8 @@ pub use crate::{
     core::{marketstore::MarketStore, traits::*},
     currencies::{enums::*, structs::*, traits::*},
     instruments::{
-        fixedrateinstrument::*, floatingrateinstrument::*, instrument::*, leg::*, loandepo::*,
-        makefixedrateinstrument::*, makefixedrateleg::*, makefloatingrateinstrument::*,
-        makefloatingrateleg::*, traits::*,
+        fixedrateinstrument::*, floatingrateinstrument::*, instrument::*,
+        makefixedrateinstrument::*, makefloatingrateinstrument::*, traits::*,
     },
     math::interpolation::{enums::*, linear::*, loglinear::*, traits::*},
     models::{simplemodel::*, traits::*},
@@ -30,7 +29,9 @@ pub use crate::{
         calendars::{nullcalendar::*, target::*, unitedstates::*, weekendsonly::*},
         date::*,
         daycounter::*,
-        daycounters::{actual360::*, actual365::*, thirty360::*, actualactual::*,business252::*, traits::*},
+        daycounters::{
+            actual360::*, actual365::*, actualactual::*, business252::*, thirty360::*, traits::*,
+        },
         enums::*,
         period::*,
         schedule::*,
@@ -39,7 +40,6 @@ pub use crate::{
     visitors::{
         accruedamountconstvisitor::*, cashflowaggregationvisitor::*,
         cashflowcompressorconstvisitor::*, fixingvisitor::*, indexingvisitor::*,
-        npvbydateconstvisitor::*, npvconstvisitor::*, traits::*,
-        parvaluevisitor::*,
+        npvbydateconstvisitor::*, npvconstvisitor::*, parvaluevisitor::*, traits::*,
     },
 };

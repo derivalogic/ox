@@ -9,7 +9,10 @@ use crate::{
     },
     currencies::enums::Currency,
     time::date::Date,
-    utils::errors::{AtlasError, Result},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+    },
 };
 
 use super::{
@@ -67,14 +70,14 @@ impl From<Side> for String {
 /// # Cashflow
 /// Enum that represents a cashflow.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-pub enum Cashflow {
-    Redemption(SimpleCashflow),
-    Disbursement(SimpleCashflow),
-    FixedRateCoupon(FixedRateCoupon),
-    FloatingRateCoupon(FloatingRateCoupon),
+pub enum Cashflow<T: Real> {
+    Redemption(SimpleCashflow<T>),
+    Disbursement(SimpleCashflow<T>),
+    FixedRateCoupon(FixedRateCoupon<T>),
+    FloatingRateCoupon(FloatingRateCoupon<T>),
 }
 
-impl Cashflow {
+impl<T: Real> Cashflow<T> {
     pub fn set_discount_curve_id(&mut self, id: usize) {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.set_discount_curve_id(id),
@@ -92,8 +95,8 @@ impl Cashflow {
     }
 }
 
-impl Payable for Cashflow {
-    fn amount(&self) -> Result<f64> {
+impl<T: Real> Payable<T> for Cashflow<T> {
+    fn amount(&self) -> Result<T> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.amount(),
             Cashflow::Disbursement(cashflow) => cashflow.amount(),
@@ -121,7 +124,7 @@ impl Payable for Cashflow {
     }
 }
 
-impl HasCurrency for Cashflow {
+impl<T: Real> HasCurrency for Cashflow<T> {
     fn currency(&self) -> Result<Currency> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.currency(),
@@ -132,7 +135,7 @@ impl HasCurrency for Cashflow {
     }
 }
 
-impl HasDiscountCurveId for Cashflow {
+impl<T: Real> HasDiscountCurveId for Cashflow<T> {
     fn discount_curve_id(&self) -> Result<usize> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.discount_curve_id(),
@@ -143,7 +146,7 @@ impl HasDiscountCurveId for Cashflow {
     }
 }
 
-impl HasForecastCurveId for Cashflow {
+impl<T: Real> HasForecastCurveId for Cashflow<T> {
     fn forecast_curve_id(&self) -> Result<usize> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.forecast_curve_id(),
@@ -154,7 +157,7 @@ impl HasForecastCurveId for Cashflow {
     }
 }
 
-impl Registrable for Cashflow {
+impl<T: Real> Registrable for Cashflow<T> {
     fn set_id(&mut self, id: usize) {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.set_id(id),
@@ -183,7 +186,7 @@ impl Registrable for Cashflow {
     }
 }
 
-impl InterestAccrual for Cashflow {
+impl<T: Real> InterestAccrual<T> for Cashflow<T> {
     fn accrual_end_date(&self) -> Result<Date> {
         match self {
             Cashflow::FixedRateCoupon(coupon) => coupon.accrual_end_date(),
@@ -210,17 +213,17 @@ impl InterestAccrual for Cashflow {
         }
     }
 
-    fn accrued_amount(&self, start_date: Date, end_date: Date) -> Result<f64> {
+    fn accrued_amount(&self, start_date: Date, end_date: Date) -> Result<T> {
         match self {
             Cashflow::FixedRateCoupon(coupon) => coupon.accrued_amount(start_date, end_date),
             Cashflow::FloatingRateCoupon(coupon) => coupon.accrued_amount(start_date, end_date),
-            _ => Ok(0.0),
+            _ => Ok(T::from(0.0)),
         }
     }
 }
 
-impl RequiresFixingRate for Cashflow {
-    fn set_fixing_rate(&mut self, fixing_rate: f64) {
+impl<T: Real> RequiresFixingRate<T> for Cashflow<T> {
+    fn set_fixing_rate(&mut self, fixing_rate: T) {
         match self {
             Cashflow::FloatingRateCoupon(coupon) => coupon.set_fixing_rate(fixing_rate),
             _ => (),
@@ -228,13 +231,13 @@ impl RequiresFixingRate for Cashflow {
     }
 }
 
-impl Display for Cashflow {
+impl<T: Real> Display for Cashflow<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let amount = self.amount().unwrap_or(0.0);
+        let amount = self.amount().unwrap_or(T::from(0.0));
         match self {
             Cashflow::Redemption(cashflow) => write!(
                 f,
-                "date: {}, amount: {}, side: {:?}, type: redemption",
+                "date: {}, amount: {:?}, side: {:?}, type: redemption",
                 cashflow.payment_date(),
                 amount,
                 cashflow.side()
@@ -289,7 +292,7 @@ mod tests {
         let serialized = serde_json::to_string(&cashflow).unwrap();
         println!("{}", serialized);
 
-        let deserialized: Cashflow = serde_json::from_str(&serialized).unwrap();
+        let deserialized: Cashflow<f64> = serde_json::from_str(&serialized).unwrap();
         assert_eq!(cashflow, deserialized);
     }
 }

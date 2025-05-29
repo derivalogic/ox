@@ -32,10 +32,10 @@ use crate::utils::{errors::Result, num::Real};
 pub struct FloatingRateInstrument<R: Real = f64> {
     start_date: Date,
     end_date: Date,
-    notional: R,
+    notional: f64,
     spread: R,
     side: Side,
-    cashflows: Vec<Cashflow>,
+    cashflows: Vec<Cashflow<R>>,
     payment_frequency: Frequency,
     rate_definition: RateDefinition,
     structure: Structure,
@@ -50,10 +50,10 @@ impl<R: Real> FloatingRateInstrument<R> {
     pub fn new(
         start_date: Date,
         end_date: Date,
-        notional: R,
+        notional: f64,
         spread: R,
         side: Side,
-        cashflows: Vec<Cashflow>,
+        cashflows: Vec<Cashflow<R>>,
         payment_frequency: Frequency,
         rate_definition: RateDefinition,
         structure: Structure,
@@ -97,7 +97,7 @@ impl<R: Real> FloatingRateInstrument<R> {
         self.end_date
     }
 
-    pub fn notional(&self) -> R {
+    pub fn notional(&self) -> f64 {
         self.notional
     }
 
@@ -147,13 +147,11 @@ impl<R: Real> FloatingRateInstrument<R> {
 
     pub fn set_spread(mut self, spread: R) -> Self {
         self.spread = spread;
-        self.mut_cashflows().iter_mut().for_each(|cf| {
-            match cf {
-                Cashflow::FloatingRateCoupon(coupon) => {
-                    coupon.set_spread(spread);
-                }
-                _ => {}
+        self.mut_cashflows().iter_mut().for_each(|cf| match cf {
+            Cashflow::FloatingRateCoupon(coupon) => {
+                coupon.set_spread(spread);
             }
+            _ => {}
         });
         self
     }
@@ -165,48 +163,64 @@ impl<R: Real> HasCurrency for FloatingRateInstrument<R> {
     }
 }
 
-impl<R: Real> InterestAccrual for FloatingRateInstrument<R> {
+impl<R: Real> InterestAccrual<R> for FloatingRateInstrument<R> {
     fn accrual_start_date(&self) -> Result<Date> {
         Ok(self.start_date)
     }
     fn accrual_end_date(&self) -> Result<Date> {
         Ok(self.end_date)
     }
-    fn accrued_amount(&self, start_date: Date, end_date: Date) -> Result<f64> {
-        let total_accrued_amount = self.cashflows.iter().fold(0.0, |acc, cf| {
-            acc + cf.accrued_amount(start_date, end_date).unwrap_or(0.0)
+    fn accrued_amount(&self, start_date: Date, end_date: Date) -> Result<R> {
+        let total_accrued_amount = self.cashflows.iter().fold(R::from(0.0), |acc, cf| {
+            cf.accrued_amount(start_date, end_date)
+                .unwrap_or(R::from(0.0))
+                + acc
         });
         Ok(total_accrued_amount)
     }
 }
 
-impl<R: Real> HasCashflows for FloatingRateInstrument<R> {
-    fn cashflows(&self) -> &[Cashflow] {
+impl<R: Real> HasCashflows<R> for FloatingRateInstrument<R> {
+    fn cashflows(&self) -> &[Cashflow<R>] {
         &self.cashflows
     }
 
-    fn mut_cashflows(&mut self) -> &mut [Cashflow] {
+    fn mut_cashflows(&mut self) -> &mut [Cashflow<R>] {
         &mut self.cashflows
     }
 }
 
-
 #[cfg(test)]
 mod test {
-    use crate::{cashflows::{cashflow::{Cashflow, Side}, traits::{Payable, RequiresFixingRate}}, core::traits::HasCurrency, currencies::enums::Currency, instruments::makefloatingrateinstrument::MakeFloatingRateInstrument, rates::{enums::Compounding, interestrate::RateDefinition}, time::{date::Date, daycounter::DayCounter, enums::{Frequency, TimeUnit}, period::Period}, utils::errors::Result, visitors::traits::HasCashflows};
-   
+    use crate::{
+        cashflows::{
+            cashflow::{Cashflow, Side},
+            traits::{Payable, RequiresFixingRate},
+        },
+        core::traits::HasCurrency,
+        currencies::enums::Currency,
+        instruments::makefloatingrateinstrument::MakeFloatingRateInstrument,
+        rates::{enums::Compounding, interestrate::RateDefinition},
+        time::{
+            date::Date,
+            daycounter::DayCounter,
+            enums::{Frequency, TimeUnit},
+            period::Period,
+        },
+        utils::errors::Result,
+        visitors::traits::HasCashflows,
+    };
+
     #[test]
     fn test_float_rate_instrument() -> Result<()> {
-
         let start_date = Date::new(2020, 1, 1);
         let end_date = start_date + Period::new(5, TimeUnit::Years);
         let rate_definition = RateDefinition::new(
             DayCounter::Thirty360,
             Compounding::Simple,
             Frequency::Annual,
-            
         );
-    
+
         let spread = 0.04;
 
         let instrument = MakeFloatingRateInstrument::new()
@@ -232,19 +246,17 @@ mod test {
 
         Ok(())
     }
-   
+
     #[test]
     fn test_set_spread() -> Result<()> {
-
         let start_date = Date::new(2020, 1, 1);
         let end_date = start_date + Period::new(5, TimeUnit::Years);
         let rate_definition = RateDefinition::new(
             DayCounter::Thirty360,
             Compounding::Simple,
             Frequency::Annual,
-            
         );
-    
+
         let spread = 0.04;
 
         let mut instrument = MakeFloatingRateInstrument::new()
@@ -264,34 +276,25 @@ mod test {
             .iter_mut()
             .for_each(|cf| cf.set_fixing_rate(0.02));
 
-        instrument.cashflows().iter().for_each(|cf| {
-            match cf {
-                Cashflow::FloatingRateCoupon(coupon) => {
-                    assert!((coupon.amount().unwrap()- 150000.0).abs() < 1e-6); 
-                    assert_eq!(coupon.spread(), spread);
-                }
-                _ => {}
+        instrument.cashflows().iter().for_each(|cf| match cf {
+            Cashflow::FloatingRateCoupon(coupon) => {
+                assert!((coupon.amount().unwrap() - 150000.0).abs() < 1e-6);
+                assert_eq!(coupon.spread(), spread);
             }
+            _ => {}
         });
 
         let new_spread = 0.01;
         let new_instrument = instrument.set_spread(new_spread);
 
-        new_instrument.cashflows().iter().for_each(|cf| {
-            match cf {
-                Cashflow::FloatingRateCoupon(coupon) => {
-                    assert!((coupon.amount().unwrap()- 75000.0).abs() < 1e-6); 
-                    assert_eq!(coupon.spread(), new_spread);
-                }
-                _ => {}
+        new_instrument.cashflows().iter().for_each(|cf| match cf {
+            Cashflow::FloatingRateCoupon(coupon) => {
+                assert!((coupon.amount().unwrap() - 75000.0).abs() < 1e-6);
+                assert_eq!(coupon.spread(), new_spread);
             }
+            _ => {}
         });
 
-
         Ok(())
-
     }
-
-
-
 }

@@ -54,10 +54,10 @@ use crate::{
 pub struct FixedRateInstrument<R: Real = f64> {
     start_date: Date,
     end_date: Date,
-    notional: R,
+    notional: f64,
     rate: InterestRate<R>,
     payment_frequency: Frequency,
-    cashflows: Vec<Cashflow>,
+    cashflows: Vec<Cashflow<R>>,
     structure: Structure,
     side: Side,
     currency: Currency,
@@ -71,10 +71,10 @@ impl<R: Real> FixedRateInstrument<R> {
     pub fn new(
         start_date: Date,
         end_date: Date,
-        notional: R,
+        notional: f64,
         rate: InterestRate<R>,
         payment_frequency: Frequency,
-        cashflows: Vec<Cashflow>,
+        cashflows: Vec<Cashflow<R>>,
         structure: Structure,
         side: Side,
         currency: Currency,
@@ -112,7 +112,7 @@ impl<R: Real> FixedRateInstrument<R> {
         self.end_date
     }
 
-    pub fn notional(&self) -> R {
+    pub fn notional(&self) -> f64 {
         self.notional
     }
 
@@ -151,17 +151,14 @@ impl<R: Real> FixedRateInstrument<R> {
 
     pub fn set_rate(mut self, rate: InterestRate<R>) -> Self {
         self.rate = rate;
-        self.mut_cashflows().iter_mut().for_each(|cf| {
-            match cf {
-                Cashflow::FixedRateCoupon(coupon) => {
-                    coupon.set_rate(rate);
-                }
-                _ => {}
+        self.mut_cashflows().iter_mut().for_each(|cf| match cf {
+            Cashflow::FixedRateCoupon(coupon) => {
+                coupon.set_rate(rate);
             }
+            _ => {}
         });
         self
     }
-
 }
 
 impl HasCurrency for FixedRateInstrument {
@@ -174,7 +171,7 @@ impl HasCurrency for FixedRateInstrument {
 /// Implements fixed rate bond accrual using a yield rate.  
 /// The yield rate is used to discount the cashflows to between the start and
 /// end dates and calculate the accrued amount.
-pub trait BondAccrual<R: Real>: HasCashflows {
+pub trait BondAccrual<R: Real>: HasCashflows<R> {
     fn yield_rate(&self) -> Option<InterestRate<R>>;
 
     fn bond_accrued_amount(&self, start_date: Date, end_date: Date) -> Result<R> {
@@ -200,7 +197,7 @@ pub trait BondAccrual<R: Real>: HasCashflows {
             .cashflows()
             .iter()
             .filter(|cf| cf.payment_date() >= from && cf.payment_date() < to)
-            .collect::<Vec<&Cashflow>>();
+            .collect::<Vec<&Cashflow<R>>>();
 
         let mut amount = R::from(0.0);
         cashflows.iter().for_each(|cf| {
@@ -233,12 +230,12 @@ impl<R: Real> BondAccrual<R> for FixedRateInstrument<R> {
     }
 }
 
-impl HasCashflows for FixedRateInstrument {
-    fn cashflows(&self) -> &[Cashflow] {
+impl<R: Real> HasCashflows<R> for FixedRateInstrument<R> {
+    fn cashflows(&self) -> &[Cashflow<R>] {
         &self.cashflows
     }
 
-    fn mut_cashflows(&mut self) -> &mut [Cashflow] {
+    fn mut_cashflows(&mut self) -> &mut [Cashflow<R>] {
         &mut self.cashflows
     }
 }
@@ -246,14 +243,23 @@ impl HasCashflows for FixedRateInstrument {
 #[cfg(test)]
 mod tests {
     use crate::{
-        cashflows::{cashflow::{Cashflow, Side}, traits::Payable}, currencies::enums::Currency, instruments::{
+        cashflows::{
+            cashflow::{Cashflow, Side},
+            traits::Payable,
+        },
+        currencies::enums::Currency,
+        instruments::{
             fixedrateinstrument::BondAccrual, makefixedrateinstrument::MakeFixedRateInstrument,
-        }, rates::{enums::Compounding, interestrate::InterestRate}, time::{
+        },
+        rates::{enums::Compounding, interestrate::InterestRate},
+        time::{
             date::Date,
             daycounter::DayCounter,
             enums::{Frequency, TimeUnit},
             period::Period,
-        }, utils::errors::Result, visitors::traits::HasCashflows
+        },
+        utils::errors::Result,
+        visitors::traits::HasCashflows,
     };
 
     #[test]
@@ -309,7 +315,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_set_rate() -> Result<()> {
         let start_date = Date::new(2024, 1, 1);
@@ -332,41 +337,31 @@ mod tests {
             .bullet()
             .build()?;
 
-
-        instrument.cashflows().iter().for_each(|cf| {
-            match cf {
-                Cashflow::FixedRateCoupon(coupon) => {
-                    assert!((coupon.amount().unwrap()- 150000.0).abs() < 1e-6); 
-                    assert_eq!(coupon.rate(), rate);
-                }
-                _ => {}
+        instrument.cashflows().iter().for_each(|cf| match cf {
+            Cashflow::FixedRateCoupon(coupon) => {
+                assert!((coupon.amount().unwrap() - 150000.0).abs() < 1e-6);
+                assert_eq!(coupon.rate(), rate);
             }
-        }); 
+            _ => {}
+        });
 
         let new_rate = InterestRate::new(
             0.03,
             Compounding::Simple,
             Frequency::Annual,
-            DayCounter::Thirty360
+            DayCounter::Thirty360,
         );
-        
+
         let new_instrument = instrument.set_rate(new_rate);
 
-        new_instrument.cashflows().iter().for_each(|cf| {
-            match cf {
-                Cashflow::FixedRateCoupon(coupon) => {
-                    assert!((coupon.amount().unwrap()- 75000.0).abs() < 1e-6);
-                    assert_eq!(coupon.rate(), new_rate);
-                }
-                _ => {}
+        new_instrument.cashflows().iter().for_each(|cf| match cf {
+            Cashflow::FixedRateCoupon(coupon) => {
+                assert!((coupon.amount().unwrap() - 75000.0).abs() < 1e-6);
+                assert_eq!(coupon.rate(), new_rate);
             }
+            _ => {}
         });
 
-
         Ok(())
-
     }
 }
-
-
-

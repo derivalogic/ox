@@ -56,13 +56,12 @@ impl DayCountProvider for Thirty360 {
 /// ```
 pub struct Thirty360US;
 
-
 fn is_last_of_february(d: i64, m: i64, y: i32) -> bool {
     if Date::is_leap_year(y) {
         return m == 2 && d == 28 + 1;
     } else {
         return m == 2 && d == 28;
-    }    
+    }
 }
 
 impl DayCountProvider for Thirty360US {
@@ -77,8 +76,16 @@ impl DayCountProvider for Thirty360US {
         let dd1 = if d1 == 31 { 30 } else { d1 };
         let dd2 = if d2 == 31 && dd1 >= 30 { 30 } else { d2 };
 
-        let dd1 = if is_last_of_february(dd1, m1, y1) { 30 } else { dd1 };
-        let dd2 = if is_last_of_february(dd2, m2, y2) { 30 } else { dd2 };
+        let dd1 = if is_last_of_february(dd1, m1, y1) {
+            30
+        } else {
+            dd1
+        };
+        let dd2 = if is_last_of_february(dd2, m2, y2) {
+            30
+        } else {
+            dd2
+        };
 
         return 360 * ((y2 as i64) - (y1 as i64)) + 30 * (m2 - m1) + (dd2 - dd1);
     }

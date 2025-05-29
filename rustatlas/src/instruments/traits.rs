@@ -5,7 +5,10 @@ use crate::{
     },
     currencies::enums::Currency,
     time::date::Date,
-    utils::errors::{AtlasError, Result},
+    utils::{
+        errors::{AtlasError, Result},
+        num::Real,
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -80,16 +83,17 @@ impl From<CashflowType> for String {
 }
 
 // Infer cashflows from amounts to handle negative amounts and sides.
-pub fn infer_cashflows_from_amounts(    
+pub fn infer_cashflows_from_amounts<R: Real>(
     dates: &[Date],
-    amounts: &[f64],
+    amounts: &[R],
     side: Side,
     currency: Currency,
-) -> Vec<Cashflow> {
+) -> Vec<Cashflow<R>> {
     let mut cashflows = Vec::new();
     dates.iter().zip(amounts).for_each(|(date, amount)| {
-        if *amount < 0.0 {
-            let cashflow = SimpleCashflow::new(*date, currency, side.inverse()).with_amount(amount.abs());
+        if *amount < R::from(0.0) {
+            let cashflow =
+                SimpleCashflow::new(*date, currency, side.inverse()).with_amount(amount.abs());
             match side.inverse() {
                 Side::Receive => cashflows.push(Cashflow::Redemption(cashflow)),
                 Side::Pay => cashflows.push(Cashflow::Disbursement(cashflow)),
@@ -106,10 +110,10 @@ pub fn infer_cashflows_from_amounts(
 }
 
 /// This function add cashflows of the given type and side to a vector.
-pub fn add_cashflows_to_vec(
-    cashflows: &mut Vec<Cashflow>,
+pub fn add_cashflows_to_vec<R: Real>(
+    cashflows: &mut Vec<Cashflow<R>>,
     dates: &[Date],
-    amounts: &[f64],
+    amounts: &[R],
     side: Side,
     currency: Currency,
     cashflow_type: CashflowType,
@@ -123,7 +127,6 @@ pub fn add_cashflows_to_vec(
         }
     });
 }
-
 
 // Calculate the notionals for a given structure
 pub fn notionals_vector(n: usize, notional: f64, structure: Structure) -> Vec<f64> {

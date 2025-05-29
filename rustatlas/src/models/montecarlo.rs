@@ -2,7 +2,6 @@ use rand::prelude::*;
 
 use crate::core::marketstore::MarketStore;
 use crate::core::meta::{MarketData, MarketRequest};
-use crate::math::ad::Var;
 use crate::models::{
     simplemodel::SimpleModel,
     traits::{Model, MonteCarloModel},

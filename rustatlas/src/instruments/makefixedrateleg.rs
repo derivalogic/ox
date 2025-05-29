@@ -302,8 +302,8 @@ impl MakeFixedRateLeg {
     }
 }
 
-impl MakeFixedRateLeg {
-    pub fn build(self) -> Result<Leg> {
+impl<R: Real> MakeFixedRateLeg<R> {
+    pub fn build(self) -> Result<Leg<R>> {
         let mut cashflows = Vec::new();
         let structure = self
             .structure
