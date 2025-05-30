@@ -4,12 +4,78 @@ use std::cell::RefCell;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, RequestMode, Response};
 use wasm_bindgen::JsCast;
+use std::sync::{Arc, RwLock};
 
 use lefi::prelude::*;
 use rustatlas::math::ad::{backward, reset_tape, Var};
+use rustatlas::prelude::*;
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json;
+
+// ----------- Structures for market-based pricing -----------
+#[derive(Deserialize)]
+struct FixingInput {
+    date: Date,
+    value: f64,
+}
+
+#[derive(Deserialize)]
+struct CurveIndexInput {
+    index_type: String,
+    tenor: Period,
+    fixings: Vec<FixingInput>,
+}
+
+#[derive(Deserialize)]
+struct CurveDetailsInput {
+    discounts: Vec<FixingInput>,
+    day_counter: DayCounter,
+    interpolation: Interpolator,
+}
+
+#[derive(Deserialize)]
+struct CurveInput {
+    curve_name: String,
+    currency: Currency,
+    is_risk_free: bool,
+    is_forward_curve: bool,
+    id: usize,
+    curve_type: String,
+    curve_index: CurveIndexInput,
+    curve_details: CurveDetailsInput,
+}
+
+#[derive(Deserialize)]
+struct FxInput {
+    strong_ccy: Currency,
+    weak_ccy: Currency,
+    value: f64,
+}
+
+#[derive(Deserialize)]
+struct MarketDataInput {
+    reference_date: Date,
+    fx: Vec<FxInput>,
+    curves: Vec<CurveInput>,
+}
+
+#[derive(Deserialize)]
+struct ScriptEventInput {
+    date: Date,
+    code: String,
+}
+
+#[derive(Deserialize)]
+struct ScriptDataInput {
+    events: Vec<ScriptEventInput>,
+}
+
+#[derive(Deserialize)]
+struct PricingRequest {
+    market_data: MarketDataInput,
+    script_data: ScriptDataInput,
+}
 
 #[derive(Deserialize)]
 struct PricingInput {
@@ -33,7 +99,7 @@ thread_local! {
     static CURVE_CACHE: RefCell<HashMap<String, JsValue>> = RefCell::new(HashMap::new());
 }
 
-fn build_url(path: &str) -> Result<String, JsValue> {
+fn build_url(path: &str) -> std::result::Result<String, JsValue> {
     BASE_URL.with(|b| {
         b.borrow()
             .as_ref()
@@ -42,7 +108,7 @@ fn build_url(path: &str) -> Result<String, JsValue> {
     })
 }
 
-async fn fetch_json(url: String, api_key: &str) -> Result<JsValue, JsValue> {
+async fn fetch_json(url: String, api_key: &str) -> std::result::Result<JsValue, JsValue> {
     let mut opts = RequestInit::new();
     opts.method("GET");
     opts.mode(RequestMode::Cors);
@@ -60,7 +126,7 @@ async fn fetch_json(url: String, api_key: &str) -> Result<JsValue, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn run_pricing(script_json: &str) -> Result<JsValue, JsValue> {
+pub fn run_pricing(script_json: &str) -> std::result::Result<JsValue, JsValue> {
     let input: PricingInput = serde_json::from_str(script_json)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
@@ -89,7 +155,7 @@ pub fn run_pricing(script_json: &str) -> Result<JsValue, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn run_pricing_with_risk(script_json: &str, target: &str) -> Result<JsValue, JsValue> {
+pub fn run_pricing_with_risk(script_json: &str, target: &str) -> std::result::Result<JsValue, JsValue> {
     let input: PricingInput = serde_json::from_str(script_json)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
@@ -156,7 +222,7 @@ pub fn init_market_data(base_url: &str) {
 }
 
 #[wasm_bindgen]
-pub async fn get_spot_rate(api_key: &str, symbol: &str, date: &str) -> Result<f64, JsValue> {
+pub async fn get_spot_rate(api_key: &str, symbol: &str, date: &str) -> std::result::Result<f64, JsValue> {
     let key = format!("{symbol}:{date}");
     if let Some(rate) = SPOT_CACHE.with(|c| c.borrow().get(&key).copied()) {
         return Ok(rate);
@@ -176,7 +242,7 @@ pub async fn get_spot_rate(api_key: &str, symbol: &str, date: &str) -> Result<f6
 }
 
 #[wasm_bindgen]
-pub async fn get_curve(api_key: &str, name: &str) -> Result<JsValue, JsValue> {
+pub async fn get_curve(api_key: &str, name: &str) -> std::result::Result<JsValue, JsValue> {
     if let Some(data) = CURVE_CACHE.with(|c| c.borrow().get(name).cloned()) {
         return Ok(data);
     }
@@ -185,4 +251,115 @@ pub async fn get_curve(api_key: &str, name: &str) -> Result<JsValue, JsValue> {
     let val = fetch_json(url, api_key).await?;
     CURVE_CACHE.with(|c| { c.borrow_mut().insert(name.to_string(), val.clone()); });
     Ok(val)
+}
+
+fn build_market_store(data: MarketDataInput) -> std::result::Result<(MarketStore<f64>, Currency), JsValue> {
+    let ref_date = data.reference_date;
+    let local_ccy = data
+        .curves
+        .first()
+        .map(|c| c.currency)
+        .unwrap_or(Currency::USD);
+
+    let mut store = MarketStore::<f64>::new(ref_date, local_ccy);
+
+    for fx in data.fx {
+        store
+            .mut_exchange_rate_store()
+            .add_exchange_rate(fx.weak_ccy, fx.strong_ccy, fx.value);
+    }
+
+    for c in data.curves {
+        let ccy = c.currency;
+        let day_counter = c.curve_details.day_counter;
+        let interpolator = c.curve_details.interpolation;
+        let dates: Vec<Date> = c
+            .curve_details
+            .discounts
+            .iter()
+            .map(|f| f.date)
+            .collect();
+        let dfs: Vec<f64> = c
+            .curve_details
+            .discounts
+            .iter()
+            .map(|f| f.value)
+            .collect();
+        let ts = Arc::new(
+            DiscountTermStructure::new(dates, dfs, day_counter, interpolator, true)
+                .map_err(|e| JsValue::from_str(&format!("{e}")))?,
+        );
+
+        let fixings: HashMap<Date, f64> = c
+            .curve_index
+            .fixings
+            .iter()
+            .map(|f| (f.date, f.value))
+            .collect();
+        let index: Arc<RwLock<dyn InterestRateIndexTrait<f64>>> = match c.curve_index.index_type.as_str() {
+            "Ibor" => Arc::new(RwLock::new(
+                IborIndex::new(ref_date)
+                    .with_tenor(c.curve_index.tenor)
+                    .with_fixings(fixings)
+                    .with_term_structure(ts.clone()),
+            )),
+            _ => Arc::new(RwLock::new(
+                OvernightIndex::new(ref_date)
+                    .with_fixings(fixings)
+                    .with_term_structure(ts.clone()),
+            )),
+        };
+
+        store
+            .mut_index_store()
+            .add_index(c.id, index)
+            .map_err(|e| JsValue::from_str(&format!("{e}")))?;
+        store.mut_index_store().add_currency_curve(ccy, c.id);
+    }
+
+    Ok((store, local_ccy))
+}
+
+// ------------------------------------------------------------
+// Core evaluation using provided market data and script events
+// ------------------------------------------------------------
+
+#[wasm_bindgen]
+pub fn run_event_pricing(json: &str) -> std::result::Result<JsValue, JsValue> {
+    let input: PricingRequest = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    // ----- Build MarketStore -----
+    let (store, local_ccy) = build_market_store(input.market_data)?;
+
+    // ----- Parse events -----
+    let coded_events: Vec<CodedEvent> = input
+        .script_data
+        .events
+        .into_iter()
+        .map(|e| CodedEvent::new(e.date, e.code))
+        .collect();
+    let events = EventStream::try_from(coded_events)
+        .map_err(|e| JsValue::from_str(&format!("{e}")))?;
+
+    let indexer = EventIndexer::new().with_local_currency(local_ccy);
+    indexer
+        .visit_events(&events)
+        .map_err(|e| JsValue::from_str(&format!("{e}")))?;
+
+    let requests = indexer.get_market_requests();
+    let model = SimpleModel::new(&store);
+    let scenario = model
+        .gen_market_data(&requests)
+        .map_err(|e| JsValue::from_str(&format!("{e}")))?;
+    let scenarios = vec![scenario];
+
+    let evaluator = EventStreamEvaluator::new(indexer.get_variables_size())
+        .with_scenarios(&scenarios);
+    let vars = evaluator
+        .visit_events(&events, &indexer.get_variable_indexes())
+        .map_err(|e| JsValue::from_str(&format!("{e}")))?;
+
+    serde_wasm_bindgen::to_value(&PricingOutput { variables: vars })
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }
