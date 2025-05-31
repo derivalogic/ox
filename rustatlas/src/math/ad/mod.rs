@@ -43,6 +43,12 @@ struct Node {
     rhs: usize,
 }
 
+/// Tape segment recorded on a worker thread.
+pub struct ThreadTape {
+    /// Recorded nodes in execution order
+    nodes: Vec<Node>,
+}
+
 #[inline]
 fn push(n: Node) -> usize {
     TAPE.with(|t| {
@@ -57,6 +63,35 @@ fn push(n: Node) -> usize {
 // }
 pub fn reset_tape() {
     TAPE.with(|t| t.borrow_mut().clear())
+}
+
+/// Extract and clear the current thread's tape, returning the captured segment.
+pub fn take_thread_tape() -> ThreadTape {
+    TAPE.with(|t| {
+        ThreadTape {
+            nodes: std::mem::take(&mut *t.borrow_mut()),
+        }
+    })
+}
+
+/// Append a thread tape onto the main tape, shifting node indices.
+///
+/// Returns the index offset that was applied to the merged nodes.
+pub fn merge_thread_tape(mut tape: ThreadTape) -> usize {
+    TAPE.with(|t| {
+        let mut main = t.borrow_mut();
+        let offset = main.len();
+        for node in &mut tape.nodes {
+            if node.lhs != ID_NONE {
+                node.lhs += offset;
+            }
+            if node.rhs != ID_NONE {
+                node.rhs += offset;
+            }
+        }
+        main.extend(tape.nodes);
+        offset
+    })
 }
 
 /* =======================================================================
@@ -87,6 +122,15 @@ impl Var {
     #[inline]
     pub fn value(self) -> f64 {
         self.value
+    }
+
+    /// Return a copy of the variable whose identifier is increased by `offset`.
+    #[inline]
+    pub fn shifted(self, offset: usize) -> Self {
+        Var {
+            id: self.id + offset,
+            value: self.value,
+        }
     }
 
     #[inline(always)]
@@ -510,5 +554,40 @@ mod tests {
         let y = payoff(v);
         let g = backward(&y);
         assert!((g[v.id()] - (-1.0 + 3.0)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn merge_thread_tape_parallel() {
+        use rayon::prelude::*;
+
+        let inputs = vec![1.0, 2.0];
+
+        // run two parallel computations each on its own tape
+        let parts: Vec<(Var, Var, ThreadTape)> = inputs
+            .into_par_iter()
+            .map(|x| {
+                reset_tape();
+                let xv = Var::new(x);
+                let y = xv * xv;
+                let tape = take_thread_tape();
+                (xv, y, tape)
+            })
+            .collect();
+
+        reset_tape();
+        let mut total = Var::new(0.0);
+        let mut xs = Vec::new();
+
+        for (x, y, tape) in parts {
+            let offset = merge_thread_tape(tape);
+            let x = x.shifted(offset);
+            let y = y.shifted(offset);
+            xs.push(x);
+            total = total + y;
+        }
+
+        let g = backward(&total);
+        assert!((g[xs[0].id()] - 2.0 * 1.0).abs() < 1e-12);
+        assert!((g[xs[1].id()] - 2.0 * 2.0).abs() < 1e-12);
     }
 }
