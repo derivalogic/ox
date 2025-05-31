@@ -1,29 +1,55 @@
-
 use lefi::prelude::*;
 use lefi::utils::errors::Result;
+use rustatlas::core::marketstore::MarketStore;
 use rustatlas::currencies::enums::Currency;
 use rustatlas::math::ad::{backward, reset_tape, Var};
-use rustatlas::models::blackscholes::{
-    bs_delta, bs_price, bs_price_delta_gamma_theta, BlackScholesModel,
-};
-use rustatlas::models::deterministicmodel::DeterministicModel;
-use rustatlas::models::simplemodel::SimpleModel;
+use rustatlas::models::blackscholes::BlackScholesModel;
 use rustatlas::models::montecarlomodel::MonteCarloModel;
-use rustatlas::core::marketstore::MarketStore;
+use rustatlas::models::simplemodel::SimpleModel;
 use rustatlas::prelude::{FlatForwardTermStructure, OvernightIndex, RateDefinition};
-use std::sync::{Arc, RwLock};
 use rustatlas::time::{date::Date, daycounter::DayCounter};
+use std::sync::{Arc, RwLock};
 
+fn create_market_store(s0: Var, r_usd: Var, r_clp: Var) -> MarketStore<Var> {
+    let ref_date = Date::new(2024, 1, 1);
+    let mut store = MarketStore::new(ref_date, Currency::USD);
+    store
+        .mut_exchange_rate_store()
+        .add_exchange_rate(Currency::CLP, Currency::USD, s0);
+    let usd_curve = Arc::new(FlatForwardTermStructure::new(
+        ref_date,
+        r_usd,
+        RateDefinition::default(),
+    ));
+    let index = Arc::new(RwLock::new(
+        OvernightIndex::new(ref_date).with_term_structure(usd_curve),
+    ));
+    let _ = store.mut_index_store().add_index(0, index);
+    store.mut_index_store().add_currency_curve(Currency::USD, 0);
+
+    let clp_curve = Arc::new(FlatForwardTermStructure::new(
+        ref_date,
+        r_clp,
+        RateDefinition::default(),
+    ));
+    let index_clp = Arc::new(RwLock::new(
+        OvernightIndex::new(ref_date).with_term_structure(clp_curve),
+    ));
+    let _ = store.mut_index_store().add_index(1, index_clp);
+    store.mut_index_store().add_currency_curve(Currency::CLP, 1);
+    store
+}
 
 fn main() -> Result<()> {
     // Model parameters
     let ref_date = Date::new(2024, 1, 1);
     let maturity = Date::new(2025, 1, 1);
-    let t = DayCounter::Actual365.year_fraction::<f64>(ref_date, maturity);
-    let s0 = 850.0;
-    let k = 900.0;
-    let r = 0.03;
-    let vol = 0.2;
+    let t = DayCounter::Actual365.year_fraction::<Var>(ref_date, maturity);
+    let s0 = Var::new(850.0);
+
+    let r_usd = Var::new(0.03);
+    let r_clp = Var::new(0.05);
+    let vol = Var::new(0.2);
 
     // Scripted payoff of a call option
     let script = "
@@ -42,63 +68,37 @@ fn main() -> Result<()> {
 
     // Monte Carlo scenarios with Black-Scholes dynamics using AD variables
     reset_tape();
-    let s0_var = Var::new(s0);
-    let mut store = MarketStore::new(ref_date, Currency::USD);
-    store
-        .mut_exchange_rate_store()
-        .add_exchange_rate(Currency::CLP, Currency::USD, s0);
-    let curve = Arc::new(FlatForwardTermStructure::new(
-        ref_date,
-        r,
-        RateDefinition::default(),
-    ));
-    let index = Arc::new(RwLock::new(
-        OvernightIndex::new(ref_date).with_term_structure(curve),
-    ));
-    let _ = store.mut_index_store().add_index(0, index);
-    store.mut_index_store().add_currency_curve(Currency::USD, 0);
+    let store = create_market_store(s0, r_usd, r_clp);
+
     let simple = SimpleModel::new(&store);
     let model = BlackScholesModel::new(simple);
     let scenarios = model.gen_scenarios(&requests, 5000)?;
 
     // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();
-    let evaluator = EventStreamEvaluator::new(indexer.get_variables_size())
-        .with_scenarios(&scenarios);
+    let evaluator: EventStreamEvaluator<Var> =
+        EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
     let vars = evaluator.visit_events(&events, &var_map)?;
-    let price_mc = match vars.get("opt").unwrap() {
-        Value::Number(v) => *v,
-        _ => 0.0,
+    let price_mc = match vars.get("opt") {
+        Some(Value::Number(v)) => *v,
+        _ => Var::new(0.0),
     };
 
-    // Delta via AD on the analytic price expression
-    reset_tape();
-    let s_var = Var::new(s0);
-    let price_var = bs_price(s_var, Var::from(k), Var::from(r), Var::from(vol), Var::from(t));
-    let grad_price = backward(&price_var);
-    let delta_ad = grad_price[s_var.id()];
+    // Compute the Greeks using automatic differentiation
+    let result = backward(&price_mc);
 
-    // Gamma via AD on the analytic delta expression
-    reset_tape();
-    let s_var = Var::new(s0);
-    let delta_var = bs_delta(s_var, Var::from(k), Var::from(r), Var::from(vol), Var::from(t));
-    let grad_delta = backward(&delta_var);
-    let gamma_ad = grad_delta[s_var.id()];
+    let delta_ad = result.get(s0.id()).unwrap().clone();
+    let rho_clp = result.get(r_clp.id()).unwrap().clone();
+    let rho_usd = result.get(r_usd.id()).unwrap().clone();
+    let theta_ad = result.get(t.id()).unwrap().clone();
+    let vega_ad = result.get(vol.id()).unwrap().clone();
 
-    // Theta via AD on the analytic price expression
-    reset_tape();
-    let t_var = Var::new(t);
-    let price_var_bs = bs_price(Var::from(s0), Var::from(k), Var::from(r), Var::from(vol), t_var);
-    let grad_theta = backward(&price_var_bs);
-    let theta_ad = grad_theta[t_var.id()];
+    println!("Monte Carlo Price: {}", price_mc);
+    println!("Monte Carlo Delta: {}", delta_ad);
+    println!("Monte Carlo Rho CLP: {}", rho_clp);
+    println!("Monte Carlo Rho USD: {}", rho_usd);
+    println!("Monte Carlo Theta: {}", theta_ad);
+    println!("Monte Carlo Vega: {}", vega_ad);
 
-    // Analytic Black-Scholes results
-    let (price_bs, delta_bs, gamma_bs, theta_bs) = bs_price_delta_gamma_theta(s0, k, r, vol, t);
-
-    println!("Monte Carlo price: {:.6}", price_mc);
-    println!("Black-Scholes price: {:.6}", price_bs);
-    println!("Delta analytic vs AD:  {:.6}  {:.6}", delta_bs, delta_ad);
-    println!("Gamma analytic vs AD:  {:.6}  {:.6}", gamma_bs, gamma_ad);
-    println!("Theta analytic vs AD:  {:.6}  {:.6}", theta_bs, theta_ad);
     Ok(())
 }

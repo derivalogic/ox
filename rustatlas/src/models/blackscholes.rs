@@ -115,10 +115,10 @@ impl<'a, T: Real> MonteCarloModel<T> for BlackScholesModel<'a, T> {
                         /* one-step GBM .................................. */
                         let sigma = store
                             .get_volatility(fx_req.first_currency(), second_ccy)
-                            .unwrap_or_else(|_| T::from(0.20));
+                            .unwrap();
                         let z = rng.sample::<f64, _>(StandardNormal);
 
-                        let drift = (r_quote - r_base) - T::from(0.5) * sigma * sigma;
+                        let drift = (r_quote - r_base) - sigma * sigma * 0.5;
                         let s_t = s0 * (drift * t + sigma * t.sqrt() * z).exp();
 
                         /* ---------------- numerarie (local-currency) -----------
