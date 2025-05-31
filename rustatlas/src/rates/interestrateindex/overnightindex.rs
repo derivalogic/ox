@@ -185,7 +185,7 @@ impl<T: Real> YieldProvider<T> for OvernightIndex<T> {
     }
 }
 
-impl<T: Real + 'static> AdvanceInterestRateIndexInTime<T> for OvernightIndex<T> {
+impl<T: Real + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T> for OvernightIndex<T> {
     fn advance_to_period(
         &self,
         period: Period,
@@ -255,7 +255,7 @@ impl<T: Real> RelinkableTermStructure<T> for OvernightIndex<T> {
     }
 }
 
-impl<T: Real + 'static> InterestRateIndexTrait<T> for OvernightIndex<T> {}
+impl<T: Real + Send + Sync + 'static> InterestRateIndexTrait<T> for OvernightIndex<T> {}
 
 #[cfg(test)]
 mod tests {

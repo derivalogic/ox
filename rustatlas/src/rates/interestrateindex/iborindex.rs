@@ -189,9 +189,9 @@ impl<T: Real> RelinkableTermStructure<T> for IborIndex<T> {
     }
 }
 
-impl<T: Real + 'static> InterestRateIndexTrait<T> for IborIndex<T> {}
+impl<T: Real + Send + Sync + 'static> InterestRateIndexTrait<T> for IborIndex<T> {}
 
-impl<T: Real + 'static> AdvanceInterestRateIndexInTime<T> for IborIndex<T> {
+impl<T: Real + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T> for IborIndex<T> {
     fn advance_to_period(
         &self,
         period: Period,

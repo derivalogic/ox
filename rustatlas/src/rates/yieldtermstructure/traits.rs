@@ -44,9 +44,15 @@ pub trait AdvanceTermStructureInTime<T: Real> {
 /// - HasReferenceDate
 /// - AdvanceTermStructureInTime
 /// - Send
+/// - Sync
 ///
-/// Send is required to be able to send the trait to another thread.
+/// These auto traits are required to be able to share term structures
+/// across threads when generating Monte–Carlo scenarios in parallel.
 pub trait YieldTermStructureTrait<T: Real>:
-    YieldProvider<T> + HasReferenceDate + AdvanceTermStructureInTime<T>
+    YieldProvider<T>
+    + HasReferenceDate
+    + AdvanceTermStructureInTime<T>
+    + Send
+    + Sync
 {
 }

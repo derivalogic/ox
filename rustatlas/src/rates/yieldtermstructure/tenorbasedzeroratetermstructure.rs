@@ -147,7 +147,7 @@ impl<T: Real> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
     }
 }
 
-impl<T: Real + 'static> AdvanceTermStructureInTime<T> for TenorBasedZeroRateTermStructure<T> {
+impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for TenorBasedZeroRateTermStructure<T> {
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_reference_date = self.reference_date + period;
         Ok(Arc::new(TenorBasedZeroRateTermStructure::new(
@@ -167,7 +167,7 @@ impl<T: Real + 'static> AdvanceTermStructureInTime<T> for TenorBasedZeroRateTerm
     }
 }
 
-impl<T: Real + 'static> YieldTermStructureTrait<T> for TenorBasedZeroRateTermStructure<T> {}
+impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T> for TenorBasedZeroRateTermStructure<T> {}
 
 #[cfg(test)]
 mod tests {
