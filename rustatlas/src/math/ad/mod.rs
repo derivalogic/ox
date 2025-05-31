@@ -9,38 +9,22 @@ const ID_NONE: usize = usize::MAX;
 
 thread_local! {
     static TAPE: RefCell<Vec<Node>> = RefCell::new(Vec::with_capacity(128));
+    /// Mark position used by [`mark_tape`] and [`rewind_to_mark`]
+    static MARK: RefCell<usize> = RefCell::new(0);
 }
 
-#[derive(Clone)]
-enum Op {
-    /* leaf */ Input,
-    /* binary */ Add,
-    Sub,
-    Mul,
-    Div,
-    #[allow(dead_code)]
-    /* rhs const */
-    AddConst(f64),
-    MulConst(f64),
-    #[allow(dead_code)]
-    /* lhs const */
-    ConstSub(f64),
-    ConstDiv(f64),
-    /* unary  */ Neg,
-    Ln,
-    Exp,
-    Sin,
-    Cos,
-    Sqrt,
-    Abs,
-}
-
+/// Node stored on the tape.
+///
+/// `n_args` indicates how many arguments this operation has (0, 1 or 2).
+/// For unary operations `rhs` and `der_rhs` are unused.
 #[derive(Clone)]
 struct Node {
     value: f64,
-    op: Op,
     lhs: usize,
     rhs: usize,
+    der_lhs: f64,
+    der_rhs: f64,
+    n_args: u8,
 }
 
 /// Tape segment recorded on a worker thread.
@@ -63,6 +47,21 @@ fn push(n: Node) -> usize {
 // }
 pub fn reset_tape() {
     TAPE.with(|t| t.borrow_mut().clear())
+}
+
+/// Remember the current end of the tape for later rewinding.
+pub fn mark_tape() {
+    TAPE.with(|t| MARK.with(|m| *m.borrow_mut() = t.borrow().len()))
+}
+
+/// Truncate the tape back to the last mark.
+pub fn rewind_to_mark() {
+    TAPE.with(|t| MARK.with(|m| t.borrow_mut().truncate(*m.borrow())))
+}
+
+/// Number of nodes currently stored on the tape.
+pub fn tape_len() -> usize {
+    TAPE.with(|t| t.borrow().len())
 }
 
 /// Extract and clear the current thread's tape, returning the captured segment.
@@ -107,9 +106,11 @@ impl Var {
     pub fn new(v: f64) -> Self {
         let id = push(Node {
             value: v,
-            op: Op::Input,
             lhs: ID_NONE,
             rhs: ID_NONE,
+            der_lhs: 0.0,
+            der_rhs: 0.0,
+            n_args: 0,
         });
         Var { id, value: v }
     }
@@ -132,27 +133,42 @@ impl Var {
     }
 
     #[inline(always)]
-    fn unary(self, op: Op, f: impl FnOnce(f64) -> f64) -> Self {
+    fn unary(
+        self,
+        f: impl FnOnce(f64) -> f64,
+        df: impl FnOnce(f64, f64) -> f64,
+    ) -> Self {
         let val = f(self.value);
+        let der = df(self.value, val);
         Var {
             id: push(Node {
                 value: val,
-                op,
                 lhs: self.id,
                 rhs: ID_NONE,
+                der_lhs: der,
+                der_rhs: 0.0,
+                n_args: 1,
             }),
             value: val,
         }
     }
     #[inline(always)]
-    fn binary(self, rhs: Self, op: Op, f: impl FnOnce(f64, f64) -> f64) -> Self {
+    fn binary(
+        self,
+        rhs: Self,
+        der_lhs: f64,
+        der_rhs: f64,
+        f: impl FnOnce(f64, f64) -> f64,
+    ) -> Self {
         let val = f(self.value, rhs.value);
         Var {
             id: push(Node {
                 value: val,
-                op,
                 lhs: self.id,
                 rhs: rhs.id,
+                der_lhs,
+                der_rhs,
+                n_args: 2,
             }),
             value: val,
         }
@@ -161,27 +177,27 @@ impl Var {
     /* elementary */
     #[inline]
     pub fn ln(self) -> Self {
-        self.unary(Op::Ln, f64::ln)
+        self.unary(f64::ln, |x, _| 1.0 / x)
     }
     #[inline]
     pub fn exp(self) -> Self {
-        self.unary(Op::Exp, f64::exp)
+        self.unary(f64::exp, |_, v| v)
     }
     #[inline]
     pub fn sin(self) -> Self {
-        self.unary(Op::Sin, f64::sin)
+        self.unary(f64::sin, |x, _| x.cos())
     }
     #[inline]
     pub fn cos(self) -> Self {
-        self.unary(Op::Cos, f64::cos)
+        self.unary(f64::cos, |x, _| -x.sin())
     }
     #[inline]
     pub fn sqrt(self) -> Self {
-        self.unary(Op::Sqrt, f64::sqrt)
+        self.unary(f64::sqrt, |_, v| 0.5 / v)
     }
     #[inline]
     pub fn abs(self) -> Self {
-        self.unary(Op::Abs, f64::abs)
+        self.unary(f64::abs, |x, _| if x > 0.0 { 1.0 } else if x < 0.0 { -1.0 } else { 0.0 })
     }
     pub fn powf(self, rhs: Self) -> Self {
         (self.ln() * rhs).exp()
@@ -196,7 +212,7 @@ impl Add for Var {
     type Output = Self;
     #[inline]
     fn add(self, rhs: Self) -> Self {
-        self.binary(rhs, Op::Add, |a, b| a + b)
+        self.binary(rhs, 1.0, 1.0, |a, b| a + b)
     }
 }
 impl Add<f64> for Var {
@@ -210,9 +226,11 @@ impl Add<f64> for Var {
         Var {
             id: push(Node {
                 value: v,
-                op: Op::AddConst(c),
                 lhs: self.id,
                 rhs: ID_NONE,
+                der_lhs: 1.0,
+                der_rhs: 0.0,
+                n_args: 1,
             }),
             value: v,
         }
@@ -222,7 +240,7 @@ impl Mul for Var {
     type Output = Self;
     #[inline]
     fn mul(self, rhs: Self) -> Self {
-        self.binary(rhs, Op::Mul, |a, b| a * b)
+        self.binary(rhs, rhs.value, self.value, |a, b| a * b)
     }
 }
 impl Mul<f64> for Var {
@@ -239,9 +257,11 @@ impl Mul<f64> for Var {
         Var {
             id: push(Node {
                 value: v,
-                op: Op::MulConst(k),
                 lhs: self.id,
                 rhs: ID_NONE,
+                der_lhs: k,
+                der_rhs: 0.0,
+                n_args: 1,
             }),
             value: v,
         }
@@ -251,7 +271,7 @@ impl Sub for Var {
     type Output = Self;
     #[inline]
     fn sub(self, rhs: Self) -> Self {
-        self.binary(rhs, Op::Sub, |a, b| a - b)
+        self.binary(rhs, 1.0, -1.0, |a, b| a - b)
     }
 }
 impl Sub<f64> for Var {
@@ -265,14 +285,30 @@ impl Div for Var {
     type Output = Self;
     #[inline]
     fn div(self, rhs: Self) -> Self {
-        self.binary(rhs, Op::Div, |a, b| a / b)
+        let inv = 1.0 / rhs.value;
+        self.binary(rhs, inv, -self.value * inv * inv, |a, b| a / b)
     }
 }
 impl Div<f64> for Var {
     type Output = Self;
     #[inline]
     fn div(self, c: f64) -> Self {
-        self * (1.0 / c)
+        if c == 1.0 {
+            self
+        } else {
+            let v = self.value / c;
+            Var {
+                id: push(Node {
+                    value: v,
+                    lhs: self.id,
+                    rhs: ID_NONE,
+                    der_lhs: 1.0 / c,
+                    der_rhs: 0.0,
+                    n_args: 1,
+                }),
+                value: v,
+            }
+        }
     }
 } // x/c
 impl Neg for Var {
@@ -282,9 +318,11 @@ impl Neg for Var {
         Var {
             id: push(Node {
                 value: v,
-                op: Op::Neg,
                 lhs: self.id,
                 rhs: ID_NONE,
+                der_lhs: -1.0,
+                der_rhs: 0.0,
+                n_args: 1,
             }),
             value: v,
         }
@@ -307,9 +345,11 @@ impl Sub<Var> for f64 {
         Var {
             id: push(Node {
                 value: v,
-                op: Op::ConstSub(self),
                 lhs: r.id,
                 rhs: ID_NONE,
+                der_lhs: -1.0,
+                der_rhs: 0.0,
+                n_args: 1,
             }),
             value: v,
         }
@@ -330,9 +370,11 @@ impl Div<Var> for f64 {
         Var {
             id: push(Node {
                 value: v,
-                op: Op::ConstDiv(self),
                 lhs: r.id,
                 rhs: ID_NONE,
+                der_lhs: -self / (r.value * r.value),
+                der_rhs: 0.0,
+                n_args: 1,
             }),
             value: v,
         }
@@ -383,73 +425,17 @@ pub fn backward(result: &Var) -> Vec<f64> {
         let mut g = vec![0.0; tape.len()];
         g[result.id] = 1.0;
         for i in (0..=result.id).rev() {
-            match &tape[i].op {
-                Op::Input => {}
-                Op::Add => {
-                    g[tape[i].lhs] += g[i];
-                    g[tape[i].rhs] += g[i];
+            let node = &tape[i];
+            match node.n_args {
+                0 => {}
+                1 => {
+                    g[node.lhs] += g[i] * node.der_lhs;
                 }
-                Op::Sub => {
-                    g[tape[i].lhs] += g[i];
-                    g[tape[i].rhs] -= g[i];
+                2 => {
+                    g[node.lhs] += g[i] * node.der_lhs;
+                    g[node.rhs] += g[i] * node.der_rhs;
                 }
-                Op::Mul => {
-                    let (lv, rv) = (tape[tape[i].lhs].value, tape[tape[i].rhs].value);
-                    g[tape[i].lhs] += g[i] * rv;
-                    g[tape[i].rhs] += g[i] * lv;
-                }
-                Op::Div => {
-                    let (lv, rv) = (tape[tape[i].lhs].value, tape[tape[i].rhs].value);
-                    g[tape[i].lhs] += g[i] / rv;
-                    g[tape[i].rhs] -= g[i] * lv / (rv * rv);
-                }
-                Op::AddConst(_) => {
-                    g[tape[i].lhs] += g[i];
-                }
-                Op::MulConst(k) => {
-                    g[tape[i].lhs] += g[i] * k;
-                }
-                Op::ConstSub(_) => {
-                    g[tape[i].lhs] -= g[i];
-                }
-                Op::ConstDiv(c) => {
-                    let xv = tape[tape[i].lhs].value;
-                    g[tape[i].lhs] -= g[i] * c / (xv * xv);
-                }
-                Op::Neg => {
-                    g[tape[i].lhs] -= g[i];
-                }
-                Op::Ln => {
-                    let lv = tape[tape[i].lhs].value;
-                    g[tape[i].lhs] += g[i] / lv;
-                }
-                Op::Exp => {
-                    let v = tape[i].value;
-                    g[tape[i].lhs] += g[i] * v;
-                }
-                Op::Sin => {
-                    let lv = tape[tape[i].lhs].value;
-                    g[tape[i].lhs] += g[i] * lv.cos();
-                }
-                Op::Cos => {
-                    let lv = tape[tape[i].lhs].value;
-                    g[tape[i].lhs] -= g[i] * lv.sin();
-                }
-                Op::Sqrt => {
-                    let lv = tape[tape[i].lhs].value;
-                    g[tape[i].lhs] += g[i] * 0.5 / lv.sqrt();
-                }
-                Op::Abs => {
-                    let lv = tape[tape[i].lhs].value;
-                    let s = if lv > 0.0 {
-                        1.0
-                    } else if lv < 0.0 {
-                        -1.0
-                    } else {
-                        0.0
-                    };
-                    g[tape[i].lhs] += g[i] * s;
-                }
+                _ => unreachable!(),
             }
         }
         g
