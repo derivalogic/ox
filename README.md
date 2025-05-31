@@ -62,3 +62,4 @@ Variables: [Number(1.0), Number(2.0), Number(3.0)]
 ```
 
 See `scripting/examples` for runnable examples, including pricing scripts for a vanilla swap, barrier option, Asian option, forward, and a vanilla option.
+The `wasm` crate also includes `event_pricing_from_json` under `wasm/examples`, demonstrating how to load a pricing request from JSON and execute it. The sample `request.json` shows market data for CLP and USD curves and evaluates a simple forward-style event.
