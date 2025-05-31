@@ -9,6 +9,7 @@ use web_sys::{Request, RequestInit, RequestMode, Response};
 use lefi::prelude::*;
 use rustatlas::math::ad::{backward, reset_tape, Var};
 use rustatlas::prelude::*;
+use rustatlas::models::deterministicmodel::DeterministicModel;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use wasm_bindgen::prelude::*;

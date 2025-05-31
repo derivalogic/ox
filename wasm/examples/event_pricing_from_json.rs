@@ -2,6 +2,7 @@ use std::{collections::HashMap, fs, sync::{Arc, RwLock}};
 
 use lefi::prelude::*;
 use rustatlas::prelude::*;
+use rustatlas::models::deterministicmodel::DeterministicModel;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
