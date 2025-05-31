@@ -2,7 +2,8 @@ use std::{collections::HashMap, fs, sync::{Arc, RwLock}};
 
 use lefi::prelude::*;
 use rustatlas::prelude::*;
-use rustatlas::models::deterministicmodel::DeterministicModel;
+use rustatlas::models::blackscholes::BlackScholesModel;
+use rustatlas::models::montecarlomodel::MonteCarloModel;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -154,9 +155,9 @@ fn main() -> GenResult<()> {
     indexer.visit_events(&events)?;
 
     let requests = indexer.get_market_requests();
-    let model = SimpleModel::new(&store);
-    let scenario = model.gen_market_data(&requests)?;
-    let scenarios = vec![scenario];
+    let simple = SimpleModel::new(&store);
+    let model = BlackScholesModel::new(simple);
+    let scenarios = model.gen_scenarios(&requests, 10_000)?;
 
     let evaluator = EventStreamEvaluator::new(indexer.get_variables_size())
         .with_scenarios(&scenarios);

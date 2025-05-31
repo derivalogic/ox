@@ -4,7 +4,8 @@ use lefi::prelude::*;
 use lefi::utils::errors::Result;
 use rustatlas::core::marketstore::MarketStore;
 use rustatlas::currencies::enums::Currency;
-use rustatlas::models::deterministicmodel::DeterministicModel;
+use rustatlas::models::blackscholes::BlackScholesModel;
+use rustatlas::models::montecarlomodel::MonteCarloModel;
 use rustatlas::models::simplemodel::SimpleModel;
 use rustatlas::prelude::{FlatForwardTermStructure, OvernightIndex, RateDefinition};
 use rustatlas::time::date::Date;
@@ -54,10 +55,10 @@ fn main() -> Result<()> {
     indexer.visit_events(&events)?;
 
     let store = create_market_store();
-    let model = SimpleModel::new(&store);
+    let simple = SimpleModel::new(&store);
+    let model = BlackScholesModel::new(simple);
     let requests = indexer.get_market_requests();
-    let scenario = model.gen_market_data(&requests)?;
-    let scenarios = vec![scenario];
+    let scenarios = model.gen_scenarios(&requests, 10_000)?;
 
     let var_map = indexer.get_variable_indexes();
     let evaluator = EventStreamEvaluator::new(indexer.get_variables_size())
