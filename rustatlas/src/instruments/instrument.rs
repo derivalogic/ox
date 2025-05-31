@@ -131,7 +131,6 @@ impl<R: Real> Instrument<R> {
             Instrument::FixedRateInstrument(fri) => fri.structure(),
             Instrument::FloatingRateInstrument(fri) => fri.structure(),
             // Instrument::HybridRateInstrument(hri) => hri.structure(),
-            _ => todo!(),
         }
     }
 

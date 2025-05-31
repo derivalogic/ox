@@ -12,7 +12,7 @@ use rustatlas::{
     instruments::{
         fixedrateinstrument::FixedRateInstrument, makefixedrateinstrument::MakeFixedRateInstrument,
     },
-    models::{simplemodel::SimpleModel, traits::Model},
+    models::{deterministicmodel::DeterministicModel, simplemodel::SimpleModel},
     rates::{enums::Compounding, interestrate::InterestRate, traits::HasReferenceDate},
     time::{
         daycounter::DayCounter,

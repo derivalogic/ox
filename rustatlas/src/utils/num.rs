@@ -14,6 +14,8 @@ use std::{
 
 pub trait Real:
     Copy
+    + Send
+    + Sync
     + Debug
     + Display
     + PartialEq

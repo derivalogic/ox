@@ -1,11 +1,11 @@
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rand_distr::StandardNormal;
-use rayon::iter::IntoParallelIterator;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::core::meta::{MarketData, MarketRequest};
 use crate::prelude::{
-    Actual360, Compounding, DayCounter, DiscountFactorRequest, ExchangeRateRequest,
-    ForwardRateRequest, Frequency, HasReferenceDate, InterestRate, SimpleModel,
+    Actual360, DayCountProvider, DiscountFactorRequest, ExchangeRateRequest, ForwardRateRequest,
+    HasReferenceDate, SimpleModel,
 };
 use crate::time::date::Date;
 use crate::utils::{errors::Result, num::Real};
@@ -86,8 +86,12 @@ impl<'a, T: Real> MonteCarloModel<T> for BlackScholesModel<'a, T> {
                         let s0 = self.simple.gen_fx_data(spot_req).unwrap();
 
                         /* discount factors at maturity .................. */
+                        let second_ccy = match fx_req.second_currency() {
+                            Some(ccy) => ccy,
+                            None => local_ccy, // if no second currency is given, use local currency
+                        };
                         let base_curve = idx.get_currency_curve(fx_req.first_currency()).unwrap();
-                        let quote_curve = idx.get_currency_curve(fx_req.second_currency()).unwrap();
+                        let quote_curve = idx.get_currency_curve(second_ccy).unwrap();
                         let local_curve = idx.get_currency_curve(local_ccy).unwrap();
 
                         let p_base = self
@@ -110,7 +114,7 @@ impl<'a, T: Real> MonteCarloModel<T> for BlackScholesModel<'a, T> {
 
                         /* one-step GBM .................................. */
                         let sigma = store
-                            .get_volatility(fx_req.first_currency(), fx_req.second_currency())
+                            .get_volatility(fx_req.first_currency(), second_ccy)
                             .unwrap_or_else(|_| T::from(0.20));
                         let z = rng.sample::<f64, _>(StandardNormal);
 
@@ -128,16 +132,16 @@ impl<'a, T: Real> MonteCarloModel<T> for BlackScholesModel<'a, T> {
                          *    3. else     → use interest-parity forward
                          * ----------------------------------------------------*/
 
-                        let fx_b_to_l: T = if local_ccy == fx_req.second_currency() {
-                            T::one() // case (1)
+                        let fx_b_to_l: T = if local_ccy == second_ccy {
+                            T::from(1.0) // case (1)
                         } else if local_ccy == fx_req.first_currency() {
-                            T::one() / s_t // case (2)
+                            T::from(1.0) / s_t // case (2)
                         } else {
                             /* case (3) – build forward B/L using interest parity */
                             let spot_b_l = self
                                 .simple
                                 .gen_fx_data(ExchangeRateRequest::new(
-                                    fx_req.second_currency(),
+                                    second_ccy,
                                     Some(local_ccy),
                                     Some(ref_date),
                                 ))
@@ -150,17 +154,11 @@ impl<'a, T: Real> MonteCarloModel<T> for BlackScholesModel<'a, T> {
 
                         // other values
                         let fwd = match req.fwd() {
-                            Some(fwd_req) => self
-                                .simple
-                                .gen_fwd_data(fwd_req.with_reference_date(mat))
-                                .unwrap(),
+                            Some(fwd_req) => Some(self.simple.gen_fwd_data(fwd_req).unwrap()),
                             None => None,
                         };
                         let df = match req.df() {
-                            Some(df_req) => self
-                                .simple
-                                .gen_df_data(df_req.with_reference_date(mat))
-                                .unwrap(),
+                            Some(df_req) => Some(self.simple.gen_df_data(df_req).unwrap()),
                             None => None,
                         };
 
@@ -170,7 +168,7 @@ impl<'a, T: Real> MonteCarloModel<T> for BlackScholesModel<'a, T> {
                             /* df  */ df,
                             /* fwd */ fwd,
                             /* fx  */ Some(s_t),
-                            /* num */ Some(numerarie),
+                            /* num */ numerarie,
                         ));
                     }
                     /* ======================================================

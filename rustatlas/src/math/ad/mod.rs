@@ -18,9 +18,13 @@ enum Op {
     Sub,
     Mul,
     Div,
-    /* rhs const */ AddConst(f64),
+    #[allow(dead_code)]
+    /* rhs const */
+    AddConst(f64),
     MulConst(f64),
-    /* lhs const */ ConstSub(f64),
+    #[allow(dead_code)]
+    /* lhs const */
+    ConstSub(f64),
     ConstDiv(f64),
     /* unary  */ Neg,
     Ln,
@@ -47,10 +51,10 @@ fn push(n: Node) -> usize {
         t.len() - 1
     })
 }
-#[inline]
-fn node(id: usize) -> Node {
-    TAPE.with(|t| t.borrow()[id].clone())
-}
+// #[inline]
+// fn node(id: usize) -> Node {
+//     TAPE.with(|t| t.borrow()[id].clone())
+// }
 pub fn reset_tape() {
     TAPE.with(|t| t.borrow_mut().clear())
 }

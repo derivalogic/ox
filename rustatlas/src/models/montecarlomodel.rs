@@ -3,8 +3,8 @@ use crate::{
     utils::{errors::Result, num::Real},
 };
 
-pub type Scenario<T: Real> = Vec<MarketData<T>>;
-pub type Simulations<T: Real> = Vec<Scenario<T>>;
+pub type Scenario<T> = Vec<MarketData<T>>;
+pub type Simulations<T> = Vec<Scenario<T>>;
 
 /// Trait for models capable of generating Monte Carlo scenarios.
 pub trait MonteCarloModel<T: Real> {
