@@ -1,4 +1,5 @@
-use rand::{distributions::StandardNormal, rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand_distr::StandardNormal;
 use rayon::iter::IntoParallelIterator;
 
 use crate::core::meta::{MarketData, MarketRequest};
@@ -108,7 +109,9 @@ impl<'a, T: Real> MonteCarloModel<T> for BlackScholesModel<'a, T> {
                         let r_local = -p_local.ln() / t;
 
                         /* one-step GBM .................................. */
-                        let sigma: T = T::from(0.20); // <-- make param if you wish
+                        let sigma = store
+                            .get_volatility(fx_req.first_currency(), fx_req.second_currency())
+                            .unwrap_or_else(|_| T::from(0.20));
                         let z = rng.sample::<f64, _>(StandardNormal);
 
                         let drift = (r_quote - r_base) - T::from(0.5) * sigma * sigma;

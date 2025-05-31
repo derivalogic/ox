@@ -7,6 +7,7 @@ use crate::{
         exchangeratestore::ExchangeRateStore,
         traits::{AdvanceExchangeRateStoreInTime, CurrencyDetails},
     },
+    equities::equitystore::{AdvanceEquityStoreInTime, EquityStore},
     rates::{
         indexstore::{IndexStore, ReadIndex},
         interestrateindex::traits::InterestRateIndexTrait,
@@ -34,6 +35,7 @@ pub struct MarketStore<T: Real> {
     local_currency: Currency,
     exchange_rate_store: ExchangeRateStore<T>,
     index_store: IndexStore<T>,
+    equity_store: EquityStore<T>,
 }
 
 impl<T: Real> MarketStore<T> {
@@ -43,6 +45,7 @@ impl<T: Real> MarketStore<T> {
             local_currency,
             exchange_rate_store: ExchangeRateStore::new(reference_date),
             index_store: IndexStore::new(reference_date),
+            equity_store: EquityStore::new(reference_date),
         }
     }
 
@@ -56,6 +59,14 @@ impl<T: Real> MarketStore<T> {
 
     pub fn mut_exchange_rate_store(&mut self) -> &mut ExchangeRateStore<T> {
         &mut self.exchange_rate_store
+    }
+
+    pub fn equity_store(&self) -> &EquityStore<T> {
+        &self.equity_store
+    }
+
+    pub fn mut_equity_store(&mut self) -> &mut EquityStore<T> {
+        &mut self.equity_store
     }
 
     pub fn index_store(&self) -> &IndexStore<T> {
@@ -80,6 +91,14 @@ impl<T: Real> MarketStore<T> {
             .get_exchange_rate(first_currency, second_currency);
     }
 
+    pub fn get_volatility(
+        &self,
+        first_currency: Currency,
+        second_currency: Currency,
+    ) -> Result<T> {
+        self.equity_store.volatility(first_currency, second_currency)
+    }
+
     pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
         return self.index_store.get_index(id);
     }
@@ -96,12 +115,14 @@ impl<T: Real> MarketStore<T> {
             .exchange_rate_store
             .advance_to_period(period, &self.index_store)?;
         let new_index_store = self.index_store.advance_to_period(period)?;
+        let new_equity_store = self.equity_store.advance_to_period(period)?;
 
         Ok(MarketStore {
             reference_date: new_reference_date,
             local_currency: self.local_currency,
             exchange_rate_store: new_exchange_rate_store,
             index_store: new_index_store,
+            equity_store: new_equity_store,
         })
     }
 
@@ -190,6 +211,22 @@ impl<T: Real + fmt::Display> fmt::Display for MarketStore<T> {
             msg.push_str(&currencies.1.code());
             msg.push_str(": ");
             msg.push_str(&value.to_string());
+            msg.push_str("\n");
+        }
+
+        let vol_store = self.equity_store();
+        let vol_map = vol_store.vol_map();
+        msg.push_str("-------------------------------------\n");
+        msg.push_str("> Equity volatilities (");
+        msg.push_str(&vol_map.len().to_string());
+        msg.push_str("):\n");
+        for (pair, vol) in &vol_map {
+            msg.push_str(">> ");
+            msg.push_str(&pair.0.code());
+            msg.push_str(" -> ");
+            msg.push_str(&pair.1.code());
+            msg.push_str(": ");
+            msg.push_str(&vol.to_string());
             msg.push_str("\n");
         }
 
