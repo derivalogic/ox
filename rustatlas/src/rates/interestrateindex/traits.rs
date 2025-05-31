@@ -113,6 +113,10 @@ pub trait RelinkableTermStructure<T: Real> {
 
 /// # InterestRateIndexTrait
 /// Implement this trait for a struct that holds interest rate index information.
+///
+/// The trait is required to be [`Send`] and [`Sync`] so that references to index
+/// objects can be safely shared across threads during parallel Monte-Carlo
+/// simulations.
 pub trait InterestRateIndexTrait<T: Real>:
     FixingProvider<T>
     + YieldProvider<T>
@@ -122,5 +126,7 @@ pub trait InterestRateIndexTrait<T: Real>:
     + RelinkableTermStructure<T>
     + HasTenor
     + HasName
+    + Send
+    + Sync
 {
 }

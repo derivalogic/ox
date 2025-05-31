@@ -104,7 +104,7 @@ impl<T: Real> YieldProvider<T> for FlatForwardTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for FlatForwardTermStructure
-impl<T: Real + 'static> AdvanceTermStructureInTime<T> for FlatForwardTermStructure<T> {
+impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for FlatForwardTermStructure<T> {
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_reference_date = self
             .reference_date()
@@ -125,7 +125,7 @@ impl<T: Real + 'static> AdvanceTermStructureInTime<T> for FlatForwardTermStructu
     }
 }
 
-impl<T: Real + 'static> YieldTermStructureTrait<T> for FlatForwardTermStructure<T> {}
+impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T> for FlatForwardTermStructure<T> {}
 
 #[cfg(test)]
 mod tests {

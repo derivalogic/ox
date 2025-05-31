@@ -191,7 +191,7 @@ impl<T: Real> YieldProvider<T> for DiscountTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for DiscountTermStructure
-impl<T: Real + 'static> AdvanceTermStructureInTime<T> for DiscountTermStructure<T> {
+impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for DiscountTermStructure<T> {
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_dates: Vec<Date> = self
             .dates()
@@ -229,7 +229,7 @@ impl<T: Real + 'static> AdvanceTermStructureInTime<T> for DiscountTermStructure<
     }
 }
 
-impl<T: Real + 'static> YieldTermStructureTrait<T> for DiscountTermStructure<T> {}
+impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T> for DiscountTermStructure<T> {}
 
 #[cfg(test)]
 mod tests {
