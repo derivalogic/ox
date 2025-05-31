@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
-use crate::time::{date::Date, period::Period};
-use crate::utils::{errors::{Result, AtlasError}, num::Real};
 use crate::currencies::enums::Currency;
+use crate::time::{date::Date, period::Period};
+use crate::utils::{
+    errors::{AtlasError, Result},
+    num::Real,
+};
 
 /// Store for asset volatilities. Currently maps currency pairs to constant volatilities.
 #[derive(Clone)]
@@ -13,7 +16,10 @@ pub struct EquityStore<T: Real> {
 
 impl<T: Real> EquityStore<T> {
     pub fn new(reference_date: Date) -> Self {
-        Self { reference_date, vol_map: HashMap::new() }
+        Self {
+            reference_date,
+            vol_map: HashMap::new(),
+        }
     }
 
     pub fn reference_date(&self) -> Date {
@@ -31,7 +37,8 @@ impl<T: Real> EquityStore<T> {
             Ok(*v)
         } else {
             Err(AtlasError::NotFoundErr(format!(
-                "No volatility for pair {:?}/{:?}", ccy1, ccy2
+                "No volatility for pair {:?}/{:?}",
+                ccy1, ccy2
             )))
         }
     }
@@ -53,6 +60,9 @@ impl<T: Real> AdvanceEquityStoreInTime<T> for EquityStore<T> {
     }
 
     fn advance_to_date(&self, date: Date) -> Result<EquityStore<T>> {
-        Ok(EquityStore { reference_date: date, vol_map: self.vol_map.clone() })
+        Ok(EquityStore {
+            reference_date: date,
+            vol_map: self.vol_map.clone(),
+        })
     }
 }

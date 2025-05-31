@@ -60,7 +60,7 @@ impl<'a, T: Real> MonteCarloModel<T> for BlackScholesModel<'a, T> {
 
         /* --- parallel over all paths ------------------------------------ */
         let scenarios: Vec<Vec<MarketData<T>>> = (0..n_sims)
-            .into_par_iter()
+            .into_iter()
             .map(|path_id| {
                 /* each path gets its own reproducible RNG */
                 let mut rng = StdRng::seed_from_u64(0xA55AA55Au64 + path_id as u64);
@@ -209,28 +209,28 @@ fn norm_cdf<T: Real>(x: T) -> T {
 
 pub fn bs_price<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> T {
     let sqt = t.sqrt();
-    let d1 = ((s / k).ln() + (r + vol * vol * T::from(0.5)) * t) / (vol * sqt);
+    let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
     let d2 = d1 - vol * sqt;
     s * norm_cdf(d1) - k * (-r * t).exp() * norm_cdf(d2)
 }
 
 pub fn bs_delta<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> T {
     let sqt = t.sqrt();
-    let d1 = ((s / k).ln() + (r + vol * vol * T::from(0.5)) * t) / (vol * sqt);
+    let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
     norm_cdf(d1)
 }
 
 pub fn bs_gamma<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> T {
     let sqt = t.sqrt();
-    let d1 = ((s / k).ln() + (r + vol * vol * T::from(0.5)) * t) / (vol * sqt);
+    let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
     norm_pdf(d1) / (s * vol * sqt)
 }
 
 pub fn bs_theta<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> T {
     let sqt = t.sqrt();
-    let d1 = ((s / k).ln() + (r + vol * vol * T::from(0.5)) * t) / (vol * sqt);
+    let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
     let d2 = d1 - vol * sqt;
-    -(s * norm_pdf(d1) * vol) / (T::from(2.0) * sqt) - r * k * (-r * t).exp() * norm_cdf(d2)
+    -(s * norm_pdf(d1) * vol) / (sqt * 2.0) - r * k * (-r * t).exp() * norm_cdf(d2)
 }
 
 /// Return price and Greeks for convenience

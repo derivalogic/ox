@@ -2,7 +2,7 @@ use lefi::prelude::*;
 use lefi::utils::errors::Result;
 use rustatlas::core::marketstore::MarketStore;
 use rustatlas::currencies::enums::Currency;
-use rustatlas::math::ad::{backward, reset_tape, Var};
+use rustatlas::math::ad::{backward, merge_thread_tape, reset_tape, Var};
 use rustatlas::models::blackscholes::BlackScholesModel;
 use rustatlas::models::montecarlomodel::MonteCarloModel;
 use rustatlas::models::simplemodel::SimpleModel;
@@ -37,6 +37,11 @@ fn create_market_store(s0: Var, r_usd: Var, r_clp: Var) -> MarketStore<Var> {
     ));
     let _ = store.mut_index_store().add_index(1, index_clp);
     store.mut_index_store().add_currency_curve(Currency::CLP, 1);
+
+    // add volatility
+    store
+        .mut_equity_store()
+        .add_volatility(Currency::CLP, Currency::USD, Var::new(0.2));
     store
 }
 
@@ -73,7 +78,6 @@ fn main() -> Result<()> {
     let simple = SimpleModel::new(&store);
     let model = BlackScholesModel::new(simple);
     let scenarios = model.gen_scenarios(&requests, 5000)?;
-
     // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();
     let evaluator: EventStreamEvaluator<Var> =

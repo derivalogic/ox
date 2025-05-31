@@ -9,7 +9,6 @@ use std::{
 /* ========================================================================
  *  1.  Real trait – kept small but expressive
  * ===================================================================== */
-
 /// Numeric type accepted by all pricing algorithms.
 
 pub trait Real:
@@ -53,7 +52,6 @@ pub trait Real:
 }
 
 /* ------------ blanket impl for f64 (trivial) ----------------------- */
-
 impl Real for f64 {
     #[inline]
     fn ln(self) -> Self {
@@ -84,3 +82,9 @@ impl Real for f64 {
         f64::abs(self)
     }
 }
+
+// use ad_trait::AD;
+
+// pub trait Real: AD {}
+// impl Real for f64 {}
+// impl Real for f32 {}

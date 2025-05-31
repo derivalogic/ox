@@ -98,11 +98,9 @@ impl<T: Real> ZeroRateTermStructure<T> {
         let year_fractions: Vec<T> = dates
             .iter()
             .map(|x| {
-                T::from(
-                    rate_definition
-                        .day_counter()
-                        .year_fraction::<T>(reference_date, *x),
-                )
+                rate_definition
+                    .day_counter()
+                    .year_fraction::<T>(reference_date, *x)
             })
             .collect();
 

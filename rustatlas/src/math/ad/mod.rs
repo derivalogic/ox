@@ -67,10 +67,8 @@ pub fn reset_tape() {
 
 /// Extract and clear the current thread's tape, returning the captured segment.
 pub fn take_thread_tape() -> ThreadTape {
-    TAPE.with(|t| {
-        ThreadTape {
-            nodes: std::mem::take(&mut *t.borrow_mut()),
-        }
+    TAPE.with(|t| ThreadTape {
+        nodes: std::mem::take(&mut *t.borrow_mut()),
     })
 }
 

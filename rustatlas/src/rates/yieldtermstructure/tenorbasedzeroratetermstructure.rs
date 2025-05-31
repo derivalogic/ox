@@ -69,11 +69,9 @@ impl<T: Real> TenorBasedZeroRateTermStructure<T> {
             .iter()
             .map(|x| {
                 let date = reference_date + *x;
-                T::from(
-                    rate_definition
-                        .day_counter()
-                        .year_fraction::<T>(reference_date, date),
-                )
+                rate_definition
+                    .day_counter()
+                    .year_fraction::<T>(reference_date, date)
             })
             .collect();
 
@@ -109,10 +107,9 @@ impl<T: Real> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
             .rate_definition
             .day_counter()
             .year_fraction::<T>(self.reference_date(), date);
-        let yf_t = T::from(year_fraction);
 
         let spread = self.interpolation.interpolate(
-            yf_t,
+            year_fraction,
             &self.year_fractions,
             &self.spreads,
             self.enable_extrapolation,
@@ -147,7 +144,9 @@ impl<T: Real> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
     }
 }
 
-impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for TenorBasedZeroRateTermStructure<T> {
+impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T>
+    for TenorBasedZeroRateTermStructure<T>
+{
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_reference_date = self.reference_date + period;
         Ok(Arc::new(TenorBasedZeroRateTermStructure::new(
@@ -167,7 +166,10 @@ impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for TenorBas
     }
 }
 
-impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T> for TenorBasedZeroRateTermStructure<T> {}
+impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T>
+    for TenorBasedZeroRateTermStructure<T>
+{
+}
 
 #[cfg(test)]
 mod tests {

@@ -37,10 +37,7 @@ pub trait FixingProvider<T: Real> {
                 .map(|&d| T::from((d - first_date) as f64))
                 .collect();
 
-            let y = aux_btreemap
-                .values()
-                .cloned()
-                .collect::<Vec<T>>();
+            let y = aux_btreemap.values().cloned().collect::<Vec<T>>();
 
             let mut current_date = first_date.clone();
 
