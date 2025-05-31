@@ -6,6 +6,12 @@ use rustatlas::math::ad::{backward, reset_tape, Var};
 use rustatlas::models::blackscholes::{
     bs_delta, bs_price, bs_price_delta_gamma_theta, BlackScholesModel,
 };
+use rustatlas::models::deterministicmodel::DeterministicModel;
+use rustatlas::models::simplemodel::SimpleModel;
+use rustatlas::models::montecarlomodel::MonteCarloModel;
+use rustatlas::core::marketstore::MarketStore;
+use rustatlas::prelude::{FlatForwardTermStructure, OvernightIndex, RateDefinition};
+use std::sync::{Arc, RwLock};
 use rustatlas::time::{date::Date, daycounter::DayCounter};
 
 
@@ -37,23 +43,40 @@ fn main() -> Result<()> {
     // Monte Carlo scenarios with Black-Scholes dynamics using AD variables
     reset_tape();
     let s0_var = Var::new(s0);
-    let model = BlackScholesModel::new(s0_var, Var::from(r), Var::from(vol), Var::from(t), ref_date);
-    let scenarios = model.gen_scenarios(&requests, 5000, 42)?;
+    let mut store = MarketStore::new(ref_date, Currency::USD);
+    store
+        .mut_exchange_rate_store()
+        .add_exchange_rate(Currency::CLP, Currency::USD, s0);
+    let curve = Arc::new(FlatForwardTermStructure::new(
+        ref_date,
+        r,
+        RateDefinition::default(),
+    ));
+    let index = Arc::new(RwLock::new(
+        OvernightIndex::new(ref_date).with_term_structure(curve),
+    ));
+    let _ = store.mut_index_store().add_index(0, index);
+    store.mut_index_store().add_currency_curve(Currency::USD, 0);
+    let simple = SimpleModel::new(&store);
+    let model = BlackScholesModel::new(simple);
+    let scenarios = model.gen_scenarios(&requests, 5000)?;
 
     // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();
-    let evaluator = EventStreamEvaluator::<Var>::new_with_type(indexer.get_variables_size())
+    let evaluator = EventStreamEvaluator::new(indexer.get_variables_size())
         .with_scenarios(&scenarios);
     let vars = evaluator.visit_events(&events, &var_map)?;
-    let price_var = match vars.get("opt").unwrap() {
+    let price_mc = match vars.get("opt").unwrap() {
         Value::Number(v) => *v,
-        _ => Var::from(0.0),
+        _ => 0.0,
     };
-    let price_mc = price_var.value();
 
-    // Derivative with respect to the spot (Delta)
-    let grad = backward(&price_var);
-    let delta_ad = grad[s0_var.id()];
+    // Delta via AD on the analytic price expression
+    reset_tape();
+    let s_var = Var::new(s0);
+    let price_var = bs_price(s_var, Var::from(k), Var::from(r), Var::from(vol), Var::from(t));
+    let grad_price = backward(&price_var);
+    let delta_ad = grad_price[s_var.id()];
 
     // Gamma via AD on the analytic delta expression
     reset_tape();

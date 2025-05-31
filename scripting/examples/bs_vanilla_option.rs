@@ -6,6 +6,12 @@ use rustatlas::math::ad::{backward, reset_tape, Var};
 use rustatlas::models::blackscholes::{
     bs_delta, bs_gamma, bs_price, bs_price_delta_gamma_theta, bs_theta, BlackScholesModel,
 };
+use rustatlas::models::deterministicmodel::DeterministicModel;
+use rustatlas::models::simplemodel::SimpleModel;
+use rustatlas::core::marketstore::MarketStore;
+use rustatlas::prelude::{FlatForwardTermStructure, OvernightIndex, RateDefinition};
+use std::sync::{Arc, RwLock};
+use rustatlas::models::montecarlomodel::MonteCarloModel;
 use rustatlas::time::{date::Date, daycounter::DayCounter};
 
 fn main() -> Result<()> {
@@ -34,8 +40,23 @@ fn main() -> Result<()> {
     let requests = indexer.get_market_requests();
 
     // Generate scenarios with the Black-Scholes model from the library
-    let model = BlackScholesModel::new(s0, r, vol, t, ref_date);
-    let scenarios = model.gen_scenarios(&requests, 100000, 42)?;
+    let mut store = MarketStore::new(ref_date, Currency::USD);
+    store
+        .mut_exchange_rate_store()
+        .add_exchange_rate(Currency::CLP, Currency::USD, s0);
+    let curve = Arc::new(FlatForwardTermStructure::new(
+        ref_date,
+        r,
+        RateDefinition::default(),
+    ));
+    let index = Arc::new(RwLock::new(
+        OvernightIndex::new(ref_date).with_term_structure(curve),
+    ));
+    let _ = store.mut_index_store().add_index(0, index);
+    store.mut_index_store().add_currency_curve(Currency::USD, 0);
+    let simple = SimpleModel::new(&store);
+    let model = BlackScholesModel::new(simple);
+    let scenarios = model.gen_scenarios(&requests, 100000)?;
 
     // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();
