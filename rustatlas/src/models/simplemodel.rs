@@ -8,7 +8,7 @@ use crate::{
     utils::{errors::Result, num::Real},
 };
 
-use super::traits::Model;
+use super::deterministicmodel::DeterministicModel;
 
 /// # SimpleModel
 /// A simple model that provides market data based on the current market state. Uses the
@@ -36,9 +36,13 @@ impl<'a, T: Real> SimpleModel<'a, T> {
         self.transform_currencies = flag;
         self
     }
+
+    pub fn market_store(&self) -> &MarketStore<T> {
+        self.market_store
+    }
 }
 
-impl<'a, T: Real> Model<T> for SimpleModel<'a, T> {
+impl<'a, T: Real> DeterministicModel<T> for SimpleModel<'a, T> {
     fn reference_date(&self) -> Date {
         self.market_store.reference_date()
     }

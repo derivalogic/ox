@@ -4,7 +4,7 @@ use lefi::prelude::*;
 use lefi::utils::errors::Result;
 use rustatlas::core::marketstore::MarketStore;
 use rustatlas::currencies::enums::Currency;
-use rustatlas::models::montecarlo::RiskFreeMonteCarloModel;
+use rustatlas::models::stochasticvol::RiskFreeMonteCarloModel;
 use rustatlas::models::traits::MonteCarloModel;
 use rustatlas::prelude::{FlatForwardTermStructure, OvernightIndex, RateDefinition};
 use rustatlas::time::date::Date;

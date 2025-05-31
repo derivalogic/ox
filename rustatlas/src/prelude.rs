@@ -12,7 +12,7 @@ pub use crate::{
         makefixedrateinstrument::*, makefloatingrateinstrument::*, traits::*,
     },
     math::interpolation::{enums::*, linear::*, loglinear::*, traits::*},
-    models::{black_scholes::*, simplemodel::*, traits::*},
+    models::{blackscholes::*, simplemodel::*, traits::*},
     rates::{
         enums::*,
         indexstore::*,

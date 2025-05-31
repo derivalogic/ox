@@ -1,17 +1,17 @@
-use std::collections::HashMap;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
+use std::sync::{Arc, RwLock};
+use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, RequestMode, Response};
-use wasm_bindgen::JsCast;
-use std::sync::{Arc, RwLock};
 
 use lefi::prelude::*;
 use rustatlas::math::ad::{backward, reset_tape, Var};
 use rustatlas::prelude::*;
-use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use wasm_bindgen::prelude::*;
 
 // ----------- Structures for market-based pricing -----------
 #[derive(Deserialize)]
@@ -127,11 +127,10 @@ async fn fetch_json(url: String, api_key: &str) -> std::result::Result<JsValue, 
 
 #[wasm_bindgen]
 pub fn run_pricing(script_json: &str) -> std::result::Result<JsValue, JsValue> {
-    let input: PricingInput = serde_json::from_str(script_json)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let input: PricingInput =
+        serde_json::from_str(script_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    let expr = ExprTree::try_from(input.script)
-        .map_err(|e| JsValue::from_str(&format!("{e}")))?;
+    let expr = ExprTree::try_from(input.script).map_err(|e| JsValue::from_str(&format!("{e}")))?;
 
     let indexer = EventIndexer::new();
     indexer
@@ -155,12 +154,15 @@ pub fn run_pricing(script_json: &str) -> std::result::Result<JsValue, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn run_pricing_with_risk(script_json: &str, target: &str) -> std::result::Result<JsValue, JsValue> {
-    let input: PricingInput = serde_json::from_str(script_json)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+pub fn run_pricing_with_risk(
+    script_json: &str,
+    target: &str,
+) -> std::result::Result<JsValue, JsValue> {
+    let input: PricingInput =
+        serde_json::from_str(script_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    let expr = ExprTree::try_from(input.script.clone())
-        .map_err(|e| JsValue::from_str(&format!("{e}")))?;
+    let expr =
+        ExprTree::try_from(input.script.clone()).map_err(|e| JsValue::from_str(&format!("{e}")))?;
 
     // Index variables
     let indexer = EventIndexer::new();
@@ -182,8 +184,8 @@ pub fn run_pricing_with_risk(script_json: &str, target: &str) -> std::result::Re
 
     // Setup AD variables using the values from first pass
     reset_tape();
-    let evaluator_ad = ExprEvaluator::<Var>::new_with_type()
-        .with_variables(indexer.get_variables_size());
+    let evaluator_ad =
+        ExprEvaluator::<Var>::new_with_type().with_variables(indexer.get_variables_size());
     for (_, idx) in &var_indexes {
         if let Some(Value::Number(v)) = values.get(*idx) {
             evaluator_ad.set_variable(*idx, Value::Number(Var::new(*v)));
@@ -210,8 +212,11 @@ pub fn run_pricing_with_risk(script_json: &str, target: &str) -> std::result::Re
         }
     }
 
-    serde_wasm_bindgen::to_value(&RiskOutput { price, sensitivities: sens })
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    serde_wasm_bindgen::to_value(&RiskOutput {
+        price,
+        sensitivities: sens,
+    })
+    .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[wasm_bindgen]
@@ -222,13 +227,19 @@ pub fn init_market_data(base_url: &str) {
 }
 
 #[wasm_bindgen]
-pub async fn get_spot_rate(api_key: &str, symbol: &str, date: &str) -> std::result::Result<f64, JsValue> {
+pub async fn get_spot_rate(
+    api_key: &str,
+    symbol: &str,
+    date: &str,
+) -> std::result::Result<f64, JsValue> {
     let key = format!("{symbol}:{date}");
     if let Some(rate) = SPOT_CACHE.with(|c| c.borrow().get(&key).copied()) {
         return Ok(rate);
     }
 
-    let url = build_url(&format!("/spot_rates?symbol=eq.{symbol}&date=eq.{date}&select=rate"))?;
+    let url = build_url(&format!(
+        "/spot_rates?symbol=eq.{symbol}&date=eq.{date}&select=rate"
+    ))?;
     let val = fetch_json(url, api_key).await?;
     let parsed: Vec<serde_json::Value> = serde_wasm_bindgen::from_value(val.clone())
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
@@ -237,7 +248,9 @@ pub async fn get_spot_rate(api_key: &str, symbol: &str, date: &str) -> std::resu
         .and_then(|v| v.get("rate"))
         .and_then(|r| r.as_f64())
         .unwrap_or(0.0);
-    SPOT_CACHE.with(|c| { c.borrow_mut().insert(key, rate); });
+    SPOT_CACHE.with(|c| {
+        c.borrow_mut().insert(key, rate);
+    });
     Ok(rate)
 }
 
@@ -249,11 +262,15 @@ pub async fn get_curve(api_key: &str, name: &str) -> std::result::Result<JsValue
 
     let url = build_url(&format!("/curves?name=eq.{name}"))?;
     let val = fetch_json(url, api_key).await?;
-    CURVE_CACHE.with(|c| { c.borrow_mut().insert(name.to_string(), val.clone()); });
+    CURVE_CACHE.with(|c| {
+        c.borrow_mut().insert(name.to_string(), val.clone());
+    });
     Ok(val)
 }
 
-fn build_market_store(data: MarketDataInput) -> std::result::Result<(MarketStore<f64>, Currency), JsValue> {
+fn build_market_store(
+    data: MarketDataInput,
+) -> std::result::Result<(MarketStore<f64>, Currency), JsValue> {
     let ref_date = data.reference_date;
     let local_ccy = data
         .curves
@@ -273,18 +290,8 @@ fn build_market_store(data: MarketDataInput) -> std::result::Result<(MarketStore
         let ccy = c.currency;
         let day_counter = c.curve_details.day_counter;
         let interpolator = c.curve_details.interpolation;
-        let dates: Vec<Date> = c
-            .curve_details
-            .discounts
-            .iter()
-            .map(|f| f.date)
-            .collect();
-        let dfs: Vec<f64> = c
-            .curve_details
-            .discounts
-            .iter()
-            .map(|f| f.value)
-            .collect();
+        let dates: Vec<Date> = c.curve_details.discounts.iter().map(|f| f.date).collect();
+        let dfs: Vec<f64> = c.curve_details.discounts.iter().map(|f| f.value).collect();
         let ts = Arc::new(
             DiscountTermStructure::new(dates, dfs, day_counter, interpolator, true)
                 .map_err(|e| JsValue::from_str(&format!("{e}")))?,
@@ -296,19 +303,20 @@ fn build_market_store(data: MarketDataInput) -> std::result::Result<(MarketStore
             .iter()
             .map(|f| (f.date, f.value))
             .collect();
-        let index: Arc<RwLock<dyn InterestRateIndexTrait<f64>>> = match c.curve_index.index_type.as_str() {
-            "Ibor" => Arc::new(RwLock::new(
-                IborIndex::new(ref_date)
-                    .with_tenor(c.curve_index.tenor)
-                    .with_fixings(fixings)
-                    .with_term_structure(ts.clone()),
-            )),
-            _ => Arc::new(RwLock::new(
-                OvernightIndex::new(ref_date)
-                    .with_fixings(fixings)
-                    .with_term_structure(ts.clone()),
-            )),
-        };
+        let index: Arc<RwLock<dyn InterestRateIndexTrait<f64>>> =
+            match c.curve_index.index_type.as_str() {
+                "Ibor" => Arc::new(RwLock::new(
+                    IborIndex::new(ref_date)
+                        .with_tenor(c.curve_index.tenor)
+                        .with_fixings(fixings)
+                        .with_term_structure(ts.clone()),
+                )),
+                _ => Arc::new(RwLock::new(
+                    OvernightIndex::new(ref_date)
+                        .with_fixings(fixings)
+                        .with_term_structure(ts.clone()),
+                )),
+            };
 
         store
             .mut_index_store()
@@ -326,8 +334,8 @@ fn build_market_store(data: MarketDataInput) -> std::result::Result<(MarketStore
 
 #[wasm_bindgen]
 pub fn run_event_pricing(json: &str) -> std::result::Result<JsValue, JsValue> {
-    let input: PricingRequest = serde_json::from_str(json)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let input: PricingRequest =
+        serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     // ----- Build MarketStore -----
     let (store, local_ccy) = build_market_store(input.market_data)?;
@@ -339,8 +347,8 @@ pub fn run_event_pricing(json: &str) -> std::result::Result<JsValue, JsValue> {
         .into_iter()
         .map(|e| CodedEvent::new(e.date, e.code))
         .collect();
-    let events = EventStream::try_from(coded_events)
-        .map_err(|e| JsValue::from_str(&format!("{e}")))?;
+    let events =
+        EventStream::try_from(coded_events).map_err(|e| JsValue::from_str(&format!("{e}")))?;
 
     let indexer = EventIndexer::new().with_local_currency(local_ccy);
     indexer
@@ -354,8 +362,8 @@ pub fn run_event_pricing(json: &str) -> std::result::Result<JsValue, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("{e}")))?;
     let scenarios = vec![scenario];
 
-    let evaluator = EventStreamEvaluator::new(indexer.get_variables_size())
-        .with_scenarios(&scenarios);
+    let evaluator =
+        EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
     let vars = evaluator
         .visit_events(&events, &indexer.get_variable_indexes())
         .map_err(|e| JsValue::from_str(&format!("{e}")))?;

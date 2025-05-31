@@ -162,7 +162,6 @@ pub struct ExprEvaluator<'a, T: Real = f64> {
     string_stack: Mutex<Vec<String>>,
     is_lhs_variable: Mutex<bool>,
     lhs_variable: Mutex<Option<Box<Node>>>,
-
     scenario: Option<&'a Scenario<T>>,
 }
 

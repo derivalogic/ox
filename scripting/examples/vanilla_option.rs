@@ -3,7 +3,7 @@ use lefi::prelude::*;
 use lefi::utils::errors::Result;
 use rustatlas::currencies::enums::Currency;
 use rustatlas::math::ad::{backward, reset_tape, Var};
-use rustatlas::models::black_scholes::{
+use rustatlas::models::blackscholes::{
     bs_delta, bs_price, bs_price_delta_gamma_theta, BlackScholesModel,
 };
 use rustatlas::time::{date::Date, daycounter::DayCounter};

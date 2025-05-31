@@ -1,4 +1,6 @@
+pub mod blackscholes;
+pub mod deterministicmodel;
+pub mod stochasticvol;
+pub mod montecarlomodel;
 pub mod simplemodel;
-pub mod black_scholes;
-pub mod montecarlo;
 pub mod traits;

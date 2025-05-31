@@ -93,7 +93,7 @@ mod tests {
             makefixedrateinstrument::MakeFixedRateInstrument,
             makefloatingrateinstrument::MakeFloatingRateInstrument,
         },
-        models::{simplemodel::SimpleModel, traits::Model},
+        models::{deterministicmodel::DeterministicModel, simplemodel::SimpleModel},
         prelude::Side,
         rates::{
             enums::Compounding,
