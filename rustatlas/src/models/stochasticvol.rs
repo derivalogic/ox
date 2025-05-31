@@ -1,4 +1,7 @@
 use rand::prelude::*;
+use rand_distr::StandardNormal;
+
+use crate::models::montecarlomodel::MonteCarloModel;
 
 use crate::core::marketstore::MarketStore;
 use crate::core::meta::{MarketData, MarketRequest};
@@ -104,10 +107,10 @@ impl<'a, T: Real> MonteCarloModel<T> for StochasticVolAndRatesModel<'a, T> {
         let theta = self.theta;
         let sig_v = self.volvol;
 
-        let mut out = Vec::with_capacity(n_paths);
+        let mut out = Vec::with_capacity(n_simulations);
 
         /* ================= simulate each scenario =========================== */
-        for _ in 0..n_paths {
+        for _ in 0..n_simulations {
             /* state variables at t = 0 */
             let mut r = r0;
             let mut v = self.v0;
@@ -120,7 +123,6 @@ impl<'a, T: Real> MonteCarloModel<T> for StochasticVolAndRatesModel<'a, T> {
 
             for &(original_idx, t) in &idx_and_t {
                 let dt = t - t_prev;
-                let dt_f64 = dt.to_f64();
 
                 /* ===== draw correlated normals ===== */
                 let (z_r, z_v) = self.correlated_normals();
