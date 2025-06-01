@@ -763,7 +763,7 @@ mod general_tests {
         let evaluator = ExprEvaluator::new();
         evaluator.const_visit(base).unwrap();
 
-        assert_eq!(evaluator.digit_stack().pop().unwrap(), 4.0);
+        assert_eq!(evaluator.digit_stack().pop().unwrap(), 2.0);
     }
 
     #[test]
@@ -1799,7 +1799,7 @@ mod ai_gen_tests {
         let mut a = Value::Number(NumericType::new(3.0));
         let b = Value::Number(NumericType::new(1.0));
         a += b;
-        assert_eq!(a, Value::Number(NumericType::new(3.0)));
+        assert_eq!(a, Value::Number(NumericType::new(4.0)));
     }
 
     #[test]
