@@ -5,13 +5,11 @@ use std::{
 
 use super::{enums::Currency, traits::AdvanceExchangeRateStoreInTime};
 
+use crate::math::ad::num::Real;
 use crate::{
     rates::indexstore::IndexStore,
     time::{date::Date, period::Period},
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
 
 /// # ExchangeRateStore
@@ -147,7 +145,10 @@ impl<T: Real> AdvanceExchangeRateStoreInTime<T> for ExchangeRateStore<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::currencies::enums::Currency::{CLP, EUR, USD};
+    use crate::{
+        currencies::enums::Currency::{CLP, EUR, USD},
+        math::ad::real::{backward, reset_tape, Var},
+    };
 
     #[test]
     fn test_same_currency() {
@@ -228,8 +229,6 @@ mod tests {
 
     #[test]
     fn test_ad_triangulation_derivative() {
-        use crate::math::ad::{backward, reset_tape, Var};
-
         reset_tape();
         let ref_date = Date::new(2021, 1, 1);
         let mut manager = ExchangeRateStore::new(ref_date);

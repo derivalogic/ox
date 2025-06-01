@@ -15,11 +15,10 @@ use crate::{
         enums::{Frequency, TimeUnit},
         period::Period,
     },
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
+
+use crate::math::ad::num::Real;
 
 use super::traits::{
     AdvanceInterestRateIndexInTime, FixingProvider, HasName, HasTenor, HasTermStructure,

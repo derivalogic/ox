@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::math::ad::num::Real;
 use crate::{
     rates::{
         enums::Compounding,
@@ -15,10 +16,7 @@ use crate::{
         enums::{Frequency, TimeUnit},
         period::Period,
     },
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
 
 use super::{
@@ -182,7 +180,9 @@ impl<T: Real> YieldProvider<T> for OvernightCompoundedRateIndex<T> {
     }
 }
 
-impl<T: Real + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T> for OvernightCompoundedRateIndex<T> {
+impl<T: Real + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T>
+    for OvernightCompoundedRateIndex<T>
+{
     fn advance_to_period(
         &self,
         period: Period,
@@ -209,7 +209,10 @@ impl<T: Real> RelinkableTermStructure<T> for OvernightCompoundedRateIndex<T> {
     }
 }
 
-impl<T: Real + Send + Sync + 'static> InterestRateIndexTrait<T> for OvernightCompoundedRateIndex<T> {}
+impl<T: Real + Send + Sync + 'static> InterestRateIndexTrait<T>
+    for OvernightCompoundedRateIndex<T>
+{
+}
 
 #[cfg(test)]
 mod tests {

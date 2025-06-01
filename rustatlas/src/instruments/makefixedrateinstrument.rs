@@ -5,6 +5,7 @@ use argmin::{
 
 use std::collections::{HashMap, HashSet};
 
+use crate::math::ad::num::Real;
 use crate::{
     cashflows::{
         cashflow::{Cashflow, CashflowType, Side},
@@ -23,10 +24,7 @@ use crate::{
         period::Period,
         schedule::MakeSchedule,
     },
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
     visitors::traits::HasCashflows,
 };
 

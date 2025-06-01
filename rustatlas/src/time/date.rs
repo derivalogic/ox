@@ -1,9 +1,7 @@
 use super::enums::*;
 use super::period::Period;
-use crate::{
-    time::daycounter::DayCounter,
-    utils::{errors::Result, num::Real},
-};
+use crate::math::ad::num::Real;
+use crate::{time::daycounter::DayCounter, utils::errors::Result};
 use chrono::{Datelike, Duration, Months, NaiveDate};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;

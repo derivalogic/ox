@@ -3,13 +3,11 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard},
 };
 
+use crate::math::ad::num::Real;
 use crate::{
     currencies::enums::Currency,
     time::{date::Date, enums::TimeUnit, period::Period},
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
 
 use super::{

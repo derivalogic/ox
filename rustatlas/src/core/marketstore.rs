@@ -16,10 +16,11 @@ use crate::{
     time::{date::Date, enums::TimeUnit, period::Period},
     utils::{
         errors::{AtlasError, Result},
-        num::Real,
         tools,
     },
 };
+
+use crate::math::ad::num::Real;
 
 /// # MarketStore
 /// A store for market data.
@@ -91,12 +92,9 @@ impl<T: Real> MarketStore<T> {
             .get_exchange_rate(first_currency, second_currency);
     }
 
-    pub fn get_volatility(
-        &self,
-        first_currency: Currency,
-        second_currency: Currency,
-    ) -> Result<T> {
-        self.equity_store.volatility(first_currency, second_currency)
+    pub fn get_volatility(&self, first_currency: Currency, second_currency: Currency) -> Result<T> {
+        self.equity_store
+            .volatility(first_currency, second_currency)
     }
 
     pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {

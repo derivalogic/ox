@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
+use crate::math::ad::num::Real;
 use crate::{
     rates::{
         enums::Compounding,
         traits::{HasReferenceDate, YieldProvider},
     },
     time::{date::Date, enums::Frequency, period::Period},
-    utils::{errors::Result, num::Real},
+    utils::errors::Result,
 };
 
 use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};

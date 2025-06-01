@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
+use crate::math::ad::num::Real;
 use crate::{
     rates::traits::{HasReferenceDate, YieldProvider},
     time::{date::Date, period::Period},
-    utils::{errors::Result, num::Real},
+    utils::errors::Result,
 };
 
 // /// # YieldTermStructureTraitClone
@@ -49,10 +50,6 @@ pub trait AdvanceTermStructureInTime<T: Real> {
 /// These auto traits are required to be able to share term structures
 /// across threads when generating Monte–Carlo scenarios in parallel.
 pub trait YieldTermStructureTrait<T: Real>:
-    YieldProvider<T>
-    + HasReferenceDate
-    + AdvanceTermStructureInTime<T>
-    + Send
-    + Sync
+    YieldProvider<T> + HasReferenceDate + AdvanceTermStructureInTime<T> + Send + Sync
 {
 }

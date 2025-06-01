@@ -1,7 +1,8 @@
+use crate::math::ad::num::Real;
 use crate::{
     rates::indexstore::IndexStore,
     time::{date::Date, period::Period},
-    utils::{errors::Result, num::Real},
+    utils::errors::Result,
 };
 
 use super::exchangeratestore::ExchangeRateStore;

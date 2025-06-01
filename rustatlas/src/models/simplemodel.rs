@@ -1,3 +1,4 @@
+use crate::math::ad::num::Real;
 use crate::{
     core::{
         marketstore::MarketStore,
@@ -5,7 +6,7 @@ use crate::{
     },
     rates::{indexstore::ReadIndex, traits::HasReferenceDate},
     time::date::Date,
-    utils::{errors::Result, num::Real},
+    utils::errors::Result,
 };
 
 use super::deterministicmodel::DeterministicModel;

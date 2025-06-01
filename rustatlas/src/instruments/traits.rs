@@ -1,3 +1,4 @@
+use crate::math::ad::num::Real;
 use crate::{
     cashflows::{
         cashflow::{Cashflow, CashflowType, Side},
@@ -5,10 +6,7 @@ use crate::{
     },
     currencies::enums::Currency,
     time::date::Date,
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};

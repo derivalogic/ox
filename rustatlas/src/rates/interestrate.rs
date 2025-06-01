@@ -1,11 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+use crate::math::ad::num::Real;
 use crate::{
     time::{date::Date, daycounter::DayCounter, enums::Frequency},
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
 
 use super::enums::Compounding;
@@ -237,6 +235,10 @@ impl<T: Real> InterestRate<T> {
 #[cfg(test)]
 mod tests {
     use crate::{
+        math::ad::{
+            num::Real,
+            real::{backward, reset_tape, Var},
+        },
         rates::{
             enums::Compounding,
             interestrate::{InterestRate, RateDefinition},
@@ -664,8 +666,6 @@ mod tests {
 
     #[test]
     fn test_ad_compound_factor_simple() {
-        use crate::math::ad::{backward, reset_tape, Var};
-
         reset_tape();
         let rate = Var::new(0.05);
         let t = Var::new(2.0);
@@ -685,8 +685,6 @@ mod tests {
 
     #[test]
     fn test_ad_compound_factor_continuous() {
-        use crate::math::ad::{backward, reset_tape, Var};
-
         reset_tape();
         let rate = Var::new(0.07);
         let t = Var::new(1.5);
@@ -707,9 +705,6 @@ mod tests {
 
     #[test]
     fn test_ad_discount_factor_simple_time() {
-        use crate::math::ad::{backward, reset_tape, Var};
-        use crate::utils::num::Real;
-
         reset_tape();
         let rate = Var::new(0.05);
         let t = Var::new(3.0);
@@ -731,9 +726,6 @@ mod tests {
 
     #[test]
     fn test_ad_discount_factor_continuous_time() {
-        use crate::math::ad::{backward, reset_tape, Var};
-        use crate::utils::num::Real;
-
         reset_tape();
         let rate = Var::new(0.07);
         let t = Var::new(2.0);

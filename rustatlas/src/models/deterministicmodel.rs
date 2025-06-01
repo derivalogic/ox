@@ -1,9 +1,10 @@
+use crate::math::ad::num::Real;
 use crate::{
     prelude::{
         Date, DiscountFactorRequest, ExchangeRateRequest, ForwardRateRequest, MarketData,
         MarketRequest,
     },
-    utils::{errors::Result, num::Real},
+    utils::errors::Result,
 };
 
 /// # Deterministic Model

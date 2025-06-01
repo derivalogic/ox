@@ -3,12 +3,13 @@ use rand_distr::StandardNormal;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::core::meta::{MarketData, MarketRequest};
+use crate::math::ad::num::Real;
 use crate::prelude::{
     Actual360, DayCountProvider, DiscountFactorRequest, ExchangeRateRequest, ForwardRateRequest,
     HasReferenceDate, SimpleModel,
 };
 use crate::time::date::Date;
-use crate::utils::{errors::Result, num::Real};
+use crate::utils::errors::Result;
 
 use super::deterministicmodel::DeterministicModel;
 use super::montecarlomodel::{MonteCarloModel, Simulations};

@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 
 use super::traits::{HasCashflows, Visit};
+use crate::math::ad::num::Real;
 use crate::{
     core::{meta::MarketRequest, traits::Registrable},
-    utils::{errors::Result, num::Real},
+    utils::errors::Result,
 };
-
 /// # IndexingVisitor
 /// IndexingVisitor is a visitor that registers the cashflows of an instrument
 /// and generates a vector of market requests.

@@ -13,7 +13,8 @@ use crate::{
 };
 
 use super::traits::Structure;
-use crate::utils::{errors::Result, num::Real};
+use crate::math::ad::num::Real;
+use crate::utils::errors::Result;
 
 /// # FloatingRateInstrument
 /// A floating rate instrument.

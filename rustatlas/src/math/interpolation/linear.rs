@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use super::traits::Interpolate;
-use crate::utils::num::Real;
+use crate::math::ad::num::Real;
 
 /// # Linear Interpolator
 /// Basic linear interpolator.

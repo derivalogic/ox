@@ -4,8 +4,8 @@ use super::cashflow::Side;
 use super::simplecashflow::SimpleCashflow;
 use super::traits::{Expires, InterestAccrual, Payable};
 use crate::core::traits::{HasCurrency, HasDiscountCurveId, HasForecastCurveId};
+use crate::math::ad::num::Real;
 use crate::utils::errors::AtlasError;
-use crate::utils::num::Real;
 use crate::{
     core::{meta::MarketRequest, traits::Registrable},
     currencies::enums::Currency,

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::math::ad::num::Real;
 use crate::{
     core::{
         meta::{DiscountFactorRequest, ExchangeRateRequest, MarketRequest},
@@ -7,10 +8,7 @@ use crate::{
     },
     currencies::enums::Currency,
     time::date::Date,
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
 
 use super::cashflow::Side;

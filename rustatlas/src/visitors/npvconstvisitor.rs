@@ -1,13 +1,10 @@
+use super::traits::{ConstVisit, HasCashflows};
+use crate::math::ad::num::Real;
 use crate::{
     cashflows::traits::Payable,
     core::{meta::MarketData, traits::Registrable},
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
-
-use super::traits::{ConstVisit, HasCashflows};
 
 /// # NPVConstVisitor
 /// NPVConstVisitor is a visitor that calculates the NPV of an instrument.

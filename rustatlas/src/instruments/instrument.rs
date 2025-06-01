@@ -14,7 +14,7 @@ use super::{
     fixedrateinstrument::FixedRateInstrument, floatingrateinstrument::FloatingRateInstrument,
     traits::Structure,
 };
-use crate::utils::num::Real;
+use crate::math::ad::num::Real;
 
 /// # RateType
 /// Represents the type of rate.

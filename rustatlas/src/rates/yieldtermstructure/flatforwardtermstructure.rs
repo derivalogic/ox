@@ -7,11 +7,9 @@ use crate::{
         traits::{HasReferenceDate, YieldProvider},
     },
     time::{date::Date, enums::Frequency, period::Period},
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
+use crate::math::ad::num::Real;
 
 use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 
@@ -104,7 +102,9 @@ impl<T: Real> YieldProvider<T> for FlatForwardTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for FlatForwardTermStructure
-impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for FlatForwardTermStructure<T> {
+impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T>
+    for FlatForwardTermStructure<T>
+{
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_reference_date = self
             .reference_date()

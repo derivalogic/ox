@@ -1,13 +1,10 @@
+use super::traits::{HasCashflows, Visit};
+use crate::math::ad::num::Real;
 use crate::{
     cashflows::{cashflow::Cashflow, traits::RequiresFixingRate},
     core::{meta::MarketData, traits::Registrable},
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
-
-use super::traits::{HasCashflows, Visit};
 
 /// # FixingVisitor
 /// FixingVisitor is a visitor that fixes the rate of a floating rate cashflow.

@@ -1,12 +1,11 @@
+use crate::math::ad::num::Real;
 use crate::{
     cashflows::{
         cashflow::{Cashflow, CashflowType},
         traits::Payable,
     },
     time::date::Date,
-    utils::num::Real,
 };
-
 pub trait Visit<T> {
     type Output;
     fn visit(&self, visitable: &mut T) -> Self::Output;

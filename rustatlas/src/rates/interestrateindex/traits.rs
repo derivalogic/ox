@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::math::ad::num::Real;
 use crate::{
     math::interpolation::enums::Interpolator,
     rates::{
@@ -10,7 +11,7 @@ use crate::{
         yieldtermstructure::traits::YieldTermStructureTrait,
     },
     time::{date::Date, enums::TimeUnit, period::Period},
-    utils::{errors::Result, num::Real},
+    utils::errors::Result,
 };
 
 /// # FixingProvider

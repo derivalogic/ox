@@ -1,6 +1,7 @@
+use crate::math::ad::num::Real;
 use crate::{
     prelude::{MarketData, MarketRequest},
-    utils::{errors::Result, num::Real},
+    utils::errors::Result,
 };
 
 pub type Scenario<T> = Vec<MarketData<T>>;

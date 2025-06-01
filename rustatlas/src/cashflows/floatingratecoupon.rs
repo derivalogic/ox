@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::math::ad::num::Real;
 use crate::{
     core::{
         meta::{ForwardRateRequest, MarketRequest},
@@ -8,10 +9,7 @@ use crate::{
     currencies::enums::Currency,
     rates::interestrate::{InterestRate, RateDefinition},
     time::date::Date,
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
 
 use super::{

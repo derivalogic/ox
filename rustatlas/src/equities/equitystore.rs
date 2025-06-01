@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
 use crate::currencies::enums::Currency;
+use crate::math::ad::num::Real;
 use crate::time::{date::Date, period::Period};
-use crate::utils::{
-    errors::{AtlasError, Result},
-    num::Real,
-};
+use crate::utils::errors::{AtlasError, Result};
 
 /// Store for asset volatilities. Currently maps currency pairs to constant volatilities.
 #[derive(Clone)]

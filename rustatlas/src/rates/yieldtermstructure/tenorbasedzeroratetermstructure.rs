@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::math::ad::num::Real;
 use crate::{
     math::interpolation::enums::Interpolator,
     rates::{
@@ -12,7 +13,7 @@ use crate::{
         enums::{Frequency, TimeUnit},
         period::Period,
     },
-    utils::{errors::Result, num::Real},
+    utils::errors::Result,
 };
 
 use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};

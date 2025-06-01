@@ -10,10 +10,7 @@ use crate::{
         enums::{Frequency, TimeUnit},
         period::Period,
     },
-    utils::{
-        errors::{AtlasError, Result},
-        num::Real,
-    },
+    utils::errors::{AtlasError, Result},
 };
 use std::{
     collections::HashMap,
@@ -24,6 +21,7 @@ use super::traits::{
     AdvanceInterestRateIndexInTime, FixingProvider, HasName, HasTenor, HasTermStructure,
     InterestRateIndexTrait, RelinkableTermStructure,
 };
+use crate::math::ad::num::Real;
 
 /// # IborIndex
 /// Struct that defines an Ibor index.
