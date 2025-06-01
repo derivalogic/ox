@@ -1,13 +1,9 @@
 #[allow(ambiguous_glob_reexports)]
 pub use crate::{
     // alm::enums::*,
-    // cashflows::{
-    //     cashflow::{Side, *},
-    //     fixedratecoupon::*,
-    //     floatingratecoupon::*,
-    //     simplecashflow::*,
-    //     traits::*,
-    // },
+    cashflows::{
+        cashflow::*, fixedratecoupon::*, floatingratecoupon::*, simplecashflow::*, traits::*,
+    },
     core::{marketstore::*, meta::*, traits::*},
     currencies::{enums::*, exchangeratestore::*, structs::*, traits::*},
     equities::equitystore::*,

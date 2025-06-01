@@ -9,13 +9,13 @@ pub trait HasReferenceDate {
 
 /// # YieldProvider
 /// Implement this trait for a struct that provides yield information.
-pub trait YieldProvider<T: GenericNumber>: HasReferenceDate {
-    fn discount_factor(&self, date: Date) -> Result<T>;
+pub trait YieldProvider: HasReferenceDate {
+    fn discount_factor(&self, date: Date) -> Result<NumericType>;
     fn forward_rate(
         &self,
         start_date: Date,
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<T>;
+    ) -> Result<NumericType>;
 }

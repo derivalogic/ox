@@ -26,9 +26,9 @@ use crate::prelude::*;
 /// # AdvanceTermStructureInTime
 /// Trait for advancing in time a given object. Returns a represation of the object
 /// as it would be after the given period.
-pub trait AdvanceTermStructureInTime<T: GenericNumber> {
-    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>>;
-    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>>;
+pub trait AdvanceTermStructureInTime {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait>>;
+    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait>>;
 }
 
 /// # YieldTermStructureTrait
@@ -44,7 +44,7 @@ pub trait AdvanceTermStructureInTime<T: GenericNumber> {
 ///
 /// These auto traits are required to be able to share term structures
 /// across threads when generating Monte–Carlo scenarios in parallel.
-pub trait YieldTermStructureTrait<T: GenericNumber>:
-    YieldProvider<T> + HasReferenceDate + AdvanceTermStructureInTime<T> + Send + Sync
+pub trait YieldTermStructureTrait:
+    YieldProvider + HasReferenceDate + AdvanceTermStructureInTime + Send + Sync
 {
 }

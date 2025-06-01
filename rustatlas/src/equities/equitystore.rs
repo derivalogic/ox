@@ -4,12 +4,12 @@ use crate::prelude::*;
 
 /// Store for asset volatilities. Currently maps currency pairs to constant volatilities.
 #[derive(Clone)]
-pub struct EquityStore<T: GenericNumber> {
+pub struct EquityStore {
     reference_date: Date,
-    volatility_map: HashMap<String, T>,
+    volatility_map: HashMap<String, NumericType>,
 }
 
-impl<T: GenericNumber> EquityStore<T> {
+impl EquityStore {
     pub fn new(reference_date: Date) -> Self {
         Self {
             reference_date,
@@ -21,11 +21,11 @@ impl<T: GenericNumber> EquityStore<T> {
         self.reference_date
     }
 
-    pub fn add_volatility(&mut self, equity_name: String, vol: T) {
+    pub fn add_volatility(&mut self, equity_name: String, vol: NumericType) {
         self.volatility_map.insert(equity_name, vol);
     }
 
-    pub fn get_volatility(&self, equity_name: String) -> Result<T> {
+    pub fn get_volatility(&self, equity_name: String) -> Result<NumericType> {
         self.volatility_map
             .get(&equity_name)
             .cloned()
@@ -34,7 +34,7 @@ impl<T: GenericNumber> EquityStore<T> {
             })
     }
 
-    pub fn get_volatility_map(&self) -> &HashMap<String, T> {
+    pub fn get_volatility_map(&self) -> &HashMap<String, NumericType> {
         &self.volatility_map
     }
 }

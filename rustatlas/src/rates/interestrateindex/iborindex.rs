@@ -28,7 +28,7 @@ use crate::prelude::*;
 /// let ref_date = Date::new(2021, 1, 1);
 /// let tenor = Period::new(1, TimeUnit::Months);
 /// let rate_definition = RateDefinition::new(DayCounter::Actual360, Compounding::Simple, Frequency::Annual);
-/// let ibor_index = IborIndex::<f64>::new(ref_date)
+/// let ibor_index = IborIndex::new(ref_date)
 ///     .with_tenor(tenor)
 ///     .with_rate_definition(rate_definition);
 /// assert_eq!(ibor_index.tenor(), tenor);
@@ -37,17 +37,17 @@ use crate::prelude::*;
 /// assert_eq!(ibor_index.rate_definition().day_counter(), DayCounter::Actual360);
 /// ```
 #[derive(Clone)]
-pub struct IborIndex<T: GenericNumber> {
+pub struct IborIndex {
     name: Option<String>,
     tenor: Period,
     rate_definition: RateDefinition,
-    fixings: HashMap<Date, T>,
-    term_structure: Option<Arc<dyn YieldTermStructureTrait<T>>>,
+    fixings: HashMap<Date, NumericType>,
+    term_structure: Option<Arc<dyn YieldTermStructureTrait>>,
     reference_date: Date,
 }
 
-impl<T: GenericNumber> IborIndex<T> {
-    pub fn new(reference_date: Date) -> IborIndex<T> {
+impl IborIndex {
+    pub fn new(reference_date: Date) -> IborIndex {
         IborIndex {
             name: None,
             reference_date: reference_date,
@@ -82,22 +82,19 @@ impl<T: GenericNumber> IborIndex<T> {
         self
     }
 
-    pub fn with_fixings(mut self, fixings: HashMap<Date, T>) -> Self {
+    pub fn with_fixings(mut self, fixings: HashMap<Date, NumericType>) -> Self {
         self.fixings = fixings;
         self
     }
 
-    pub fn with_term_structure(
-        mut self,
-        term_structure: Arc<dyn YieldTermStructureTrait<T>>,
-    ) -> Self {
+    pub fn with_term_structure(mut self, term_structure: Arc<dyn YieldTermStructureTrait>) -> Self {
         self.term_structure = Some(term_structure);
         self
     }
 }
 
-impl<T: GenericNumber> FixingProvider<T> for IborIndex<T> {
-    fn fixing(&self, date: Date) -> Result<T> {
+impl FixingProvider for IborIndex {
+    fn fixing(&self, date: Date) -> Result<NumericType> {
         self.fixings
             .get(&date)
             .cloned()
@@ -107,11 +104,11 @@ impl<T: GenericNumber> FixingProvider<T> for IborIndex<T> {
             )))
     }
 
-    fn fixings(&self) -> &HashMap<Date, T> {
+    fn fixings(&self) -> &HashMap<Date, NumericType> {
         &self.fixings
     }
 
-    fn add_fixing(&mut self, date: Date, rate: T) {
+    fn add_fixing(&mut self, date: Date, rate: NumericType) {
         if date > self.reference_date() {
             panic!("Date must be less than reference date");
         }
@@ -119,19 +116,19 @@ impl<T: GenericNumber> FixingProvider<T> for IborIndex<T> {
     }
 }
 
-impl<T: GenericNumber> HasReferenceDate for IborIndex<T> {
+impl HasReferenceDate for IborIndex {
     fn reference_date(&self) -> Date {
         self.reference_date
     }
 }
 
-impl<T: GenericNumber> HasTenor for IborIndex<T> {
+impl HasTenor for IborIndex {
     fn tenor(&self) -> Period {
         self.tenor
     }
 }
 
-impl<T: GenericNumber> HasName for IborIndex<T> {
+impl HasName for IborIndex {
     fn name(&self) -> Result<String> {
         self.name
             .clone()
@@ -139,8 +136,8 @@ impl<T: GenericNumber> HasName for IborIndex<T> {
     }
 }
 
-impl<T: GenericNumber> YieldProvider<T> for IborIndex<T> {
-    fn discount_factor(&self, date: Date) -> Result<T> {
+impl YieldProvider for IborIndex {
+    fn discount_factor(&self, date: Date) -> Result<NumericType> {
         self.term_structure()?.discount_factor(date)
     }
 
@@ -150,7 +147,7 @@ impl<T: GenericNumber> YieldProvider<T> for IborIndex<T> {
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<T> {
+    ) -> Result<NumericType> {
         if end_date < start_date {
             return Err(AtlasError::InvalidValueErr(format!(
                 "End date {:?} is before start date {:?}",
@@ -167,8 +164,8 @@ impl<T: GenericNumber> YieldProvider<T> for IborIndex<T> {
     }
 }
 
-impl<T: GenericNumber> HasTermStructure<T> for IborIndex<T> {
-    fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+impl HasTermStructure for IborIndex {
+    fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait>> {
         self.term_structure
             .clone()
             .ok_or(AtlasError::ValueNotSetErr(
@@ -177,19 +174,16 @@ impl<T: GenericNumber> HasTermStructure<T> for IborIndex<T> {
     }
 }
 
-impl<T: GenericNumber> RelinkableTermStructure<T> for IborIndex<T> {
-    fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait<T>>) {
+impl RelinkableTermStructure for IborIndex {
+    fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait>) {
         self.term_structure = Some(term_structure);
     }
 }
 
-impl<T: GenericNumber + Send + Sync + 'static> InterestRateIndexTrait<T> for IborIndex<T> {}
+impl InterestRateIndexTrait for IborIndex {}
 
-impl<T: GenericNumber + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T> for IborIndex<T> {
-    fn advance_to_period(
-        &self,
-        period: Period,
-    ) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
+impl AdvanceInterestRateIndexInTime for IborIndex {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>> {
         let curve = self.term_structure()?;
 
         let mut fixings = self.fixings().clone();
@@ -216,7 +210,7 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T>
         )))
     }
 
-    fn advance_to_date(&self, date: Date) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
+    fn advance_to_date(&self, date: Date) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>> {
         let days = (date - self.reference_date()) as i32;
         if days < 0 {
             return Err(AtlasError::InvalidValueErr(format!(
@@ -251,7 +245,7 @@ mod tests {
             Compounding::Simple,
             Frequency::Annual,
         );
-        let ibor_index: IborIndex<f64> = IborIndex::new(ref_date)
+        let ibor_index: IborIndex = IborIndex::new(ref_date)
             .with_tenor(tenor)
             .with_rate_definition(rate_definition);
         assert_eq!(ibor_index.tenor(), tenor);

@@ -6,10 +6,10 @@ use std::{
 use crate::prelude::*;
 /// # FixingProvider
 /// Implement this trait for a struct that provides fixing information.
-pub trait FixingProvider<T: GenericNumber> {
-    fn fixing(&self, date: Date) -> Result<T>;
-    fn fixings(&self) -> &HashMap<Date, T>;
-    fn add_fixing(&mut self, date: Date, rate: T);
+pub trait FixingProvider {
+    fn fixing(&self, date: Date) -> Result<NumericType>;
+    fn fixings(&self) -> &HashMap<Date, NumericType>;
+    fn add_fixing(&mut self, date: Date, rate: NumericType);
 
     /// Fill missing fixings using interpolation.
     fn fill_missing_fixings(&mut self, interpolator: Interpolator) {
@@ -21,20 +21,20 @@ pub trait FixingProvider<T: GenericNumber> {
                 .fixings()
                 .iter()
                 .map(|(k, v)| (*k, *v))
-                .collect::<BTreeMap<Date, T>>();
+                .collect::<BTreeMap<Date, NumericType>>();
 
-            let x: Vec<T> = aux_btreemap
+            let x: Vec<NumericType> = aux_btreemap
                 .keys()
-                .map(|&d| T::from((d - first_date) as f64))
+                .map(|&d| NumericType::new(d - first_date))
                 .collect();
 
-            let y = aux_btreemap.values().cloned().collect::<Vec<T>>();
+            let y = aux_btreemap.values().cloned().collect::<Vec<NumericType>>();
 
             let mut current_date = first_date.clone();
 
             while current_date <= last_date {
                 if !self.fixings().contains_key(&current_date) {
-                    let days = T::from((current_date - first_date) as f64);
+                    let days = (current_date - first_date) as f64;
                     let rate = interpolator.interpolate(days, &x, &y, false);
                     self.add_fixing(current_date, rate);
                 }
@@ -68,12 +68,9 @@ pub trait FixingProvider<T: GenericNumber> {
 /// # AdvanceInterestRateIndexInTime
 /// Trait for advancing in time a given object. Returns a represation of the object
 /// as it would be after the given period/time.
-pub trait AdvanceInterestRateIndexInTime<T: GenericNumber> {
-    fn advance_to_period(
-        &self,
-        period: Period,
-    ) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>>;
-    fn advance_to_date(&self, date: Date) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>>;
+pub trait AdvanceInterestRateIndexInTime {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>>;
+    fn advance_to_date(&self, date: Date) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>>;
 }
 /// # HasTenor
 /// Implement this trait for a struct that holds a tenor.
@@ -83,8 +80,8 @@ pub trait HasTenor {
 
 /// # HasTermStructure
 /// Implement this trait for a struct that holds a term structure.
-pub trait HasTermStructure<T: GenericNumber> {
-    fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait<T>>>;
+pub trait HasTermStructure {
+    fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait>>;
 }
 
 /// # HasName
@@ -95,8 +92,8 @@ pub trait HasName {
 
 /// # RelinkableTermStructure
 /// Allows to link a term structure to another.
-pub trait RelinkableTermStructure<T: GenericNumber> {
-    fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait<T>>);
+pub trait RelinkableTermStructure {
+    fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait>);
 }
 
 /// # InterestRateIndexTrait
@@ -105,13 +102,13 @@ pub trait RelinkableTermStructure<T: GenericNumber> {
 /// The trait is required to be [`Send`] and [`Sync`] so that references to index
 /// objects can be safely shared across threads during parallel Monte-Carlo
 /// simulations.
-pub trait InterestRateIndexTrait<T: GenericNumber>:
-    FixingProvider<T>
-    + YieldProvider<T>
+pub trait InterestRateIndexTrait:
+    FixingProvider
+    + YieldProvider
     + HasReferenceDate
-    + AdvanceInterestRateIndexInTime<T>
-    + HasTermStructure<T>
-    + RelinkableTermStructure<T>
+    + AdvanceInterestRateIndexInTime
+    + HasTermStructure
+    + RelinkableTermStructure
     + HasTenor
     + HasName
     + Send

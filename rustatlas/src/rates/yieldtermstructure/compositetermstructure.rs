@@ -30,17 +30,17 @@ use crate::prelude::*;
 /// assert_eq!(spreaded_curve.reference_date(), ref_date);
 /// ```
 #[derive(Clone)]
-pub struct CompositeTermStructure<T: GenericNumber> {
+pub struct CompositeTermStructure {
     date_reference: Date, // reference_date
-    spread_curve: Arc<dyn YieldTermStructureTrait<T>>,
-    base_curve: Arc<dyn YieldTermStructureTrait<T>>,
+    spread_curve: Arc<dyn YieldTermStructureTrait>,
+    base_curve: Arc<dyn YieldTermStructureTrait>,
 }
 
-impl<T: GenericNumber> CompositeTermStructure<T> {
+impl CompositeTermStructure {
     pub fn new(
-        spread_curve: Arc<dyn YieldTermStructureTrait<T>>,
-        base_curve: Arc<dyn YieldTermStructureTrait<T>>,
-    ) -> CompositeTermStructure<T> {
+        spread_curve: Arc<dyn YieldTermStructureTrait>,
+        base_curve: Arc<dyn YieldTermStructureTrait>,
+    ) -> CompositeTermStructure {
         CompositeTermStructure {
             date_reference: base_curve.reference_date(),
             spread_curve,
@@ -48,23 +48,23 @@ impl<T: GenericNumber> CompositeTermStructure<T> {
         }
     }
 
-    pub fn spread_curve(&self) -> &dyn YieldTermStructureTrait<T> {
+    pub fn spread_curve(&self) -> &dyn YieldTermStructureTrait {
         return self.spread_curve.as_ref();
     }
 
-    pub fn base_curve(&self) -> &dyn YieldTermStructureTrait<T> {
+    pub fn base_curve(&self) -> &dyn YieldTermStructureTrait {
         return self.base_curve.as_ref();
     }
 }
 
-impl<T: GenericNumber> HasReferenceDate for CompositeTermStructure<T> {
+impl HasReferenceDate for CompositeTermStructure {
     fn reference_date(&self) -> Date {
         return self.date_reference;
     }
 }
 
-impl<T: GenericNumber> YieldProvider<T> for CompositeTermStructure<T> {
-    fn discount_factor(&self, date: Date) -> Result<T> {
+impl YieldProvider for CompositeTermStructure {
+    fn discount_factor(&self, date: Date) -> Result<NumericType> {
         let spread_discount_factor = self.spread_curve.discount_factor(date)?;
         let base_discount_factor = self.base_curve.discount_factor(date)?;
         let add_df = spread_discount_factor * base_discount_factor;
@@ -77,7 +77,7 @@ impl<T: GenericNumber> YieldProvider<T> for CompositeTermStructure<T> {
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<T> {
+    ) -> Result<NumericType> {
         let spread_forward_rate = self
             .spread_curve
             .forward_rate(start_date, end_date, comp, freq)?;
@@ -89,26 +89,21 @@ impl<T: GenericNumber> YieldProvider<T> for CompositeTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for CompositeTermStructure
-impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
-    for CompositeTermStructure<T>
-{
-    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+impl AdvanceTermStructureInTime for CompositeTermStructure {
+    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait>> {
         let base = self.base_curve().advance_to_date(date)?;
         let spread = self.spread_curve().advance_to_date(date)?;
         Ok(Arc::new(CompositeTermStructure::new(spread, base)))
     }
 
-    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait>> {
         let base = self.base_curve().advance_to_period(period)?;
         let spread = self.spread_curve().advance_to_period(period)?;
         Ok(Arc::new(CompositeTermStructure::new(spread, base)))
     }
 }
 
-impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
-    for CompositeTermStructure<T>
-{
-}
+impl YieldTermStructureTrait for CompositeTermStructure {}
 
 #[cfg(test)]
 mod test {

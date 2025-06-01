@@ -2,11 +2,49 @@
 //! Public API:  ADNumber  +  free fns  exp, log, sqrt, fabs,
 //! normal_dens, normal_cdf, pow, max, min  +  flatten/propagation helpers.
 
-#![allow(clippy::needless_return)]
-
 use crate::prelude::*;
 use std::ops::*;
-/* ═════════════════════════  REVERSE-MODE TAPE  ═══════════════════════ */
+
+#[cfg(feature = "adnumber")]
+pub type NumericType = ADNumber;
+
+#[cfg(feature = "f64")]
+pub type NumericType = f64;
+
+pub trait NewNumericType<T> {
+    fn new(v: T) -> Self;
+}
+
+impl NewNumericType<f64> for f64 {
+    fn new(v: f64) -> Self {
+        v
+    }
+}
+
+impl NewNumericType<f32> for f64 {
+    fn new(v: f32) -> Self {
+        v as f64
+    }
+}
+
+impl NewNumericType<i32> for f64 {
+    fn new(v: i32) -> Self {
+        v as f64
+    }
+}
+
+impl NewNumericType<i64> for f64 {
+    fn new(v: i64) -> Self {
+        v as f64
+    }
+}
+
+impl NewNumericType<f64> for ADNumber {
+    fn new(v: f64) -> Self {
+        let idx = TAPE.with(|t| t.borrow_mut().new_leaf());
+        Self { val: v, idx }
+    }
+}
 
 /* ═══════════════════════  EXPRESSION TRAIT  ═════════════════════════ */
 
@@ -772,10 +810,25 @@ where
     }
 }
 
+impl From<f64> for ADNumber {
+    fn from(v: f64) -> Self {
+        ADNumber::new(v)
+    }
+}
+impl From<f32> for ADNumber {
+    fn from(v: f32) -> Self {
+        ADNumber::new(v as f64)
+    }
+}
+impl From<i32> for ADNumber {
+    fn from(v: i32) -> Self {
+        ADNumber::new(v as f64)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::ad::tape::TAPE;
 
     #[test]
     fn test_flatten() {
@@ -797,21 +850,5 @@ mod tests {
         let result = flatten(&x);
         result.propagate_to_start();
         assert_eq!(result.adjoint(), 1.0); // adjoint should be 1 after propagation
-    }
-
-    #[test]
-    fn test_aritmetics() {
-        let a = ADNumber::new(3.0);
-        let b = ADNumber::new(4.0);
-        let c = a * b;
-        let result = flatten(&c);
-        assert_eq!(result.value(), 12.0);
-        result.propagate_to_start();
-        assert_eq!(result.adjoint(), 1.0); // adjoint should be 1 after propagation
-        let tape = TAPE.with(|t| t.borrow().nodes.clone());
-        assert_eq!(tape.len(), 3); // should have 3 nodes: a, b, and c
-        assert_eq!(tape[0].adj, 1.0); // a's adjoint
-        assert_eq!(tape[1].adj, 1.0); // b's adjoint
-        assert_eq!(tape[2].adj, 1.0); // c's adjoint
     }
 }

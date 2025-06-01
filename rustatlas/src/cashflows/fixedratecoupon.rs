@@ -14,26 +14,26 @@ use crate::prelude::*;
 /// * `currency` - The currency of the coupon
 /// * `side` - The side of the coupon (Pay or Receive)
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct FixedRateCoupon<T: GenericNumber> {
-    notional: T,
-    rate: InterestRate<T>,
+pub struct FixedRateCoupon {
+    notional: NumericType,
+    rate: InterestRate,
     accrual_start_date: Date,
     accrual_end_date: Date,
-    cashflow: SimpleCashflow<T>,
+    cashflow: SimpleCashflow,
 }
 
-impl<T: GenericNumber> FixedRateCoupon<T> {
+impl FixedRateCoupon {
     pub fn new(
-        notional: T,
-        rate: InterestRate<T>,
+        notional: NumericType,
+        rate: InterestRate,
         accrual_start_date: Date,
         accrual_end_date: Date,
         payment_date: Date,
         currency: Currency,
         side: Side,
-    ) -> FixedRateCoupon<T> {
+    ) -> FixedRateCoupon {
         let delta = rate.compound_factor(accrual_start_date, accrual_end_date) - 1.0;
-        let amount = (delta * T::from(notional)).into(); // one final flatten
+        let amount = delta * notional; // one final flatten
 
         let cashflow = SimpleCashflow::new(payment_date, currency, side).with_amount(amount);
         FixedRateCoupon {
@@ -45,7 +45,7 @@ impl<T: GenericNumber> FixedRateCoupon<T> {
         }
     }
 
-    pub fn with_discount_curve_id(mut self, id: usize) -> FixedRateCoupon<T> {
+    pub fn with_discount_curve_id(mut self, id: usize) -> FixedRateCoupon {
         self.cashflow.set_discount_curve_id(id);
         self
     }
@@ -54,12 +54,12 @@ impl<T: GenericNumber> FixedRateCoupon<T> {
         self.cashflow.set_discount_curve_id(id);
     }
 
-    pub fn set_rate_value(&mut self, rate_value: T) {
+    pub fn set_rate_value(&mut self, rate_value: NumericType) {
         let rate = InterestRate::from_rate_definition(rate_value, self.rate.rate_definition());
         self.set_rate(rate);
     }
 
-    pub fn set_rate(&mut self, rate: InterestRate<T>) {
+    pub fn set_rate(&mut self, rate: InterestRate) {
         self.rate = rate;
         // Update the cashflow amount
         self.cashflow.set_amount(
@@ -83,24 +83,24 @@ impl<T: GenericNumber> FixedRateCoupon<T> {
         self.notional
     }
 
-    pub fn rate(&self) -> InterestRate<T> {
+    pub fn rate(&self) -> InterestRate {
         self.rate
     }
 }
 
-impl<T: GenericNumber> HasCurrency for FixedRateCoupon<T> {
+impl HasCurrency for FixedRateCoupon {
     fn currency(&self) -> Result<Currency> {
         self.cashflow.currency()
     }
 }
 
-impl<T: GenericNumber> HasDiscountCurveId for FixedRateCoupon<T> {
+impl HasDiscountCurveId for FixedRateCoupon {
     fn discount_curve_id(&self) -> Result<usize> {
         self.cashflow.discount_curve_id()
     }
 }
 
-impl<T: GenericNumber> HasForecastCurveId for FixedRateCoupon<T> {
+impl HasForecastCurveId for FixedRateCoupon {
     fn forecast_curve_id(&self) -> Result<usize> {
         return Err(AtlasError::InvalidValueErr(
             "No forecast curve id for fixed rate cashflow".to_string(),
@@ -108,7 +108,7 @@ impl<T: GenericNumber> HasForecastCurveId for FixedRateCoupon<T> {
     }
 }
 
-impl<T: GenericNumber> Registrable for FixedRateCoupon<T> {
+impl Registrable for FixedRateCoupon {
     fn id(&self) -> Result<usize> {
         return self.cashflow.id();
     }
@@ -122,7 +122,7 @@ impl<T: GenericNumber> Registrable for FixedRateCoupon<T> {
     }
 }
 
-impl<T: GenericNumber> InterestAccrual<T> for FixedRateCoupon<T> {
+impl InterestAccrual for FixedRateCoupon {
     fn accrual_start_date(&self) -> Result<Date> {
         return Ok(self.accrual_start_date);
     }
@@ -131,7 +131,7 @@ impl<T: GenericNumber> InterestAccrual<T> for FixedRateCoupon<T> {
         return Ok(self.accrual_end_date);
     }
 
-    fn accrued_amount(&self, start_date: Date, end_date: Date) -> Result<T> {
+    fn accrued_amount(&self, start_date: Date, end_date: Date) -> Result<NumericType> {
         let (d1, d2) = self.relevant_accrual_dates(self.accrual_start_date, end_date)?;
         let acc_1 = (self.rate.compound_factor(d1, d2) - 1.0) * self.notional;
 
@@ -142,8 +142,8 @@ impl<T: GenericNumber> InterestAccrual<T> for FixedRateCoupon<T> {
     }
 }
 
-impl<T: GenericNumber> Payable<T> for FixedRateCoupon<T> {
-    fn amount(&self) -> Result<T> {
+impl Payable for FixedRateCoupon {
+    fn amount(&self) -> Result<NumericType> {
         return self.cashflow.amount();
     }
 
@@ -156,7 +156,7 @@ impl<T: GenericNumber> Payable<T> for FixedRateCoupon<T> {
     }
 }
 
-impl<T: GenericNumber> Expires for FixedRateCoupon<T> {
+impl Expires for FixedRateCoupon {
     fn is_expired(&self, date: Date) -> bool {
         return self.cashflow.is_expired(date);
     }

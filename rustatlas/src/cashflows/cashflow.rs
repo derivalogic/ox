@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
+
 /// # Side
 /// Enum that represents the side of a cashflow.
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -51,14 +52,14 @@ impl From<Side> for String {
 /// # Cashflow
 /// Enum that represents a cashflow.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-pub enum Cashflow<T: GenericNumber> {
-    Redemption(SimpleCashflow<T>),
-    Disbursement(SimpleCashflow<T>),
-    FixedRateCoupon(FixedRateCoupon<T>),
-    FloatingRateCoupon(FloatingRateCoupon<T>),
+pub enum Cashflow {
+    Redemption(SimpleCashflow),
+    Disbursement(SimpleCashflow),
+    FixedRateCoupon(FixedRateCoupon),
+    FloatingRateCoupon(FloatingRateCoupon),
 }
 
-impl<T: GenericNumber> Cashflow<T> {
+impl Cashflow {
     pub fn set_discount_curve_id(&mut self, id: usize) {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.set_discount_curve_id(id),
@@ -76,8 +77,8 @@ impl<T: GenericNumber> Cashflow<T> {
     }
 }
 
-impl<T: GenericNumber> Payable<T> for Cashflow<T> {
-    fn amount(&self) -> Result<T> {
+impl Payable for Cashflow {
+    fn amount(&self) -> Result<NumericType> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.amount(),
             Cashflow::Disbursement(cashflow) => cashflow.amount(),
@@ -105,7 +106,7 @@ impl<T: GenericNumber> Payable<T> for Cashflow<T> {
     }
 }
 
-impl<T: GenericNumber> HasCurrency for Cashflow<T> {
+impl HasCurrency for Cashflow {
     fn currency(&self) -> Result<Currency> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.currency(),
@@ -116,7 +117,7 @@ impl<T: GenericNumber> HasCurrency for Cashflow<T> {
     }
 }
 
-impl<T: GenericNumber> HasDiscountCurveId for Cashflow<T> {
+impl HasDiscountCurveId for Cashflow {
     fn discount_curve_id(&self) -> Result<usize> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.discount_curve_id(),
@@ -127,7 +128,7 @@ impl<T: GenericNumber> HasDiscountCurveId for Cashflow<T> {
     }
 }
 
-impl<T: GenericNumber> HasForecastCurveId for Cashflow<T> {
+impl HasForecastCurveId for Cashflow {
     fn forecast_curve_id(&self) -> Result<usize> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.forecast_curve_id(),
@@ -138,7 +139,7 @@ impl<T: GenericNumber> HasForecastCurveId for Cashflow<T> {
     }
 }
 
-impl<T: GenericNumber> Registrable for Cashflow<T> {
+impl Registrable for Cashflow {
     fn set_id(&mut self, id: usize) {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.set_id(id),
@@ -167,7 +168,7 @@ impl<T: GenericNumber> Registrable for Cashflow<T> {
     }
 }
 
-impl<T: GenericNumber> InterestAccrual<T> for Cashflow<T> {
+impl InterestAccrual for Cashflow {
     fn accrual_end_date(&self) -> Result<Date> {
         match self {
             Cashflow::FixedRateCoupon(coupon) => coupon.accrual_end_date(),
@@ -194,17 +195,17 @@ impl<T: GenericNumber> InterestAccrual<T> for Cashflow<T> {
         }
     }
 
-    fn accrued_amount(&self, start_date: Date, end_date: Date) -> Result<T> {
+    fn accrued_amount(&self, start_date: Date, end_date: Date) -> Result<NumericType> {
         match self {
             Cashflow::FixedRateCoupon(coupon) => coupon.accrued_amount(start_date, end_date),
             Cashflow::FloatingRateCoupon(coupon) => coupon.accrued_amount(start_date, end_date),
-            _ => Ok(T::from(0.0)),
+            _ => Ok(0.0.into()),
         }
     }
 }
 
-impl<T: GenericNumber> RequiresFixingRate<T> for Cashflow<T> {
-    fn set_fixing_rate(&mut self, fixing_rate: T) {
+impl RequiresFixingRate for Cashflow {
+    fn set_fixing_rate(&mut self, fixing_rate: NumericType) {
         match self {
             Cashflow::FloatingRateCoupon(coupon) => coupon.set_fixing_rate(fixing_rate),
             _ => (),
@@ -212,9 +213,9 @@ impl<T: GenericNumber> RequiresFixingRate<T> for Cashflow<T> {
     }
 }
 
-impl<T: GenericNumber> Display for Cashflow<T> {
+impl Display for Cashflow {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let amount = self.amount().unwrap_or(T::from(0.0));
+        let amount = self.amount().unwrap_or(0.0);
         match self {
             Cashflow::Redemption(cashflow) => write!(
                 f,
@@ -273,7 +274,7 @@ mod tests {
         let serialized = serde_json::to_string(&cashflow).unwrap();
         println!("{}", serialized);
 
-        let deserialized: Cashflow<f64> = serde_json::from_str(&serialized).unwrap();
+        let deserialized: Cashflow = serde_json::from_str(&serialized).unwrap();
         assert_eq!(cashflow, deserialized);
     }
 }

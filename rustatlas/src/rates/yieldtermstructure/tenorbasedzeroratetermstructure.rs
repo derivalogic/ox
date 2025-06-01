@@ -12,14 +12,12 @@ use std::sync::Arc;
 /// * `interpolation` - The interpolation method of the term structure
 /// * `enable_extrapolation` - Enable extrapolation
 ///
-/// Using the AD variable type:
 /// ```
 /// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::Var;
 /// let reference_date = Date::new(2021, 12, 1);
 /// let tenors = vec![Period::new(1, TimeUnit::Years)];
-/// let spreads = vec![Var::from(0.01)];
-/// let curve = TenorBasedZeroRateTermStructure::<Var>::new(
+/// let spreads = vec![0.01];
+/// let curve = TenorBasedZeroRateTermStructure::new(
 ///     reference_date,
 ///     tenors,
 ///     spreads,
@@ -30,32 +28,32 @@ use std::sync::Arc;
 /// assert_eq!(curve.reference_date(), reference_date);
 /// ```
 #[derive(Clone)]
-pub struct TenorBasedZeroRateTermStructure<T: GenericNumber> {
+pub struct TenorBasedZeroRateTermStructure {
     reference_date: Date,
     tenors: Vec<Period>,
-    spreads: Vec<T>,
+    spreads: Vec<NumericType>,
     rate_definition: RateDefinition,
-    year_fractions: Vec<T>,
+    year_fractions: Vec<NumericType>,
     interpolation: Interpolator,
     enable_extrapolation: bool,
 }
 
-impl<T: GenericNumber> TenorBasedZeroRateTermStructure<T> {
+impl TenorBasedZeroRateTermStructure {
     pub fn new(
         reference_date: Date,
         tenors: Vec<Period>,
-        spreads: Vec<T>,
+        spreads: Vec<NumericType>,
         rate_definition: RateDefinition,
         interpolation: Interpolator,
         enable_extrapolation: bool,
-    ) -> Result<TenorBasedZeroRateTermStructure<T>> {
-        let year_fractions: Vec<T> = tenors
+    ) -> Result<TenorBasedZeroRateTermStructure> {
+        let year_fractions: Vec<NumericType> = tenors
             .iter()
             .map(|x| {
                 let date = reference_date + *x;
                 rate_definition
                     .day_counter()
-                    .year_fraction::<T>(reference_date, date)
+                    .year_fraction(reference_date, date)
             })
             .collect();
 
@@ -74,23 +72,23 @@ impl<T: GenericNumber> TenorBasedZeroRateTermStructure<T> {
         return &self.tenors;
     }
 
-    pub fn spreads(&self) -> &Vec<T> {
+    pub fn spreads(&self) -> &Vec<NumericType> {
         return &self.spreads;
     }
 }
 
-impl<T: GenericNumber> HasReferenceDate for TenorBasedZeroRateTermStructure<T> {
+impl HasReferenceDate for TenorBasedZeroRateTermStructure {
     fn reference_date(&self) -> Date {
         return self.reference_date;
     }
 }
 
-impl<T: GenericNumber> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
-    fn discount_factor(&self, date: Date) -> Result<T> {
+impl YieldProvider for TenorBasedZeroRateTermStructure {
+    fn discount_factor(&self, date: Date) -> Result<NumericType> {
         let year_fraction = self
             .rate_definition
             .day_counter()
-            .year_fraction::<T>(self.reference_date(), date);
+            .year_fraction(self.reference_date(), date);
 
         let spread = self.interpolation.interpolate(
             year_fraction,
@@ -99,7 +97,7 @@ impl<T: GenericNumber> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
             self.enable_extrapolation,
         );
         let rate = InterestRate::from_rate_definition(spread, self.rate_definition);
-        Ok(T::from(1.0) / rate.compound_factor(self.reference_date, date))
+        Ok(1.0 / rate.compound_factor(self.reference_date, date))
     }
 
     fn forward_rate(
@@ -108,7 +106,7 @@ impl<T: GenericNumber> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<T> {
+    ) -> Result<NumericType> {
         let start_df = self.discount_factor(start_date)?;
         let end_df = self.discount_factor(end_date)?;
 
@@ -116,7 +114,7 @@ impl<T: GenericNumber> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
         let t = self
             .rate_definition
             .day_counter()
-            .year_fraction::<T>(self.reference_date, end_date);
+            .year_fraction(self.reference_date, end_date);
         let rate = InterestRate::implied_rate(
             compound,
             self.rate_definition.day_counter(),
@@ -128,10 +126,8 @@ impl<T: GenericNumber> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
     }
 }
 
-impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
-    for TenorBasedZeroRateTermStructure<T>
-{
-    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+impl AdvanceTermStructureInTime for TenorBasedZeroRateTermStructure {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait>> {
         let new_reference_date = self.reference_date + period;
         Ok(Arc::new(TenorBasedZeroRateTermStructure::new(
             new_reference_date,
@@ -143,17 +139,14 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
         )?))
     }
 
-    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait>> {
         let days = (date - self.reference_date) as i32;
         let period = Period::new(days, TimeUnit::Days);
         self.advance_to_period(period)
     }
 }
 
-impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
-    for TenorBasedZeroRateTermStructure<T>
-{
-}
+impl YieldTermStructureTrait for TenorBasedZeroRateTermStructure {}
 
 #[cfg(test)]
 mod tests {

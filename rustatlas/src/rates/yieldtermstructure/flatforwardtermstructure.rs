@@ -11,31 +11,18 @@ use std::sync::Arc;
 /// let term_structure = FlatForwardTermStructure::new(reference_date, 0.5, RateDefinition::default());
 /// assert_eq!(term_structure.reference_date(), reference_date);
 /// ```
-///
-/// Using the AD variable type:
-/// ```
-/// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::Var;
-/// let reference_date = Date::new(2023, 8, 19);
-/// let ts = FlatForwardTermStructure::<Var>::new(
-///     reference_date,
-///     Var::from(0.5),
-///     RateDefinition::default(),
-/// );
-/// assert_eq!(ts.rate().rate().value(), 0.5);
-/// ```
 #[derive(Clone, Copy)]
-pub struct FlatForwardTermStructure<T: GenericNumber = f64> {
+pub struct FlatForwardTermStructure {
     reference_date: Date,
-    rate: InterestRate<T>,
+    rate: InterestRate,
 }
 
-impl<T: GenericNumber> FlatForwardTermStructure<T> {
+impl FlatForwardTermStructure {
     pub fn new(
         reference_date: Date,
-        rate: T,
+        rate: NumericType,
         rate_definition: RateDefinition,
-    ) -> FlatForwardTermStructure<T> {
+    ) -> FlatForwardTermStructure {
         let rate = InterestRate::from_rate_definition(rate, rate_definition);
         FlatForwardTermStructure {
             reference_date,
@@ -43,11 +30,11 @@ impl<T: GenericNumber> FlatForwardTermStructure<T> {
         }
     }
 
-    pub fn rate(&self) -> InterestRate<T> {
+    pub fn rate(&self) -> InterestRate {
         return self.rate;
     }
 
-    pub fn value(&self) -> T {
+    pub fn value(&self) -> NumericType {
         self.rate.rate()
     }
 
@@ -56,14 +43,14 @@ impl<T: GenericNumber> FlatForwardTermStructure<T> {
     }
 }
 
-impl<T: GenericNumber> HasReferenceDate for FlatForwardTermStructure<T> {
+impl HasReferenceDate for FlatForwardTermStructure {
     fn reference_date(&self) -> Date {
         return self.reference_date;
     }
 }
 
-impl<T: GenericNumber> YieldProvider<T> for FlatForwardTermStructure<T> {
-    fn discount_factor(&self, date: Date) -> Result<T> {
+impl YieldProvider for FlatForwardTermStructure {
+    fn discount_factor(&self, date: Date) -> Result<NumericType> {
         if date < self.reference_date() {
             return Err(AtlasError::InvalidValueErr(format!(
                 "Date {:?} is before reference date {:?}",
@@ -79,21 +66,16 @@ impl<T: GenericNumber> YieldProvider<T> for FlatForwardTermStructure<T> {
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<T> {
+    ) -> Result<NumericType> {
         let comp_factor = self.discount_factor(start_date)? / self.discount_factor(end_date)?;
-        let t = self
-            .rate
-            .day_counter()
-            .year_fraction::<T>(start_date, end_date);
+        let t = self.rate.day_counter().year_fraction(start_date, end_date);
         Ok(InterestRate::implied_rate(comp_factor, self.rate.day_counter(), comp, freq, t)?.rate())
     }
 }
 
 /// # AdvanceTermStructureInTime for FlatForwardTermStructure
-impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
-    for FlatForwardTermStructure<T>
-{
-    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+impl AdvanceTermStructureInTime for FlatForwardTermStructure {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait>> {
         let new_reference_date = self
             .reference_date()
             .advance(period.length(), period.units());
@@ -104,7 +86,7 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
         )));
     }
 
-    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait>> {
         return Ok(Arc::new(FlatForwardTermStructure::new(
             date,
             self.value(),
@@ -113,10 +95,7 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
     }
 }
 
-impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
-    for FlatForwardTermStructure<T>
-{
-}
+impl YieldTermStructureTrait for FlatForwardTermStructure {}
 
 #[cfg(test)]
 mod tests {

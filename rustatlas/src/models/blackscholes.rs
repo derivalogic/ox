@@ -5,47 +5,47 @@ use crate::prelude::*;
 
 /// Simple Black-Scholes Monte Carlo generator
 #[derive(Clone)]
-pub struct BlackScholesModel<'a, T: GenericNumber> {
-    pub simple: SimpleModel<'a, T>,
+pub struct BlackScholesModel<'a> {
+    pub simple: SimpleModel<'a>,
 }
 
-impl<'a, T: GenericNumber> BlackScholesModel<'a, T> {
-    pub fn new(simple: SimpleModel<'a, T>) -> Self {
+impl<'a> BlackScholesModel<'a> {
+    pub fn new(simple: SimpleModel<'a>) -> Self {
         Self { simple }
     }
 }
 
-impl<T: GenericNumber> DeterministicModel<T> for BlackScholesModel<'_, T> {
+impl DeterministicModel for BlackScholesModel<'_> {
     fn reference_date(&self) -> Date {
         self.simple.reference_date()
     }
 
-    fn gen_df_data(&self, df: DiscountFactorRequest) -> Result<T> {
+    fn gen_df_data(&self, df: DiscountFactorRequest) -> Result<NumericType> {
         self.simple.gen_df_data(df)
     }
 
-    fn gen_fx_data(&self, fx: ExchangeRateRequest) -> Result<T> {
+    fn gen_fx_data(&self, fx: ExchangeRateRequest) -> Result<NumericType> {
         self.simple.gen_fx_data(fx)
     }
 
-    fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<T> {
+    fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<NumericType> {
         self.simple.gen_fwd_data(fwd)
     }
 
-    fn gen_numerarie(&self, market_request: &MarketRequest) -> Result<T> {
+    fn gen_numerarie(&self, market_request: &MarketRequest) -> Result<NumericType> {
         self.simple.gen_numerarie(market_request)
     }
 }
 
-impl<'a, T: GenericNumber> StochasticModel<T> for BlackScholesModel<'a, T> {
-    fn gen_scenario(&self, market_requests: &[MarketRequest]) -> Result<Scenario<T>> {
+impl<'a> StochasticModel for BlackScholesModel<'a> {
+    fn gen_scenario(&self, market_requests: &[MarketRequest]) -> Result<Scenario> {
         let store = self.simple.market_store();
         let ref_date = store.reference_date();
         let local_ccy = store.local_currency();
         let idx = store.index_store();
 
         /* --- parallel over all paths ------------------------------------ */
-        let scenario: Vec<Scenario<T>> = {
+        let scenario = {
             /* each path gets its own reproducible RNG */
             let mut rng = StdRng::seed_from_u64(0xA55AA55Au64 as u64);
 
@@ -59,7 +59,7 @@ impl<'a, T: GenericNumber> StochasticModel<T> for BlackScholesModel<'a, T> {
                 if let Some(fx_req) = req.fx() {
                     /* maturity ....................................... */
                     let mat = fx_req.reference_date().unwrap_or(ref_date);
-                    let t = Actual360::year_fraction::<T>(ref_date, mat);
+                    let t = Actual360::year_fraction(ref_date, mat);
 
                     /* spot ........................................... */
                     let spot_req = ExchangeRateRequest::new(
@@ -115,10 +115,10 @@ impl<'a, T: GenericNumber> StochasticModel<T> for BlackScholesModel<'a, T> {
                      *    3. else     → use interest-parity forward
                      * ----------------------------------------------------*/
 
-                    let fx_b_to_l: T = if local_ccy == second_ccy {
-                        T::from(1.0) // case (1)
+                    let fx_b_to_l = if local_ccy == second_ccy {
+                        1.0 // case (1)
                     } else if local_ccy == fx_req.first_currency() {
-                        T::from(1.0) / s_t // case (2)
+                        1.0 / s_t // case (2)
                     } else {
                         /* case (3) – build forward B/L using interest parity */
                         let spot_b_l = self
@@ -166,67 +166,4 @@ impl<'a, T: GenericNumber> StochasticModel<T> for BlackScholesModel<'a, T> {
 
         Ok(scenario)
     }
-}
-
-fn norm_pdf<T: GenericNumber>(x: T) -> T {
-    let inv_sqrt_2pi = T::from(1.0 / (2.0_f64 * std::f64::consts::PI).sqrt());
-    inv_sqrt_2pi * (-(x * x) * T::from(0.5)).exp()
-}
-
-fn norm_cdf<T: GenericNumber>(x: T) -> T {
-    let one = T::from(1.0);
-    let k = one / (one + T::from(0.2316419) * x.abs());
-    let k_sum = k
-        * (T::from(0.31938153)
-            + k * (-T::from(0.356563782)
-                + k * (T::from(1.781477937)
-                    + k * (-T::from(1.821255978) + k * T::from(1.330274429)))));
-    let approx = one - norm_pdf(x) * k_sum;
-    if x >= T::from(0.0) {
-        approx
-    } else {
-        one - approx
-    }
-}
-
-pub fn bs_price<T: GenericNumber>(s: T, k: T, r: T, vol: T, t: T) -> T {
-    let sqt = t.sqrt();
-    let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
-    let d2 = d1 - vol * sqt;
-    s * norm_cdf(d1) - k * (-r * t).exp() * norm_cdf(d2)
-}
-
-pub fn bs_delta<T: GenericNumber>(s: T, k: T, r: T, vol: T, t: T) -> T {
-    let sqt = t.sqrt();
-    let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
-    norm_cdf(d1)
-}
-
-pub fn bs_gamma<T: GenericNumber>(s: T, k: T, r: T, vol: T, t: T) -> T {
-    let sqt = t.sqrt();
-    let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
-    norm_pdf(d1) / (s * vol * sqt)
-}
-
-pub fn bs_theta<T: GenericNumber>(s: T, k: T, r: T, vol: T, t: T) -> T {
-    let sqt = t.sqrt();
-    let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
-    let d2 = d1 - vol * sqt;
-    -(s * norm_pdf(d1) * vol) / (sqt * 2.0) - r * k * (-r * t).exp() * norm_cdf(d2)
-}
-
-/// Return price and Greeks for convenience
-pub fn bs_price_delta_gamma_theta<T: GenericNumber>(
-    s: T,
-    k: T,
-    r: T,
-    vol: T,
-    t: T,
-) -> (T, T, T, T) {
-    (
-        bs_price(s, k, r, vol, t),
-        bs_delta(s, k, r, vol, t),
-        bs_gamma(s, k, r, vol, t),
-        bs_theta(s, k, r, vol, t),
-    )
 }

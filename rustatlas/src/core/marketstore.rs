@@ -12,16 +12,16 @@ use crate::{prelude::*, utils::tools};
 /// * `exchange_rate_store` - The exchange rate store
 /// * `index_store` - The index store
 #[derive(Clone)]
-pub struct MarketStore<T: GenericNumber> {
+pub struct MarketStore {
     reference_date: Date,
     local_currency: Currency,
-    exchange_rate_store: ExchangeRateStore<T>,
-    index_store: IndexStore<T>,
-    equity_store: EquityStore<T>,
+    exchange_rate_store: ExchangeRateStore,
+    index_store: IndexStore,
+    equity_store: EquityStore,
 }
 
-impl<T: GenericNumber> MarketStore<T> {
-    pub fn new(reference_date: Date, local_currency: Currency) -> MarketStore<T> {
+impl MarketStore {
+    pub fn new(reference_date: Date, local_currency: Currency) -> MarketStore {
         MarketStore {
             reference_date,
             local_currency,
@@ -35,27 +35,27 @@ impl<T: GenericNumber> MarketStore<T> {
         self.local_currency
     }
 
-    pub fn exchange_rate_store(&self) -> &ExchangeRateStore<T> {
+    pub fn exchange_rate_store(&self) -> &ExchangeRateStore {
         &self.exchange_rate_store
     }
 
-    pub fn mut_exchange_rate_store(&mut self) -> &mut ExchangeRateStore<T> {
+    pub fn mut_exchange_rate_store(&mut self) -> &mut ExchangeRateStore {
         &mut self.exchange_rate_store
     }
 
-    pub fn equity_store(&self) -> &EquityStore<T> {
+    pub fn equity_store(&self) -> &EquityStore {
         &self.equity_store
     }
 
-    pub fn mut_equity_store(&mut self) -> &mut EquityStore<T> {
+    pub fn mut_equity_store(&mut self) -> &mut EquityStore {
         &mut self.equity_store
     }
 
-    pub fn index_store(&self) -> &IndexStore<T> {
+    pub fn index_store(&self) -> &IndexStore {
         &self.index_store
     }
 
-    pub fn mut_index_store(&mut self) -> &mut IndexStore<T> {
+    pub fn mut_index_store(&mut self) -> &mut IndexStore {
         &mut self.index_store
     }
 
@@ -63,7 +63,7 @@ impl<T: GenericNumber> MarketStore<T> {
         &self,
         first_currency: Currency,
         second_currency: Option<Currency>,
-    ) -> Result<T> {
+    ) -> Result<NumericType> {
         let second_currency = match second_currency {
             Some(ccy) => ccy,
             None => self.local_currency,
@@ -77,16 +77,16 @@ impl<T: GenericNumber> MarketStore<T> {
         &self,
         first_currency: Currency,
         second_currency: Currency,
-    ) -> Result<T> {
+    ) -> Result<NumericType> {
         self.exchange_rate_store
             .get_volatility(first_currency, second_currency)
     }
 
-    pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
+    pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>> {
         return self.index_store.get_index(id);
     }
 
-    // pub fn advance_to_period(&self, period: Period) -> Result<MarketStore<T>> {
+    // pub fn advance_to_period(&self, period: Period) -> Result<MarketStore> {
     //     if period.length() < 0 {
     //         return Err(AtlasError::InvalidValueErr(format!(
     //             "Negative periods are not allowed when advancing market store in time ({:?})",
@@ -109,7 +109,7 @@ impl<T: GenericNumber> MarketStore<T> {
     //     })
     // }
 
-    // pub fn advance_to_date(&self, date: Date) -> Result<MarketStore<T>> {
+    // pub fn advance_to_date(&self, date: Date) -> Result<MarketStore> {
     //     if date < self.reference_date {
     //         return Err(AtlasError::InvalidValueErr(format!(
     //             "Date {} is before reference date {}",
@@ -122,14 +122,14 @@ impl<T: GenericNumber> MarketStore<T> {
     // }
 }
 
-impl<T: GenericNumber> HasReferenceDate for MarketStore<T> {
+impl HasReferenceDate for MarketStore {
     fn reference_date(&self) -> Date {
         self.reference_date
     }
 }
 
 // fecha, moneda, qué curvas tiene cargadas, paridades
-impl<T: GenericNumber + fmt::Display> fmt::Display for MarketStore<T> {
+impl fmt::Display for MarketStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut msg = "=====================================\n".to_string();
         msg.push_str("======= MarketStore features! =======\n");

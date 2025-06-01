@@ -24,11 +24,11 @@ pub enum Interpolator {
 impl Interpolator {
     pub fn interpolate(
         &self,
-        x: ADNumber,
-        x_: &Vec<ADNumber>,
-        y_: &Vec<ADNumber>,
+        x: NumericType,
+        x_: &Vec<NumericType>,
+        y_: &Vec<NumericType>,
         enable_extrapolation: bool,
-    ) -> ADNumber {
+    ) -> NumericType {
         match self {
             Interpolator::Linear => {
                 LinearInterpolator::interpolate(x, x_, y_, enable_extrapolation)

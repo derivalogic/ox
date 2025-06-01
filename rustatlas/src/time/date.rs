@@ -249,14 +249,13 @@ impl Date {
     /// # Example
     /// ```
     /// use rustatlas::prelude::*;
-    /// use rustatlas::math::ad::Var;
     /// let start = Date::new(2024, 1, 1);
     /// let end = Date::new(2024, 7, 1);
-    /// let yf: Var = start.year_fraction(end, DayCounter::Actual365);
-    /// assert!((yf.value() - 182.0 / 365.0).abs() < 1e-12);
+    /// let yf = start.year_fraction(end, DayCounter::Actual365);
+    /// assert!((yf - 182.0 / 365.0).abs() < 1e-12);
     /// ```
-    pub fn year_fraction<T: GenericNumber>(&self, end: Date, dc: DayCounter) -> T {
-        dc.year_fraction::<T>(*self, end)
+    pub fn year_fraction(&self, end: Date, dc: DayCounter) -> NumericType {
+        dc.year_fraction(*self, end)
     }
 
     // testing needed

@@ -20,7 +20,7 @@ ad_trait = "0.1.6"
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
 
-[[bench]]
-name = "fixedratepricing"
-harness = false
-
+[features]
+default = ["adnumber"]
+adnumber = []
+f64 = []

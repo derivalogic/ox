@@ -16,15 +16,11 @@ pub trait CurrencyDetails {
 /// Trait for advancing an exchange rate store in time using de index store
 /// It is necessary for any currency, have free risk curve tabulated in the index store
 /// If the currency does not have a free risk curve, method advance_to_period and advance_to_date will mantain the same fx
-pub trait AdvanceExchangeRateStoreInTime<T: GenericNumber> {
+pub trait AdvanceExchangeRateStoreInTime {
     fn advance_to_period(
         &self,
         period: Period,
-        index_store: &IndexStore<T>,
-    ) -> Result<ExchangeRateStore<T>>;
-    fn advance_to_date(
-        &self,
-        date: Date,
-        index_store: &IndexStore<T>,
-    ) -> Result<ExchangeRateStore<T>>;
+        index_store: &IndexStore,
+    ) -> Result<ExchangeRateStore>;
+    fn advance_to_date(&self, date: Date, index_store: &IndexStore) -> Result<ExchangeRateStore>;
 }

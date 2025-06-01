@@ -1,6 +1,15 @@
+use rand_distr::num_traits::Num;
 use serde::{Deserialize, Serialize};
 
-use crate::prelude::*;
+use crate::{
+    cashflows::cashflow::{Cashflow, Side},
+    prelude::*,
+};
+
+use super::{
+    fixedrateinstrument::FixedRateInstrument, floatingrateinstrument::FloatingRateInstrument,
+    traits::Structure,
+};
 
 /// # RateType
 /// Represents the type of rate.
@@ -48,15 +57,15 @@ impl From<RateType> for String {
 /// # Instrument
 /// Represents an instrument. This is a wrapper around the FixedRateInstrument and FloatingRateInstrument.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Instrument<R: GenericNumber = f64> {
-    FixedRateInstrument(FixedRateInstrument<R>),
-    FloatingRateInstrument(FloatingRateInstrument<R>),
+pub enum Instrument {
+    FixedRateInstrument(FixedRateInstrument),
+    FloatingRateInstrument(FloatingRateInstrument),
     // HybridRateInstrument(HybridRateInstrument<R>),
     // DoubleRateInstrument(DoubleRateInstrument<R>),
 }
 
-impl<R: GenericNumber> HasCashflows<R> for Instrument<R> {
-    fn cashflows(&self) -> &[Cashflow<R>] {
+impl HasCashflows for Instrument {
+    fn cashflows(&self) -> &[Cashflow] {
         match self {
             Instrument::FixedRateInstrument(fri) => fri.cashflows(),
             Instrument::FloatingRateInstrument(fri) => fri.cashflows(),
@@ -65,7 +74,7 @@ impl<R: GenericNumber> HasCashflows<R> for Instrument<R> {
         }
     }
 
-    fn mut_cashflows(&mut self) -> &mut [Cashflow<R>] {
+    fn mut_cashflows(&mut self) -> &mut [Cashflow] {
         match self {
             Instrument::FixedRateInstrument(fri) => fri.mut_cashflows(),
             Instrument::FloatingRateInstrument(fri) => fri.mut_cashflows(),
@@ -75,7 +84,7 @@ impl<R: GenericNumber> HasCashflows<R> for Instrument<R> {
     }
 }
 
-impl<R: GenericNumber> Instrument<R> {
+impl Instrument {
     pub fn notional(&self) -> f64 {
         match self {
             Instrument::FixedRateInstrument(fri) => fri.notional(),
@@ -156,7 +165,7 @@ impl<R: GenericNumber> Instrument<R> {
         }
     }
 
-    pub fn rate(&self) -> Option<R> {
+    pub fn rate(&self) -> Option<NumericType> {
         match self {
             Instrument::FixedRateInstrument(fri) => Some(fri.rate().rate()),
             Instrument::FloatingRateInstrument(_) => None,
@@ -165,7 +174,7 @@ impl<R: GenericNumber> Instrument<R> {
         }
     }
 
-    pub fn spread(&self) -> Option<R> {
+    pub fn spread(&self) -> Option<NumericType> {
         match self {
             Instrument::FixedRateInstrument(_) => None,
             Instrument::FloatingRateInstrument(fri) => Some(fri.spread()),

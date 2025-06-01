@@ -179,24 +179,24 @@ impl MarketRequest {
 /// * `fwd` - The forward rate.
 /// * `fx` - The exchange rate.
 #[derive(Debug, Clone, Copy)]
-pub struct MarketData<T = f64> {
+pub struct MarketData {
     id: usize,
     reference_date: Date,
-    df: Option<T>,
-    fwd: Option<T>,
-    fx: Option<T>,
-    numerarie: T,
+    df: Option<NumericType>,
+    fwd: Option<NumericType>,
+    fx: Option<NumericType>,
+    numerarie: NumericType,
 }
 
-impl<T> MarketData<T> {
+impl MarketData {
     pub fn new(
         id: usize,
         reference_date: Date,
-        df: Option<T>,
-        fwd: Option<T>,
-        fx: Option<T>,
-        numerarie: T,
-    ) -> MarketData<T> {
+        df: Option<NumericType>,
+        fwd: Option<NumericType>,
+        fx: Option<NumericType>,
+        numerarie: NumericType,
+    ) -> MarketData {
         MarketData {
             id,
             reference_date,
@@ -216,21 +216,21 @@ impl<T> MarketData<T> {
     }
 }
 
-impl<T: Copy> MarketData<T> {
-    pub fn df(&self) -> Result<T> {
+impl MarketData {
+    pub fn df(&self) -> Result<NumericType> {
         self.df.ok_or(AtlasError::ValueNotSetErr("df".to_string()))
     }
 
-    pub fn fwd(&self) -> Result<T> {
+    pub fn fwd(&self) -> Result<NumericType> {
         self.fwd
             .ok_or(AtlasError::ValueNotSetErr("fwd".to_string()))
     }
 
-    pub fn fx(&self) -> Result<T> {
+    pub fn fx(&self) -> Result<NumericType> {
         self.fx.ok_or(AtlasError::ValueNotSetErr("fx".to_string()))
     }
 
-    pub fn numerarie(&self) -> T {
+    pub fn numerarie(&self) -> NumericType {
         self.numerarie
     }
 }

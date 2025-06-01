@@ -46,24 +46,24 @@ use crate::prelude::*;
 ///  ```
 
 #[derive(Clone)]
-pub struct DiscountTermStructure<T: GenericNumber> {
+pub struct DiscountTermStructure {
     reference_date: Date,
     dates: Vec<Date>,
-    year_fractions: Vec<T>,
-    discount_factors: Vec<T>,
+    year_fractions: Vec<NumericType>,
+    discount_factors: Vec<NumericType>,
     interpolator: Interpolator,
     day_counter: DayCounter,
     enable_extrapolation: bool,
 }
 
-impl<T: GenericNumber> DiscountTermStructure<T> {
+impl DiscountTermStructure {
     pub fn new(
         dates: Vec<Date>,
-        discount_factors: Vec<T>,
+        discount_factors: Vec<NumericType>,
         day_counter: DayCounter,
         interpolator: Interpolator,
         enable_extrapolation: bool,
-    ) -> Result<DiscountTermStructure<T>> {
+    ) -> Result<DiscountTermStructure> {
         // check if year_fractions and discount_factors have the same size
         if dates.len() != discount_factors.len() {
             return Err(AtlasError::InvalidValueErr(
@@ -77,18 +77,18 @@ impl<T: GenericNumber> DiscountTermStructure<T> {
             .zip(discount_factors.into_iter())
             .collect::<Vec<_>>();
         zipped.sort_by(|a, b| a.0.cmp(&b.0));
-        let (dates, discount_factors): (Vec<Date>, Vec<T>) = zipped.into_iter().unzip();
+        let (dates, discount_factors): (Vec<Date>, Vec<NumericType>) = zipped.into_iter().unzip();
 
         // discount_factors[0] needs to be 1.0
-        if discount_factors[0] != T::from(1.0) {
+        if discount_factors[0] != 1.0 {
             return Err(AtlasError::InvalidValueErr(
                 "First discount factor needs to be 1.0".to_string(),
             ));
         }
         let reference_date = dates[0];
-        let year_fractions: Vec<T> = dates
+        let year_fractions: Vec<NumericType> = dates
             .iter()
-            .map(|x| day_counter.year_fraction::<T>(reference_date, *x))
+            .map(|x| day_counter.year_fraction(reference_date, *x))
             .collect();
 
         Ok(DiscountTermStructure {
@@ -106,7 +106,7 @@ impl<T: GenericNumber> DiscountTermStructure<T> {
         return &self.dates;
     }
 
-    pub fn discount_factors(&self) -> &Vec<T> {
+    pub fn discount_factors(&self) -> &Vec<NumericType> {
         return &self.discount_factors;
     }
 
@@ -123,26 +123,26 @@ impl<T: GenericNumber> DiscountTermStructure<T> {
     }
 }
 
-impl<T: GenericNumber> HasReferenceDate for DiscountTermStructure<T> {
+impl HasReferenceDate for DiscountTermStructure {
     fn reference_date(&self) -> Date {
         return self.reference_date;
     }
 }
 
-impl<T: GenericNumber> YieldProvider<T> for DiscountTermStructure<T> {
-    fn discount_factor(&self, date: Date) -> Result<T> {
+impl YieldProvider for DiscountTermStructure {
+    fn discount_factor(&self, date: Date) -> Result<NumericType> {
         if date < self.reference_date() {
             return Err(AtlasError::InvalidValueErr(
                 "Date needs to be greater than reference date".to_string(),
             ));
         }
         if date == self.reference_date() {
-            return Ok(T::from(1.0));
+            return Ok(1.0);
         }
 
         let year_fraction = self
             .day_counter()
-            .year_fraction::<T>(self.reference_date(), date);
+            .year_fraction(self.reference_date(), date);
 
         let discount_factor = self.interpolator.interpolate(
             year_fraction,
@@ -159,22 +159,20 @@ impl<T: GenericNumber> YieldProvider<T> for DiscountTermStructure<T> {
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<T> {
+    ) -> Result<NumericType> {
         let discount_factor_to_star = self.discount_factor(start_date)?;
         let discount_factor_to_end = self.discount_factor(end_date)?;
 
         let comp_factor = discount_factor_to_star / discount_factor_to_end;
-        let t = self.day_counter().year_fraction::<T>(start_date, end_date);
+        let t = self.day_counter().year_fraction(start_date, end_date);
 
         Ok(InterestRate::implied_rate(comp_factor, self.day_counter(), comp, freq, t)?.rate())
     }
 }
 
 /// # AdvanceTermStructureInTime for DiscountTermStructure
-impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
-    for DiscountTermStructure<T>
-{
-    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+impl AdvanceTermStructureInTime for DiscountTermStructure {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait>> {
         let new_dates: Vec<Date> = self
             .dates()
             .iter()
@@ -182,7 +180,7 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
             .collect();
 
         let start_df = self.discount_factor(new_dates[0])?;
-        let shifted_dfs: Result<Vec<T>> = new_dates
+        let shifted_dfs: Result<Vec<NumericType>> = new_dates
             .iter()
             .map(|x| {
                 let df = self.discount_factor(*x)?;
@@ -199,7 +197,7 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
         )?))
     }
 
-    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait>> {
         let days = (date - self.reference_date()) as i32;
         if days < 0 {
             return Err(AtlasError::InvalidValueErr(
@@ -211,10 +209,7 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
     }
 }
 
-impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
-    for DiscountTermStructure<T>
-{
-}
+impl YieldTermStructureTrait for DiscountTermStructure {}
 
 #[cfg(test)]
 mod tests {

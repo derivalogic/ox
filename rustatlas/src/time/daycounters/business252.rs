@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::time::calendars::brazil::Market;
+use crate::time::calendars::traits::ImplCalendar;
 
 /// # Business252
 /// Business/252 day count convention.
@@ -11,7 +12,7 @@ use crate::time::calendars::brazil::Market;
 /// let start = Date::new(2020, 1, 1);
 /// let end = Date::new(2020, 2, 1);
 /// assert_eq!(Business252::day_count(start, end), 22);
-/// assert_eq!(Business252::year_fraction::<f64>(start, end), 22.0 / 252.0);
+/// assert_eq!(Business252::year_fraction(start, end), 22.0 / 252.0);
 /// ```
 pub struct Business252;
 
@@ -26,8 +27,8 @@ impl DayCountProvider for Business252 {
         }
     }
 
-    fn year_fraction<T: GenericNumber>(start: Date, end: Date) -> T {
-        T::from(Self::day_count(start, end) as f64) / T::from(252.0)
+    fn year_fraction(start: Date, end: Date) -> NumericType {
+        Self::day_count(start, end) as f64 / 252.0
     }
 }
 

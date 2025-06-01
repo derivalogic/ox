@@ -2,9 +2,9 @@ use crate::prelude::*;
 
 pub trait Interpolate {
     fn interpolate(
-        x: ADNumber,
-        x_: &Vec<ADNumber>,
-        y_: &Vec<ADNumber>,
+        x: NumericType,
+        x_: &Vec<NumericType>,
+        y_: &Vec<NumericType>,
         enable_extrapolation: bool,
-    ) -> ADNumber;
+    ) -> NumericType;
 }

@@ -25,44 +25,26 @@ use crate::prelude::*;
 /// assert_eq!(zero_rate_curve.reference_date(), ref_date);
 /// assert_eq!(zero_rate_curve.rate_definition().day_counter(), DayCounter::Actual360);
 /// ```
-///
-/// Using the AD variable type:
-/// ```
-/// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::Var;
-/// let ref_date = Date::new(2021, 1, 1);
-/// let dates = vec![ref_date, ref_date + Period::new(1, TimeUnit::Years)];
-/// let rates = vec![Var::from(0.0), Var::from(0.01)];
-/// let curve = ZeroRateTermStructure::<Var>::new(
-///     ref_date,
-///     dates,
-///     rates,
-///     RateDefinition::default(),
-///     Interpolator::Linear,
-///     true,
-/// ).unwrap();
-/// assert_eq!(curve.reference_date(), ref_date);
-/// ```
 #[derive(Clone)]
-pub struct ZeroRateTermStructure<T: GenericNumber = f64> {
+pub struct ZeroRateTermStructure {
     reference_date: Date,
     dates: Vec<Date>,
-    year_fractions: Vec<T>,
-    rates: Vec<T>,
+    year_fractions: Vec<NumericType>,
+    rates: Vec<NumericType>,
     rate_definition: RateDefinition,
     interpolator: Interpolator,
     enable_extrapolation: bool,
 }
 
-impl<T: GenericNumber> ZeroRateTermStructure<T> {
+impl ZeroRateTermStructure {
     pub fn new(
         reference_date: Date,
         dates: Vec<Date>,
-        rates: Vec<T>,
+        rates: Vec<NumericType>,
         rate_definition: RateDefinition,
         interpolator: Interpolator,
         enable_extrapolation: bool,
-    ) -> Result<ZeroRateTermStructure<T>> {
+    ) -> Result<ZeroRateTermStructure> {
         // check if dates and rates have the same size
         if dates.len() != rates.len() {
             return Err(AtlasError::InvalidValueErr(
@@ -77,12 +59,12 @@ impl<T: GenericNumber> ZeroRateTermStructure<T> {
             ));
         }
 
-        let year_fractions: Vec<T> = dates
+        let year_fractions: Vec<NumericType> = dates
             .iter()
             .map(|x| {
                 rate_definition
                     .day_counter()
-                    .year_fraction::<T>(reference_date, *x)
+                    .year_fraction(reference_date, *x)
             })
             .collect();
 
@@ -101,7 +83,7 @@ impl<T: GenericNumber> ZeroRateTermStructure<T> {
         return &self.dates;
     }
 
-    pub fn rates(&self) -> &Vec<T> {
+    pub fn rates(&self) -> &Vec<NumericType> {
         return &self.rates;
     }
 
@@ -118,18 +100,18 @@ impl<T: GenericNumber> ZeroRateTermStructure<T> {
     }
 }
 
-impl<T: GenericNumber> HasReferenceDate for ZeroRateTermStructure<T> {
+impl HasReferenceDate for ZeroRateTermStructure {
     fn reference_date(&self) -> Date {
         return self.reference_date;
     }
 }
 
-impl<T: GenericNumber> YieldProvider<T> for ZeroRateTermStructure<T> {
-    fn discount_factor(&self, date: Date) -> Result<T> {
+impl YieldProvider for ZeroRateTermStructure {
+    fn discount_factor(&self, date: Date) -> Result<NumericType> {
         let year_fraction = self
             .rate_definition()
             .day_counter()
-            .year_fraction::<T>(self.reference_date(), date);
+            .year_fraction(self.reference_date(), date);
 
         let rate = self.interpolator.interpolate(
             year_fraction,
@@ -139,7 +121,7 @@ impl<T: GenericNumber> YieldProvider<T> for ZeroRateTermStructure<T> {
         );
         let rt = InterestRate::from_rate_definition(rate, self.rate_definition());
         let compound = rt.compound_factor_from_yf(year_fraction);
-        Ok(T::from(1.0) / compound)
+        Ok(1.0 / compound)
     }
 
     fn forward_rate(
@@ -148,7 +130,7 @@ impl<T: GenericNumber> YieldProvider<T> for ZeroRateTermStructure<T> {
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<T> {
+    ) -> Result<NumericType> {
         let df_to_star = self.discount_factor(start_date)?;
         let df_to_end = self.discount_factor(end_date)?;
 
@@ -157,7 +139,7 @@ impl<T: GenericNumber> YieldProvider<T> for ZeroRateTermStructure<T> {
         let t = self
             .rate_definition()
             .day_counter()
-            .year_fraction::<T>(start_date, end_date);
+            .year_fraction(start_date, end_date);
 
         let forward_rate = InterestRate::implied_rate(
             comp_factor,
@@ -173,10 +155,8 @@ impl<T: GenericNumber> YieldProvider<T> for ZeroRateTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for ZeroRateTermStructure
-impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
-    for ZeroRateTermStructure<T>
-{
-    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+impl AdvanceTermStructureInTime for ZeroRateTermStructure {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait>> {
         let new_reference_date = self
             .reference_date()
             .advance(period.length(), period.units());
@@ -188,7 +168,7 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
             .collect();
 
         let start_df = self.discount_factor(new_dates[0])?;
-        let shifted_dfs: Result<Vec<T>> = new_dates
+        let shifted_dfs: Result<Vec<NumericType>> = new_dates
             .iter()
             .map(|x| {
                 let df = self.discount_factor(*x)?;
@@ -206,7 +186,7 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
         )?))
     }
 
-    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+    fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait>> {
         let days = (date - self.reference_date()) as i32;
         if days < 0 {
             return Err(AtlasError::InvalidValueErr(format!(
@@ -220,10 +200,7 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
     }
 }
 
-impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
-    for ZeroRateTermStructure<T>
-{
-}
+impl YieldTermStructureTrait for ZeroRateTermStructure {}
 
 #[cfg(test)]
 mod tests {

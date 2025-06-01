@@ -16,13 +16,13 @@ use crate::prelude::*;
 /// * `rate_definition` - The rate definition.
 /// * `structure` - The structure.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FloatingRateInstrument<R: GenericNumber = f64> {
+pub struct FloatingRateInstrument {
     start_date: Date,
     end_date: Date,
     notional: f64,
-    spread: R,
+    spread: NumericType,
     side: Side,
-    cashflows: Vec<Cashflow<R>>,
+    cashflows: Vec<Cashflow>,
     payment_frequency: Frequency,
     rate_definition: RateDefinition,
     structure: Structure,
@@ -33,7 +33,7 @@ pub struct FloatingRateInstrument<R: GenericNumber = f64> {
     issue_date: Option<Date>,
 }
 
-impl<R: GenericNumber> FloatingRateInstrument<R> {
+impl<R: GenericNumber> FloatingRateInstrument {
     pub fn new(
         start_date: Date,
         end_date: Date,

@@ -2,13 +2,13 @@ use crate::prelude::*;
 
 /// # Deterministic Model
 /// A model that provides market data based in the current market state.
-pub trait DeterministicModel<T: GenericNumber> {
+pub trait DeterministicModel {
     fn reference_date(&self) -> Date;
-    fn gen_df_data(&self, df: DiscountFactorRequest) -> Result<T>;
-    fn gen_fx_data(&self, fx: ExchangeRateRequest) -> Result<T>;
-    fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<T>;
-    fn gen_numerarie(&self, market_request: &MarketRequest) -> Result<T>;
-    fn gen_node(&self, market_request: &MarketRequest) -> Result<MarketData<T>> {
+    fn gen_df_data(&self, df: DiscountFactorRequest) -> Result<NumericType>;
+    fn gen_fx_data(&self, fx: ExchangeRateRequest) -> Result<NumericType>;
+    fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<NumericType>;
+    fn gen_numerarie(&self, market_request: &MarketRequest) -> Result<NumericType>;
+    fn gen_node(&self, market_request: &MarketRequest) -> Result<MarketData> {
         let id = market_request.id();
         let df = match market_request.df() {
             Some(df) => Some(self.gen_df_data(df)?),
@@ -37,7 +37,7 @@ pub trait DeterministicModel<T: GenericNumber> {
         ));
     }
 
-    fn gen_market_data(&self, market_request: &[MarketRequest]) -> Result<Vec<MarketData<T>>> {
+    fn gen_market_data(&self, market_request: &[MarketRequest]) -> Result<Vec<MarketData>> {
         market_request.iter().map(|x| self.gen_node(x)).collect()
     }
 }

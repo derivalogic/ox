@@ -13,25 +13,18 @@ use crate::prelude::*;
 /// assert_eq!(cashflow.side(), Side::Receive);
 /// assert_eq!(cashflow.payment_date(), payment_date);
 /// ```
-/// ```
-/// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::Var;
-/// let payment_date = Date::new(2020, 1, 1);
-/// let cashflow = SimpleCashflow::new(payment_date, Currency::USD, Side::Receive).with_amount(Var::from(100.0));
-/// assert_eq!(cashflow.amount().unwrap().value(), 100.0);
-/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SimpleCashflow<T: GenericNumber> {
+pub struct SimpleCashflow {
     payment_date: Date,
     currency: Currency,
     side: Side,
-    amount: Option<T>,
+    amount: Option<NumericType>,
     discount_curve_id: Option<usize>,
     id: Option<usize>,
 }
 
-impl<T: GenericNumber> SimpleCashflow<T> {
-    pub fn new(payment_date: Date, currency: Currency, side: Side) -> SimpleCashflow<T> {
+impl SimpleCashflow {
+    pub fn new(payment_date: Date, currency: Currency, side: Side) -> SimpleCashflow {
         SimpleCashflow {
             payment_date,
             currency,
@@ -42,17 +35,17 @@ impl<T: GenericNumber> SimpleCashflow<T> {
         }
     }
 
-    pub fn with_amount(mut self, amount: T) -> SimpleCashflow<T> {
+    pub fn with_amount(mut self, amount: NumericType) -> SimpleCashflow {
         self.amount = Some(amount);
         self
     }
 
-    pub fn with_discount_curve_id(mut self, discount_curve_id: usize) -> SimpleCashflow<T> {
+    pub fn with_discount_curve_id(mut self, discount_curve_id: usize) -> SimpleCashflow {
         self.discount_curve_id = Some(discount_curve_id);
         self
     }
 
-    pub fn with_id(mut self, registry_id: usize) -> SimpleCashflow<T> {
+    pub fn with_id(mut self, registry_id: usize) -> SimpleCashflow {
         self.id = Some(registry_id);
         self
     }
@@ -61,18 +54,18 @@ impl<T: GenericNumber> SimpleCashflow<T> {
         self.discount_curve_id = Some(id);
     }
 
-    pub fn set_amount(&mut self, amount: T) {
+    pub fn set_amount(&mut self, amount: NumericType) {
         self.amount = Some(amount);
     }
 }
 
-impl<T: GenericNumber> HasCurrency for SimpleCashflow<T> {
+impl HasCurrency for SimpleCashflow {
     fn currency(&self) -> Result<Currency> {
         return Ok(self.currency);
     }
 }
 
-impl<T: GenericNumber> HasDiscountCurveId for SimpleCashflow<T> {
+impl HasDiscountCurveId for SimpleCashflow {
     fn discount_curve_id(&self) -> Result<usize> {
         return self
             .discount_curve_id
@@ -80,7 +73,7 @@ impl<T: GenericNumber> HasDiscountCurveId for SimpleCashflow<T> {
     }
 }
 
-impl<T: GenericNumber> HasForecastCurveId for SimpleCashflow<T> {
+impl HasForecastCurveId for SimpleCashflow {
     fn forecast_curve_id(&self) -> Result<usize> {
         return Err(AtlasError::InvalidValueErr(
             "No forecast curve id for simple cashflow".to_string(),
@@ -88,10 +81,10 @@ impl<T: GenericNumber> HasForecastCurveId for SimpleCashflow<T> {
     }
 }
 
-impl<T: GenericNumber> Registrable for SimpleCashflow<T> {
+impl Registrable for SimpleCashflow {
     fn id(&self) -> Result<usize> {
         return self.id.ok_or(AtlasError::ValueNotSetErr("Id".to_string()));
-    }w
+    }
 
     fn set_id(&mut self, id: usize) {
         self.id = Some(id);
@@ -112,8 +105,8 @@ impl<T: GenericNumber> Registrable for SimpleCashflow<T> {
     }
 }
 
-impl<T: GenericNumber> Payable<T> for SimpleCashflow<T> {
-    fn amount(&self) -> Result<T> {
+impl Payable for SimpleCashflow {
+    fn amount(&self) -> Result<NumericType> {
         return self.amount.ok_or(AtlasError::ValueNotSetErr(
             "Amount not set for simple cashflow".to_string(),
         ));
@@ -127,7 +120,7 @@ impl<T: GenericNumber> Payable<T> for SimpleCashflow<T> {
     }
 }
 
-impl<T: GenericNumber> Expires for SimpleCashflow<T> {
+impl Expires for SimpleCashflow {
     fn is_expired(&self, date: Date) -> bool {
         return self.payment_date < date;
     }

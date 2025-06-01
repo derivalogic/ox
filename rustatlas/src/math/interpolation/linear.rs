@@ -9,11 +9,11 @@ pub struct LinearInterpolator {}
 
 impl Interpolate for LinearInterpolator {
     fn interpolate(
-        x: ADNumber,
-        x_: &Vec<ADNumber>,
-        y_: &Vec<ADNumber>,
+        x: NumericType,
+        x_: &Vec<NumericType>,
+        y_: &Vec<NumericType>,
         enable_extrapolation: bool,
-    ) -> ADNumber {
+    ) -> NumericType {
         let index =
             match x_.binary_search_by(|&probe| probe.partial_cmp(&x).unwrap_or(Ordering::Equal)) {
                 Ok(index) => index,

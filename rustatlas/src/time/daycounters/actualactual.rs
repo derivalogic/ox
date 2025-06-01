@@ -14,7 +14,7 @@ use crate::prelude::*;
 /// let start = Date::new(2020, 1, 1);
 /// let end = Date::new(2020, 2, 1);
 /// assert_eq!(ActualActual::day_count(start, end), 31);
-/// assert_eq!(ActualActual::year_fraction::<f64>(start, end), 31.0 / 366.0);
+/// assert_eq!(ActualActual::year_fraction(start, end), 31.0 / 366.0);
 /// ```
 
 pub struct ActualActual;
@@ -32,14 +32,14 @@ impl DayCountProvider for ActualActual {
         return end - start;
     }
 
-    fn year_fraction<T: GenericNumber>(start: Date, end: Date) -> T {
+    fn year_fraction(start: Date, end: Date) -> NumericType {
         let days = ActualActual::day_count(start, end);
 
         let y1 = start.year() as i32;
         let y2 = end.year() as i32;
 
         if y1 == y2 {
-            return T::from(days as f64 / days_in_year(y1) as f64);
+            return days as f64 / days_in_year(y1) as f64;
         } else {
             if y2 > y1 {
                 let mut sum = 0.0;
@@ -50,7 +50,7 @@ impl DayCountProvider for ActualActual {
                 }
                 sum += (end - Date::new(y2 as i32, 1, 1)) as f64 / days_in_year(y2 as i32) as f64;
 
-                return T::from(sum);
+                return sum;
             } else {
                 let mut sum = 0.0;
                 sum -=
@@ -59,7 +59,7 @@ impl DayCountProvider for ActualActual {
                     sum -= 1.0;
                 }
                 sum -= (start - Date::new(y1 as i32, 1, 1)) as f64 / days_in_year(y1 as i32) as f64;
-                return T::from(sum);
+                return sum;
             }
         }
     }

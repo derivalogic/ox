@@ -8,17 +8,17 @@ use crate::prelude::*;
 /// # OvernightIndex
 /// Overnight index, used for overnight rates. Uses a price index (such as ICP) to calculate the overnight rates.
 #[derive(Clone)]
-pub struct OvernightIndex<T: GenericNumber> {
+pub struct OvernightIndex {
     name: Option<String>,
-    fixings: HashMap<Date, T>,
-    term_structure: Option<Arc<dyn YieldTermStructureTrait<T>>>,
+    fixings: HashMap<Date, NumericType>,
+    term_structure: Option<Arc<dyn YieldTermStructureTrait>>,
     rate_definition: RateDefinition,
     tenor: Period,
     reference_date: Date,
 }
 
-impl<T: GenericNumber> OvernightIndex<T> {
-    pub fn new(reference_date: Date) -> OvernightIndex<T> {
+impl OvernightIndex {
+    pub fn new(reference_date: Date) -> OvernightIndex {
         OvernightIndex {
             name: None,
             fixings: HashMap::new(),
@@ -43,20 +43,17 @@ impl<T: GenericNumber> OvernightIndex<T> {
         self
     }
 
-    pub fn with_fixings(mut self, fixings: HashMap<Date, T>) -> Self {
+    pub fn with_fixings(mut self, fixings: HashMap<Date, NumericType>) -> Self {
         self.fixings = fixings;
         self
     }
 
-    pub fn with_term_structure(
-        mut self,
-        term_structure: Arc<dyn YieldTermStructureTrait<T>>,
-    ) -> Self {
+    pub fn with_term_structure(mut self, term_structure: Arc<dyn YieldTermStructureTrait>) -> Self {
         self.term_structure = Some(term_structure);
         self
     }
 
-    pub fn average_rate(&self, start_date: Date, end_date: Date) -> Result<T> {
+    pub fn average_rate(&self, start_date: Date, end_date: Date) -> Result<NumericType> {
         let start_index = self.fixing(start_date)?;
         let end_index = self.fixing(end_date)?;
 
@@ -73,8 +70,8 @@ impl<T: GenericNumber> OvernightIndex<T> {
     }
 }
 
-impl<T: GenericNumber> FixingProvider<T> for OvernightIndex<T> {
-    fn fixing(&self, date: Date) -> Result<T> {
+impl FixingProvider for OvernightIndex {
+    fn fixing(&self, date: Date) -> Result<NumericType> {
         self.fixings
             .get(&date)
             .cloned()
@@ -84,28 +81,28 @@ impl<T: GenericNumber> FixingProvider<T> for OvernightIndex<T> {
             )))
     }
 
-    fn fixings(&self) -> &HashMap<Date, T> {
+    fn fixings(&self) -> &HashMap<Date, NumericType> {
         &self.fixings
     }
 
-    fn add_fixing(&mut self, date: Date, rate: T) {
+    fn add_fixing(&mut self, date: Date, rate: NumericType) {
         self.fixings.insert(date, rate);
     }
 }
 
-impl<T: GenericNumber> HasReferenceDate for OvernightIndex<T> {
+impl HasReferenceDate for OvernightIndex {
     fn reference_date(&self) -> Date {
         self.reference_date
     }
 }
 
-impl<T: GenericNumber> HasTenor for OvernightIndex<T> {
+impl HasTenor for OvernightIndex {
     fn tenor(&self) -> Period {
         self.tenor
     }
 }
 
-impl<T: GenericNumber> HasName for OvernightIndex<T> {
+impl HasName for OvernightIndex {
     fn name(&self) -> Result<String> {
         self.name
             .clone()
@@ -113,8 +110,8 @@ impl<T: GenericNumber> HasName for OvernightIndex<T> {
     }
 }
 
-impl<T: GenericNumber> YieldProvider<T> for OvernightIndex<T> {
-    fn discount_factor(&self, date: Date) -> Result<T> {
+impl YieldProvider for OvernightIndex {
+    fn discount_factor(&self, date: Date) -> Result<NumericType> {
         self.term_structure()?.discount_factor(date)
     }
 
@@ -124,7 +121,7 @@ impl<T: GenericNumber> YieldProvider<T> for OvernightIndex<T> {
         end_date: Date,
         comp: Compounding,
         freq: Frequency,
-    ) -> Result<T> {
+    ) -> Result<NumericType> {
         // mixed case - return w.a.
         if start_date < self.reference_date() && end_date > self.reference_date() {
             let first_fixing = self.fixing(self.reference_date())?;
@@ -164,13 +161,8 @@ impl<T: GenericNumber> YieldProvider<T> for OvernightIndex<T> {
     }
 }
 
-impl<T: GenericNumber + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T>
-    for OvernightIndex<T>
-{
-    fn advance_to_period(
-        &self,
-        period: Period,
-    ) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
+impl AdvanceInterestRateIndexInTime for OvernightIndex {
+    fn advance_to_period(&self, period: Period) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>> {
         let mut fixings = self.fixings().clone();
         let mut seed = self.reference_date();
         let end_date = seed.advance(period.length(), period.units());
@@ -213,15 +205,15 @@ impl<T: GenericNumber + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T>
         )))
     }
 
-    fn advance_to_date(&self, date: Date) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
+    fn advance_to_date(&self, date: Date) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>> {
         let days = (date - self.reference_date()) as i32;
         let period = Period::new(days, TimeUnit::Days);
         self.advance_to_period(period)
     }
 }
 
-impl<T: GenericNumber> HasTermStructure<T> for OvernightIndex<T> {
-    fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
+impl HasTermStructure for OvernightIndex {
+    fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait>> {
         self.term_structure
             .clone()
             .ok_or(AtlasError::ValueNotSetErr(
@@ -230,13 +222,13 @@ impl<T: GenericNumber> HasTermStructure<T> for OvernightIndex<T> {
     }
 }
 
-impl<T: GenericNumber> RelinkableTermStructure<T> for OvernightIndex<T> {
-    fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait<T>>) {
+impl RelinkableTermStructure for OvernightIndex {
+    fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait>) {
         self.term_structure = Some(term_structure);
     }
 }
 
-impl<T: GenericNumber + Send + Sync + 'static> InterestRateIndexTrait<T> for OvernightIndex<T> {}
+impl InterestRateIndexTrait for OvernightIndex {}
 
 #[cfg(test)]
 mod tests {
@@ -251,7 +243,7 @@ mod tests {
     #[test]
     fn test_new_overnight_index() {
         let date = Date::new(2021, 1, 1);
-        let overnight_index: OvernightIndex<f64> = OvernightIndex::new(date);
+        let overnight_index: OvernightIndex = OvernightIndex::new(date);
         assert!(overnight_index.fixings.is_empty());
         assert!(overnight_index.term_structure.is_none());
     }
@@ -259,7 +251,7 @@ mod tests {
     #[test]
     fn test_with_rate_definition() {
         let date = Date::new(2021, 1, 1);
-        let overnight_index: OvernightIndex<f64> =
+        let overnight_index: OvernightIndex =
             OvernightIndex::new(date).with_rate_definition(RateDefinition::default());
         assert_eq!(overnight_index.rate_definition, RateDefinition::default());
     }
