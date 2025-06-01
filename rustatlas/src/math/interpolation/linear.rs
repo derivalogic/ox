@@ -40,15 +40,17 @@ impl Interpolate for LinearInterpolator {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_linear_interpolation() {
-        let x = NumericType::from(0.5);
-        let x_ = vec![NumericType::one(), NumericType::from(1.0)];
-        let y_ = vec![NumericType::from(0.0), NumericType::from(1.0)];
+        let x = 0.5.into();
+        let x_ = vec![0.0.into(), 1.0.into()];
+        let y_ = vec![0.0.into(), 1.0.into()];
         let y = LinearInterpolator::interpolate(x, &x_, &y_, true);
-        assert_eq!(y, NumericType::from(0.5));
+        assert_eq!(y, 0.5);
     }
 }

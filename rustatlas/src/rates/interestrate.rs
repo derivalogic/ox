@@ -123,6 +123,7 @@ impl InterestRate {
         return self.rate_definition.day_counter();
     }
 
+    #[cfg(feature = "adnumber")]
     pub fn implied_rate(
         compound: NumericType,
         result_dc: DayCounter,
@@ -181,12 +182,70 @@ impl InterestRate {
         return Ok(InterestRate::new(r, comp, freq, result_dc));
     }
 
+    #[cfg(feature = "f64")]
+    pub fn implied_rate(
+        compound: NumericType,
+        result_dc: DayCounter,
+        comp: Compounding,
+        freq: Frequency,
+        t: NumericType,
+    ) -> Result<InterestRate> {
+        if compound <= 0.0 {
+            return Err(AtlasError::InvalidValueErr(
+                "Positive compound factor required".to_string(),
+            ));
+        }
+        let r: NumericType;
+        let f = freq as i64 as f64;
+        if compound == 1.0 {
+            if t < 0.0 {
+                return Err(AtlasError::InvalidValueErr(
+                    "Non-negative time required".to_string(),
+                ));
+            }
+            r = NumericType::new(0.0);
+        } else {
+            if t <= 0.0 {
+                return Err(AtlasError::InvalidValueErr(
+                    "Positive time required".to_string(),
+                ));
+            }
+            match comp {
+                Compounding::Simple => r = ((compound - 1.0) / t).into(),
+                Compounding::Compounded => {
+                    r = ((compound.powf(NumericType::one() / (t * f)) - NumericType::one()) * f)
+                        .into()
+                }
+
+                Compounding::Continuous => r = (compound.ln() / t).into(),
+                Compounding::SimpleThenCompounded => {
+                    if t <= 1.0 / f {
+                        r = ((compound - NumericType::one()) / t).into()
+                    } else {
+                        r = ((compound.powf(NumericType::one() / (t * f)) - NumericType::one()) * f)
+                            .into()
+                    }
+                }
+                Compounding::CompoundedThenSimple => {
+                    if t > 1.0 / f {
+                        r = ((compound - NumericType::one()) / t).into()
+                    } else {
+                        r = ((compound.powf(NumericType::one() / (t * f)) - NumericType::one()) * f)
+                            .into()
+                    }
+                }
+            }
+        }
+        return Ok(InterestRate::new(r, comp, freq, result_dc));
+    }
+
     pub fn compound_factor(&self, start: Date, end: Date) -> NumericType {
         let day_counter = self.day_counter();
         let year_fraction = day_counter.year_fraction(start, end);
         return self.compound_factor_from_yf(year_fraction);
     }
 
+    #[cfg(feature = "adnumber")]
     pub fn compound_factor_from_yf(&self, year_fraction: NumericType) -> NumericType {
         let rate = self.rate();
         let compounding = self.compounding();
@@ -213,6 +272,39 @@ impl InterestRate {
                 } else {
                     (NumericType::one() + rate / f)
                         .pow_expr(year_fraction * f)
+                        .into()
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "f64")]
+    pub fn compound_factor_from_yf(&self, year_fraction: NumericType) -> NumericType {
+        let rate = self.rate();
+        let compounding = self.compounding();
+        let f = self.frequency() as i64 as f64;
+        match compounding {
+            Compounding::Simple => (rate * year_fraction + 1.0).into(),
+            Compounding::Compounded => (NumericType::one() + rate / f)
+                .powf(year_fraction * f)
+                .into(),
+
+            Compounding::Continuous => (rate * year_fraction).exp().into(),
+            Compounding::SimpleThenCompounded => {
+                if year_fraction <= 1.0 / f {
+                    (rate * year_fraction + 1.0).into()
+                } else {
+                    (NumericType::one() + rate / f)
+                        .powf(year_fraction * f)
+                        .into()
+                }
+            }
+            Compounding::CompoundedThenSimple => {
+                if year_fraction > 1.0 / f {
+                    (NumericType::one() + rate * year_fraction).into()
+                } else {
+                    (NumericType::one() + rate / f)
+                        .powf(year_fraction * f)
                         .into()
                 }
             }

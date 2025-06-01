@@ -49,60 +49,6 @@ impl ToNumeric<f64> for f64 {
         0.0
     }
 }
-impl ToNumeric<f32> for f64 {
-    #[inline]
-    fn new(v: f32) -> Self {
-        v as f64
-    }
-    #[inline]
-    fn value(&self) -> f32 {
-        *self as f32
-    }
-    #[inline]
-    fn one() -> Self {
-        1.0
-    }
-    #[inline]
-    fn zero() -> Self {
-        0.0
-    }
-}
-impl ToNumeric<i32> for f64 {
-    #[inline]
-    fn new(v: i32) -> Self {
-        v as f64
-    }
-    #[inline]
-    fn value(&self) -> i32 {
-        *self as i32
-    }
-    #[inline]
-    fn one() -> Self {
-        1.0
-    }
-    #[inline]
-    fn zero() -> Self {
-        0.0
-    }
-}
-impl ToNumeric<i64> for f64 {
-    #[inline]
-    fn new(v: i64) -> Self {
-        v as f64
-    }
-    #[inline]
-    fn value(&self) -> i64 {
-        *self as i64
-    }
-    #[inline]
-    fn one() -> Self {
-        1.0
-    }
-    #[inline]
-    fn zero() -> Self {
-        0.0
-    }
-}
 
 impl fmt::Debug for ADNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

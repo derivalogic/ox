@@ -102,7 +102,7 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
                     let z = rng.sample::<f64, _>(StandardNormal);
 
                     let drift = (r_quote.clone() - r_base) - sigma * sigma * 0.5;
-                    let s_t: ADNumber = (s0 * (drift * t + sigma * t.sqrt() * z).exp()).into();
+                    let s_t: NumericType = (s0 * (drift * t + sigma * t.sqrt() * z).exp()).into();
 
                     /* ---------------- numerarie (local-currency) -----------
                      *
@@ -115,7 +115,7 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
                      *    3. else     → use interest-parity forward
                      * ----------------------------------------------------*/
 
-                    let fx_b_to_l: ADNumber = if local_ccy == second_ccy {
+                    let fx_b_to_l: NumericType = if local_ccy == second_ccy {
                         1.0.into() // case (1)
                     } else if local_ccy == fx_req.first_currency() {
                         (NumericType::one() / s_t).into() // case (2)

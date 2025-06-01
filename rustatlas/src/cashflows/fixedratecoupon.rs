@@ -228,7 +228,7 @@ mod tests {
 
         coupon.set_discount_curve_id(id);
 
-        let expected_amount: ADNumber =
+        let expected_amount: NumericType =
             ((rate.compound_factor(accrual_start_date, accrual_end_date) - 1.0) * notional).into();
         assert_eq!(
             coupon
