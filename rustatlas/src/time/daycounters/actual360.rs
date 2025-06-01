@@ -25,6 +25,6 @@ impl DayCountProvider for Actual360 {
     }
 
     fn year_fraction(start: Date, end: Date) -> NumericType {
-        Actual360::day_count(start, end) as f64 / 360.0
+        NumericType::new(Actual360::day_count(start, end)) / NumericType::new(360.0)
     }
 }

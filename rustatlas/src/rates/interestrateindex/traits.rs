@@ -34,7 +34,7 @@ pub trait FixingProvider {
 
             while current_date <= last_date {
                 if !self.fixings().contains_key(&current_date) {
-                    let days = (current_date - first_date) as f64;
+                    let days = NumericType::new(current_date - first_date);
                     let rate = interpolator.interpolate(days, &x, &y, false);
                     self.add_fixing(current_date, rate);
                 }
