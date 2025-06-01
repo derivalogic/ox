@@ -25,7 +25,7 @@ use crate::prelude::*;
 ///     Date::new(2021, 1, 1),
 /// ];
 ///
-/// let discount_factors = vec![1.0, 0.99, 0.98, 0.97, 0.96];
+/// let discount_factors = vec![1.0.into(), 0.99.into(), 0.98.into(), 0.97.into(), 0.96.into()];
 /// let day_counter = DayCounter::Actual360;
 ///
 /// let discount_term_structure = DiscountTermStructure::new(

@@ -68,8 +68,8 @@ impl Default for RateDefinition {
 /// ## Example
 /// ```
 /// use rustatlas::prelude::*;
-/// let rate = InterestRate::new(0.05, Compounding::Simple, Frequency::Annual, DayCounter::Actual360);
-/// assert_eq!(rate.rate(), 0.05);
+/// let rate = InterestRate::new(0.05.into(), Compounding::Simple, Frequency::Annual, DayCounter::Actual360);
+/// assert_eq!(rate.rate().value(), 0.05);
 /// assert_eq!(rate.compounding(), Compounding::Simple);
 /// assert_eq!(rate.frequency(), Frequency::Annual);
 /// assert_eq!(rate.day_counter(), DayCounter::Actual360);

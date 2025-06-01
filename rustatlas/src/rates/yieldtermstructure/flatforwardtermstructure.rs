@@ -8,7 +8,7 @@ use std::sync::Arc;
 /// use rustatlas::prelude::*;
 ///
 /// let reference_date = Date::new(2023, 8, 19);
-/// let term_structure = FlatForwardTermStructure::new(reference_date, 0.5, RateDefinition::default());
+/// let term_structure = FlatForwardTermStructure::new(reference_date, 0.5.into(), RateDefinition::default());
 /// assert_eq!(term_structure.reference_date(), reference_date);
 /// ```
 #[derive(Clone, Copy)]

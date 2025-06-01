@@ -17,7 +17,7 @@ use crate::prelude::*;
 ///    Date::new(2022, 1, 1),
 /// ];
 ///
-/// let rates = vec![0.0, 0.01, 0.02, 0.03, 0.04];
+/// let rates = vec![0.0.into(), 0.01.into(), 0.02.into(), 0.03.into(), 0.04.into()];
 /// let rate_definition = RateDefinition::default();
 /// let interpolator = Interpolator::Linear;
 /// let enable_extrapolation = true;

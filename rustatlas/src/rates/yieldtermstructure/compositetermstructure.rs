@@ -16,13 +16,13 @@ use crate::prelude::*;
 ///
 /// let spread_curve = FlatForwardTermStructure::new(
 ///   ref_date,
-///     0.01,
+///     0.01.into(),
 ///     RateDefinition::default()
 /// );
 ///
 /// let base_curve = FlatForwardTermStructure::new(
 ///     ref_date,
-///     0.02,
+///     0.02.into(),
 ///     RateDefinition::default()
 /// );
 ///

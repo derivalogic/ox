@@ -16,7 +16,7 @@ use std::sync::Arc;
 /// use rustatlas::prelude::*;
 /// let reference_date = Date::new(2021, 12, 1);
 /// let tenors = vec![Period::new(1, TimeUnit::Years)];
-/// let spreads = vec![0.01];
+/// let spreads = vec![0.01.into()];
 /// let curve = TenorBasedZeroRateTermStructure::new(
 ///     reference_date,
 ///     tenors,
