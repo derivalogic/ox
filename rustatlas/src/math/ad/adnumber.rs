@@ -455,9 +455,9 @@ un_op!(ExpOp, f64::exp, |_x, v| v);
 un_op!(LogOp, f64::ln, |x, _| 1.0 / x);
 un_op!(SqrtOp, f64::sqrt, |_x, v| 0.5 / v);
 un_op!(FabsOp, f64::abs, |x, _| if x >= 0.0 { 1.0 } else { -1.0 });
-un_op!(SinOp, f64::sin, |x, v| v * f64::cos(x));
-un_op!(CosOp, f64::cos, |x, v: f64| -v * f64::sin(x));
-un_op!(AbsOp, f64::abs, |x, v: f64| if x >= 0.0 { v } else { -v });
+un_op!(SinOp, f64::sin, |x, _v| f64::cos(x));
+un_op!(CosOp, f64::cos, |x, _v| -f64::sin(x));
+un_op!(AbsOp, f64::abs, |x, _v| if x >= 0.0 { 1.0 } else { -1.0 });
 
 /* ---- node: UnExpr (unary) ---------------------------------------- */
 
@@ -1135,7 +1135,8 @@ mod tests {
         let expr = exp(x);
         let out: ADNumber = expr.into();
         out.propagate_to_start();
-        assert_eq!(out.adjoint(), f64::exp(2.0)); // derivative of exp(x) at x=2
+        assert_eq!(x.adjoint(), f64::exp(2.0)); // derivative of exp(x) wrt x
+        assert_eq!(out.adjoint(), 1.0);
     }
 
     #[test]
@@ -1144,7 +1145,8 @@ mod tests {
         let expr = log(x);
         let out: ADNumber = expr.into();
         out.propagate_to_start();
-        assert_eq!(out.adjoint(), 1.0 / 2.0); // derivative of log(x) at x=2
+        assert_eq!(x.adjoint(), 1.0 / 2.0); // derivative of log(x) wrt x
+        assert_eq!(out.adjoint(), 1.0);
     }
     #[test]
     fn check_sqrt_derivative() {
@@ -1152,7 +1154,8 @@ mod tests {
         let expr = sqrt(x);
         let out: ADNumber = expr.into();
         out.propagate_to_start();
-        assert_eq!(out.adjoint(), 0.5 / 2.0); // derivative of sqrt(x) at x=4
+        assert_eq!(x.adjoint(), 0.5 / 2.0); // derivative of sqrt(x) wrt x
+        assert_eq!(out.adjoint(), 1.0);
     }
     #[test]
     fn check_sin_derivative() {
@@ -1160,7 +1163,8 @@ mod tests {
         let expr = sin(x);
         let out: ADNumber = expr.into();
         out.propagate_to_start();
-        assert_eq!(out.adjoint(), 1.0); // derivative of sin(x) at x=0
+        assert_eq!(x.adjoint(), 1.0); // derivative of sin(x) wrt x
+        assert_eq!(out.adjoint(), 1.0);
     }
     #[test]
     fn check_cos_derivative() {
@@ -1168,7 +1172,8 @@ mod tests {
         let expr = cos(x);
         let out: ADNumber = expr.into();
         out.propagate_to_start();
-        assert_eq!(out.adjoint(), 0.0); // derivative of cos(x) at x=0
+        assert_eq!(x.adjoint(), 0.0); // derivative of cos(x) wrt x
+        assert_eq!(out.adjoint(), 1.0);
     }
     #[test]
     fn check_abs_derivative() {
@@ -1176,7 +1181,8 @@ mod tests {
         let expr = abs(x);
         let out: ADNumber = expr.into();
         out.propagate_to_start();
-        assert_eq!(out.adjoint(), -1.0); // derivative of abs(x) at x=-3
+        assert_eq!(x.adjoint(), -1.0); // derivative of abs(x) wrt x
+        assert_eq!(out.adjoint(), 1.0);
     }
     #[test]
     fn check_pow_derivative() {
@@ -1184,7 +1190,8 @@ mod tests {
         let expr = pow(x, Const(3.0));
         let out: ADNumber = expr.into();
         out.propagate_to_start();
-        assert_eq!(out.adjoint(), 3.0 * 2.0f64.powf(2.0)); // derivative of x^3 at x=2
+        assert_eq!(x.adjoint(), 3.0 * 2.0f64.powf(2.0)); // derivative of x^3 wrt x at x=2
+        assert_eq!(out.adjoint(), 1.0);
     }
     #[test]
     fn check_max_derivative() {
@@ -1193,7 +1200,9 @@ mod tests {
         let expr = max(x, y);
         let out: ADNumber = expr.into();
         out.propagate_to_start();
-        assert_eq!(out.adjoint(), 0.0); // derivative of max(2, 3) is 0
+        assert_eq!(x.adjoint(), 0.0); // derivative wrt x
+        assert_eq!(y.adjoint(), 1.0); // derivative wrt y
+        assert_eq!(out.adjoint(), 1.0);
     }
     #[test]
     fn check_min_derivative() {
@@ -1202,7 +1211,9 @@ mod tests {
         let expr = min(x, y);
         let out: ADNumber = expr.into();
         out.propagate_to_start();
-        assert_eq!(out.adjoint(), 1.0); // derivative of min(2, 3) is 1
+        assert_eq!(x.adjoint(), 1.0); // derivative wrt x
+        assert_eq!(y.adjoint(), 0.0); // derivative wrt y
+        assert_eq!(out.adjoint(), 1.0);
     }
     #[test]
     fn check_flattening() {
@@ -1270,6 +1281,52 @@ mod tests {
         let out: ADNumber = expr.into();
         out.propagate_to_start();
         assert_eq!(x.adjoint(), -1.0);
+        assert_eq!(out.adjoint(), 1.0);
+    }
+
+    #[test]
+    fn check_pow_variable_exponent() {
+        let x = ADNumber::new(2.0);
+        let y = ADNumber::new(3.0);
+        let expr = pow(x, y);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(x.adjoint(), 3.0 * 2.0f64.powf(2.0));
+        assert!((y.adjoint() - (8.0 * 2.0f64.ln())).abs() < 1e-12);
+        assert_eq!(out.adjoint(), 1.0);
+    }
+
+    #[test]
+    fn check_max_derivative_x_greater() {
+        let x = ADNumber::new(5.0);
+        let y = ADNumber::new(3.0);
+        let expr = max(x, y);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(x.adjoint(), 1.0);
+        assert_eq!(y.adjoint(), 0.0);
+        assert_eq!(out.adjoint(), 1.0);
+    }
+
+    #[test]
+    fn check_min_derivative_y_less() {
+        let x = ADNumber::new(5.0);
+        let y = ADNumber::new(3.0);
+        let expr = min(x, y);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(x.adjoint(), 0.0);
+        assert_eq!(y.adjoint(), 1.0);
+        assert_eq!(out.adjoint(), 1.0);
+    }
+
+    #[test]
+    fn check_abs_positive_derivative() {
+        let x = ADNumber::new(3.0);
+        let expr = abs(x);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(x.adjoint(), 1.0);
         assert_eq!(out.adjoint(), 1.0);
     }
 }
