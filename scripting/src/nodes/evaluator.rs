@@ -1,5 +1,4 @@
-use rustatlas::prelude::*;
-use rustatlas::utils::num::Real;
+use rustatlas::{math::ad::num::Real, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use std::{
