@@ -716,6 +716,29 @@ pub fn flatten<E: Expr + Clone>(e: &E) -> Number {
     }
 }
 
+impl<L, R, O> From<BinExpr<L, R, O>> for Number
+where
+    L: Expr + Clone,
+    R: Expr + Clone,
+    O: BinOp + Clone,
+{
+    fn from(expr: BinExpr<L, R, O>) -> Self {
+        // `flatten` does the real work
+        flatten(&expr)
+    }
+}
+
+// ── Unary expressions ────────────────────────────────────────────────
+impl<A, O> From<UnExpr<A, O>> for Number
+where
+    A: Expr + Clone,
+    O: UnOp + Clone,
+{
+    fn from(expr: UnExpr<A, O>) -> Self {
+        flatten(&expr)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -726,7 +749,7 @@ mod tests {
         let a = Number::new(3.0);
         let b = Number::new(4.0);
         let expr = a + b;
-        let result = flatten(&expr);
+        let result: Number = expr.into();
         assert_eq!(result.value(), 7.0);
         assert_eq!(result.adjoint(), 0.0); // adjoint should be zero before propagation
     }
