@@ -1,3 +1,4 @@
+use core::panic;
 use lefi::prelude::*;
 use lefi::utils::errors::Result;
 use rustatlas::prelude::*;
@@ -72,18 +73,24 @@ fn main() -> Result<()> {
 
     let simple = SimpleModel::new(&store);
     let model = BlackScholesModel::new(simple);
-    let scenarios = model.gen_scenario(&requests)?;
-    // // Evaluate the script under all scenarios
-    // let var_map = indexer.get_variable_indexes();
-    // let evaluator: EventStreamEvaluator<Var> =
-    //     EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
-    // let vars = evaluator.visit_events(&events, &var_map)?;
-    // let price_mc = match vars.get("opt") {
-    //     Some(Value::Number(v)) => *v,
-    //     _ => Var::new(0.0),
-    // };
 
-    // // Compute the Greeks using automatic differentiation
+    let sims = 10_000;
+    let scenarios = (0..sims)
+        .into_iter()
+        .map(|_| model.gen_scenario(&requests).map_err(|e| e.into()))
+        .collect::<Result<Vec<Scenario>>>()?;
+
+    // // Evaluate the script under all scenarios
+    let var_map = indexer.get_variable_indexes();
+    let evaluator: EventStreamEvaluator =
+        EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
+    let vars = evaluator.visit_events(&events, &var_map)?;
+    let price_mc = match vars.get("opt") {
+        Some(Value::Number(v)) => *v,
+        _ => panic!("Option price not found in the evaluated variables"),
+    };
+
+    // Compute the Greeks using automatic differentiation
     // let result = backward(&price_mc);
 
     // let delta_ad = result.get(s0.id()).unwrap().clone();
@@ -92,7 +99,7 @@ fn main() -> Result<()> {
     // let theta_ad = result.get(t.id()).unwrap().clone();
     // let vega_ad = result.get(vol.id()).unwrap().clone();
 
-    // println!("Monte Carlo Price: {}", price_mc);
+    println!("Monte Carlo Price: {}", price_mc);
     // println!("Monte Carlo Delta: {}", delta_ad);
     // println!("Monte Carlo Rho CLP: {}", rho_clp);
     // println!("Monte Carlo Rho USD: {}", rho_usd);

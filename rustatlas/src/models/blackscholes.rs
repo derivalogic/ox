@@ -7,11 +7,17 @@ use crate::prelude::*;
 #[derive(Clone)]
 pub struct BlackScholesModel<'a> {
     pub simple: SimpleModel<'a>,
+    pub seed: Option<u64>,
 }
 
 impl<'a> BlackScholesModel<'a> {
     pub fn new(simple: SimpleModel<'a>) -> Self {
-        Self { simple }
+        BlackScholesModel { simple, seed: None }
+    }
+
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.seed = Some(seed);
+        self
     }
 }
 
@@ -47,7 +53,10 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
         /* --- parallel over all paths ------------------------------------ */
         let scenario = {
             /* each path gets its own reproducible RNG */
-            let mut rng = StdRng::seed_from_u64(0xA55AA55Au64 as u64);
+            let mut rng = match self.seed {
+                Some(seed) => StdRng::seed_from_u64(seed),
+                None => StdRng::from_entropy(),
+            };
 
             /* collect the nodes of this scenario */
             let mut nodes = Vec::with_capacity(market_requests.len());
