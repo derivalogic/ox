@@ -1,8 +1,6 @@
-pub mod cashflows;
 pub mod core;
 pub mod currencies;
 pub mod equities;
-pub mod instruments;
 pub mod math;
 pub mod models;
 pub mod prelude;

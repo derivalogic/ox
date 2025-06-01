@@ -1,16 +1,9 @@
 #[allow(ambiguous_glob_reexports)]
 pub use crate::{
-    // alm::enums::*,
-    cashflows::{
-        cashflow::*, fixedratecoupon::*, floatingratecoupon::*, simplecashflow::*, traits::*,
-    },
     core::{marketstore::*, meta::*, traits::*},
     currencies::{enums::*, exchangeratestore::*, structs::*, traits::*},
     equities::equitystore::*,
-    // instruments::{
-    //     fixedrateinstrument::*, floatingrateinstrument::*, instrument::*,
-    //     makefixedrateinstrument::*, makefloatingrateinstrument::*, traits::*,
-    // },
+
     math::{
         ad::{adnumber::*, node::*, tape::*},
         interpolation::{enums::*, linear::*, loglinear::*, traits::*},

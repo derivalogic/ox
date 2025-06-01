@@ -7,8 +7,8 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, RequestMode, Response};
 
 use lefi::prelude::*;
-use rustatlas::prelude::*;
 use rustatlas::models::deterministicmodel::DeterministicModel;
+use rustatlas::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use wasm_bindgen::prelude::*;
@@ -84,7 +84,7 @@ struct PricingInput {
 
 #[derive(Serialize)]
 struct PricingOutput {
-    variables: HashMap<String, Value<f64>>,
+    variables: HashMap<String, Value>,
 }
 
 #[derive(Serialize)]
