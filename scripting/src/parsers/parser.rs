@@ -396,6 +396,13 @@ impl Parser {
         let mut max_args = 0;
         let mut expr = None;
         match self.current_token() {
+            Token::OpenParen => {
+                self.advance();
+                let expr = self.parse_expr()?;
+                self.expect_token(Token::CloseParen)?;
+                self.advance();
+                return Ok(expr);
+            }
             Token::Pays => {
                 return self.parse_pays();
             }

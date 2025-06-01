@@ -84,7 +84,14 @@ fn main() -> Result<()> {
     let evaluator =
         EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
     let vars = evaluator.visit_events(&events, &var_map)?;
-
-    println!("Asian option price: {:?}", vars);
+    let price = match vars.get("opt") {
+        Some(Value::Number(v)) => *v,
+        _ => NumericType::new(0.0),
+    };
+    price.propagate_to_start();
+    println!("Asian option price: {}", price);
+    println!("Delta: {}", s0.adjoint());
+    println!("Rho CLP: {}", r_clp.adjoint() * 0.01 / 100.0);
+    println!("Rho USD: {}", r_usd.adjoint() * 0.01 / 100.0);
     Ok(())
 }
