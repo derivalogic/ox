@@ -77,7 +77,7 @@ impl Default for RateDefinition {
 /// Using the AD variable type:
 /// ```
 /// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::real::Var;
+/// use rustatlas::math::ad::Var;
 /// let rate = InterestRate::<Var>::new(
 ///     Var::from(0.05),
 ///     Compounding::Simple,

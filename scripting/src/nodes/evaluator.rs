@@ -1,5 +1,5 @@
 use rustatlas::prelude::*;
-use rustatlas::math::ad::num::Real;
+use rustatlas::utils::num::Real;
 use serde::{Deserialize, Serialize};
 
 use std::{
@@ -1887,7 +1887,7 @@ mod ai_gen_tests {
 #[cfg(test)]
 mod autodiff_tests {
     use super::*;
-    use rustatlas::math::ad::real::{backward, reset_tape, Var};
+    use rustatlas::math::ad::{backward, reset_tape, Var};
 
     #[test]
     fn test_autodiff_square() {

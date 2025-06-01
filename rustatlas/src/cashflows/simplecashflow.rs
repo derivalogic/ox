@@ -27,7 +27,7 @@ use super::traits::{Expires, Payable};
 /// ```
 /// ```
 /// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::real::Var;
+/// use rustatlas::math::ad::Var;
 /// let payment_date = Date::new(2020, 1, 1);
 /// let cashflow = SimpleCashflow::new(payment_date, Currency::USD, Side::Receive).with_amount(Var::from(100.0));
 /// assert_eq!(cashflow.amount().unwrap().value(), 100.0);

@@ -2,7 +2,7 @@ use crate::{
     cashflows::cashflow::{Cashflow, Side},
     currencies::enums::Currency,
     rates::interestrate::RateDefinition,
-    math::ad::num::Real,
+    utils::num::Real,
 };
 
 use super::{instrument::RateType, traits::Structure};

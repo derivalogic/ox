@@ -32,7 +32,7 @@ use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 /// Using the AD variable type:
 /// ```
 /// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::real::Var;
+/// use rustatlas::math::ad::Var;
 /// let reference_date = Date::new(2021, 12, 1);
 /// let tenors = vec![Period::new(1, TimeUnit::Years)];
 /// let spreads = vec![Var::from(0.01)];
