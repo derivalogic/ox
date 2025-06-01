@@ -29,31 +29,26 @@ impl Interpolate for LinearInterpolator {
         }
 
         match index {
-            0 => y_[0] + (x - x_[0]) * (y_[1] - y_[0]) / (x_[1] - x_[0]),
-            index if index == x_.len() => {
-                y_[index - 1]
-                    + (x - x_[index - 1]) * (y_[index - 1] - y_[index - 2])
-                        / (x_[index - 1] - x_[index - 2])
-            }
-            _ => {
-                y_[index - 1]
-                    + (x - x_[index - 1]) * (y_[index] - y_[index - 1])
-                        / (x_[index] - x_[index - 1])
-            }
+            0 => (y_[0] + (x - x_[0]) * (y_[1] - y_[0]) / (x_[1] - x_[0])).into(),
+            index if index == x_.len() => (y_[index - 1]
+                + (x - x_[index - 1]) * (y_[index - 1] - y_[index - 2])
+                    / (x_[index - 1] - x_[index - 2]))
+                .into(),
+            _ => (y_[index - 1]
+                + (x - x_[index - 1]) * (y_[index] - y_[index - 1]) / (x_[index] - x_[index - 1]))
+                .into(),
         }
     }
 }
 #[cfg(test)]
 mod tests {
-    use super::Interpolate;
-    use super::LinearInterpolator;
-
+    use super::*;
     #[test]
     fn test_linear_interpolation() {
-        let x = 0.5;
-        let x_ = vec![0.0, 1.0];
-        let y_ = vec![0.0, 1.0];
+        let x = NumericType::from(0.5);
+        let x_ = vec![NumericType::one(), NumericType::from(1.0)];
+        let y_ = vec![NumericType::from(0.0), NumericType::from(1.0)];
         let y = LinearInterpolator::interpolate(x, &x_, &y_, true);
-        assert_eq!(y, 0.5);
+        assert_eq!(y, NumericType::from(0.5));
     }
 }

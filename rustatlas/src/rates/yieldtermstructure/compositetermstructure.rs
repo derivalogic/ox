@@ -68,7 +68,7 @@ impl YieldProvider for CompositeTermStructure {
         let spread_discount_factor = self.spread_curve.discount_factor(date)?;
         let base_discount_factor = self.base_curve.discount_factor(date)?;
         let add_df = spread_discount_factor * base_discount_factor;
-        return Ok(add_df);
+        return Ok(add_df.into());
     }
 
     fn forward_rate(
@@ -84,7 +84,7 @@ impl YieldProvider for CompositeTermStructure {
         let base_forward_rate = self
             .base_curve
             .forward_rate(start_date, end_date, comp, freq)?;
-        return Ok(spread_forward_rate + base_forward_rate);
+        return Ok((spread_forward_rate + base_forward_rate).into());
     }
 }
 
@@ -126,7 +126,7 @@ mod test {
     fn test_reference_date() {
         let spread_curve = Arc::new(FlatForwardTermStructure::new(
             Date::new(2020, 1, 1),
-            0.1,
+            0.1.into(),
             RateDefinition::new(
                 DayCounter::Actual360,
                 Compounding::Compounded,
@@ -136,7 +136,7 @@ mod test {
 
         let base_curve = Arc::new(FlatForwardTermStructure::new(
             Date::new(2020, 1, 1),
-            0.2,
+            0.2.into(),
             RateDefinition::new(
                 DayCounter::Actual360,
                 Compounding::Compounded,
@@ -151,7 +151,7 @@ mod test {
     fn test_forward_rate() {
         let spread_curve = Arc::new(FlatForwardTermStructure::new(
             Date::new(2020, 1, 1),
-            0.01,
+            0.01.into(),
             RateDefinition::new(
                 DayCounter::Actual360,
                 Compounding::Compounded,
@@ -161,7 +161,7 @@ mod test {
 
         let base_curve = Arc::new(FlatForwardTermStructure::new(
             Date::new(2020, 1, 1),
-            0.02,
+            0.02.into(),
             RateDefinition::new(
                 DayCounter::Actual360,
                 Compounding::Compounded,
@@ -183,7 +183,7 @@ mod test {
     fn test_discount_factor() {
         let spread_curve = Arc::new(FlatForwardTermStructure::new(
             Date::new(2020, 1, 1),
-            0.1,
+            0.1.into(),
             RateDefinition::new(
                 DayCounter::Actual360,
                 Compounding::Compounded,
@@ -193,7 +193,7 @@ mod test {
 
         let base_curve = Arc::new(FlatForwardTermStructure::new(
             Date::new(2020, 1, 1),
-            0.2,
+            0.2.into(),
             RateDefinition::new(
                 DayCounter::Actual360,
                 Compounding::Compounded,

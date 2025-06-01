@@ -43,9 +43,9 @@ impl<'a> DeterministicModel for SimpleModel<'a> {
 
         // eval today or before ref date
         if ref_date > date {
-            return Ok(0.0);
+            return Ok(0.0.into());
         } else if ref_date == date {
-            return Ok(1.0);
+            return Ok(1.0.into());
         }
 
         let id = df.provider_id();
@@ -59,7 +59,7 @@ impl<'a> DeterministicModel for SimpleModel<'a> {
         let end_date = fwd.end_date();
         let ref_date = self.market_store.reference_date();
         if end_date <= ref_date {
-            return Ok(0.0);
+            return Ok(0.0.into());
         }
 
         let index = self.market_store.get_index(id)?;

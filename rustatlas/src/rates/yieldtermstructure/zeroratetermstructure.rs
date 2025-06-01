@@ -121,7 +121,7 @@ impl YieldProvider for ZeroRateTermStructure {
         );
         let rt = InterestRate::from_rate_definition(rate, self.rate_definition());
         let compound = rt.compound_factor_from_yf(year_fraction);
-        Ok(1.0 / compound)
+        Ok((NumericType::one() / compound).into())
     }
 
     fn forward_rate(
@@ -142,7 +142,7 @@ impl YieldProvider for ZeroRateTermStructure {
             .year_fraction(start_date, end_date);
 
         let forward_rate = InterestRate::implied_rate(
-            comp_factor,
+            comp_factor.into(),
             self.rate_definition().day_counter(),
             comp,
             freq,
@@ -172,7 +172,7 @@ impl AdvanceTermStructureInTime for ZeroRateTermStructure {
             .iter()
             .map(|x| {
                 let df = self.discount_factor(*x)?;
-                Ok(df / start_df)
+                Ok((df / start_df).into())
             })
             .collect();
 
@@ -217,7 +217,13 @@ mod tests {
             Date::new(2020, 10, 1),
             Date::new(2021, 1, 1),
         ];
-        let rates = vec![0.0, 0.01, 0.02, 0.03, 0.04];
+        let rates = vec![
+            0.0.into(),
+            0.01.into(),
+            0.02.into(),
+            0.03.into(),
+            0.04.into(),
+        ];
         let rate_definition = RateDefinition::default();
 
         let zero_rate_curve = ZeroRateTermStructure::new(
@@ -258,7 +264,13 @@ mod tests {
             Date::new(2023, 1, 1),
             Date::new(2024, 1, 1),
         ];
-        let rates = vec![0.0, 0.01, 0.02, 0.03, 0.04];
+        let rates = vec![
+            0.0.into(),
+            0.01.into(),
+            0.02.into(),
+            0.03.into(),
+            0.04.into(),
+        ];
         let rate_definition = RateDefinition::default();
 
         let zero_rate_curve = ZeroRateTermStructure::new(

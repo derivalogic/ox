@@ -97,7 +97,7 @@ impl YieldProvider for TenorBasedZeroRateTermStructure {
             self.enable_extrapolation,
         );
         let rate = InterestRate::from_rate_definition(spread, self.rate_definition);
-        Ok(1.0 / rate.compound_factor(self.reference_date, date))
+        Ok((NumericType::one() / rate.compound_factor(self.reference_date, date)).into())
     }
 
     fn forward_rate(
@@ -116,7 +116,7 @@ impl YieldProvider for TenorBasedZeroRateTermStructure {
             .day_counter()
             .year_fraction(self.reference_date, end_date);
         let rate = InterestRate::implied_rate(
-            compound,
+            compound.into(),
             self.rate_definition.day_counter(),
             comp,
             freq,
@@ -173,7 +173,13 @@ mod tests {
         let enable_extrapolation = true;
 
         let years = vec![1, 2, 3, 4, 5];
-        let spreads = vec![0.01, 0.02, 0.03, 0.04, 0.05];
+        let spreads = vec![
+            0.01.into(),
+            0.02.into(),
+            0.03.into(),
+            0.04.into(),
+            0.05.into(),
+        ];
         let tenors = years
             .iter()
             .map(|x| Period::new(*x, TimeUnit::Years))

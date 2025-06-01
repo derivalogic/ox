@@ -25,32 +25,31 @@ impl Interpolate for LogLinearInterpolator {
         }
 
         match index {
-            0 => y_[0] * (y_[1] / y_[0]).powf((x - x_[0]) / (x_[1] - x_[0])),
+            0 => {
+                let base = y_[1] / y_[0];
+                let exponent = (x - x_[0]) / (x_[1] - x_[0]);
+                (y_[0] * base.pow_expr(exponent)).into()
+            }
             idx if idx == x_.len() => {
-                y_[idx - 1]
-                    * (y_[idx - 1] / y_[idx - 2])
-                        .powf((x - x_[idx - 1]) / (x_[idx - 1] - x_[idx - 2]))
+                let base = y_[idx - 1] / y_[idx - 2];
+                let exponent = (x - x_[idx - 1]) / (x_[idx - 1] - x_[idx - 2]);
+                (y_[idx - 1] * base.pow_expr(exponent)).into()
             }
             _ => {
-                y_[index - 1]
-                    * (y_[index] / y_[index - 1])
-                        .powf((x - x_[index - 1]) / (x_[index] - x_[index - 1]))
+                let base = y_[index] / y_[index - 1];
+                let exponent = (x - x_[index - 1]) / (x_[index] - x_[index - 1]);
+                (y_[index - 1] * base.pow_expr(exponent)).into()
             }
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_loglinear_interpolation() {
-        let x = 0.5;
-        let x_ = vec![0.0, 1.0];
-        let y_ = vec![0.1, 1.0]; // Change from 0.0 to 0.1
-        let y = LogLinearInterpolator::interpolate(x, &x_, &y_, true);
-        // Adjust the expected value accordingly
-        assert!((y - 0.31622776601683794).abs() < 1e-10);
-    }
+#[test]
+fn test_loglinear_interpolation() {
+    let x = NumericType::from(0.5);
+    let x_ = vec![NumericType::from(0.0), NumericType::from(1.0)];
+    let y_ = vec![NumericType::from(0.1), NumericType::from(1.0)]; // Change from 0.0 to 0.1
+    let y = LogLinearInterpolator::interpolate(x, &x_, &y_, true);
+    // Adjust the expected value accordingly
+    assert!((y.value() - 0.31622776601683794).abs() < 1e-10);
 }

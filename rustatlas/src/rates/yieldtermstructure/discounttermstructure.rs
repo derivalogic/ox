@@ -137,7 +137,7 @@ impl YieldProvider for DiscountTermStructure {
             ));
         }
         if date == self.reference_date() {
-            return Ok(1.0);
+            return Ok(1.0.into());
         }
 
         let year_fraction = self
@@ -166,7 +166,10 @@ impl YieldProvider for DiscountTermStructure {
         let comp_factor = discount_factor_to_star / discount_factor_to_end;
         let t = self.day_counter().year_fraction(start_date, end_date);
 
-        Ok(InterestRate::implied_rate(comp_factor, self.day_counter(), comp, freq, t)?.rate())
+        Ok(
+            InterestRate::implied_rate(comp_factor.into(), self.day_counter(), comp, freq, t)?
+                .rate(),
+        )
     }
 }
 
@@ -184,7 +187,7 @@ impl AdvanceTermStructureInTime for DiscountTermStructure {
             .iter()
             .map(|x| {
                 let df = self.discount_factor(*x)?;
-                Ok(df / start_df)
+                Ok((df / start_df).into())
             })
             .collect();
 
@@ -224,7 +227,13 @@ mod tests {
             Date::new(2020, 10, 1),
             Date::new(2021, 1, 1),
         ];
-        let discount_factors = vec![1.0, 0.99, 0.98, 0.97, 0.96];
+        let discount_factors = vec![
+            1.0.into(),
+            0.99.into(),
+            0.98.into(),
+            0.97.into(),
+            0.96.into(),
+        ];
         let day_counter = DayCounter::Actual360;
 
         let discount_term_structure = DiscountTermStructure::new(
@@ -257,7 +266,13 @@ mod tests {
             Date::new(2020, 10, 1),
             Date::new(2021, 1, 1),
         ];
-        let discount_factors = vec![1.0, 0.99, 0.98, 0.97, 0.96];
+        let discount_factors = vec![
+            1.0.into(),
+            0.99.into(),
+            0.98.into(),
+            0.97.into(),
+            0.96.into(),
+        ];
         let day_counter = DayCounter::Actual360;
 
         let discount_term_structure = DiscountTermStructure::new(
@@ -284,7 +299,13 @@ mod tests {
             Date::new(2020, 10, 1),
             Date::new(2021, 1, 1),
         ];
-        let discount_factors = vec![1.0, 0.99, 0.98, 0.97, 0.96];
+        let discount_factors = vec![
+            1.0.into(),
+            0.99.into(),
+            0.98.into(),
+            0.97.into(),
+            0.96.into(),
+        ];
         let day_counter = DayCounter::Actual360;
 
         let discount_term_structure = DiscountTermStructure::new(
@@ -311,7 +332,13 @@ mod tests {
             Date::new(2020, 10, 1),
             Date::new(2021, 1, 1),
         ];
-        let discount_factors = vec![1.0, 0.99, 0.98, 0.97, 0.96];
+        let discount_factors = vec![
+            1.0.into(),
+            0.99.into(),
+            0.98.into(),
+            0.97.into(),
+            0.96.into(),
+        ];
         let day_counter = DayCounter::Actual360;
 
         let discount_term_structure = DiscountTermStructure::new(
@@ -344,7 +371,13 @@ mod tests {
             Date::new(2020, 10, 1),
             Date::new(2021, 1, 1),
         ];
-        let discount_factors = vec![1.0, 0.99, 0.98, 0.97, 0.96];
+        let discount_factors = vec![
+            1.0.into(),
+            0.99.into(),
+            0.98.into(),
+            0.97.into(),
+            0.96.into(),
+        ];
         let day_counter = DayCounter::Actual360;
 
         let discount_term_structure = DiscountTermStructure::new(
@@ -384,7 +417,13 @@ mod tests {
             Date::new(2020, 10, 1),
             Date::new(2021, 1, 1),
         ];
-        let discount_factors = vec![0.99, 0.98, 0.97, 0.96, 1.0];
+        let discount_factors = vec![
+            1.0.into(),
+            0.99.into(),
+            0.98.into(),
+            0.97.into(),
+            0.96.into(),
+        ];
         let day_counter = DayCounter::Actual360;
 
         let discount_term_structure = DiscountTermStructure::new(

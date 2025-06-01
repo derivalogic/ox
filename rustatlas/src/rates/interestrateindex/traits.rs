@@ -25,7 +25,7 @@ pub trait FixingProvider {
 
             let x: Vec<NumericType> = aux_btreemap
                 .keys()
-                .map(|&d| NumericType::new(d - first_date))
+                .map(|&d| NumericType::new((d - first_date) as f64))
                 .collect();
 
             let y = aux_btreemap.values().cloned().collect::<Vec<NumericType>>();
@@ -34,7 +34,7 @@ pub trait FixingProvider {
 
             while current_date <= last_date {
                 if !self.fixings().contains_key(&current_date) {
-                    let days = NumericType::new(current_date - first_date);
+                    let days = NumericType::new((current_date - first_date) as f64);
                     let rate = interpolator.interpolate(days, &x, &y, false);
                     self.add_fixing(current_date, rate);
                 }

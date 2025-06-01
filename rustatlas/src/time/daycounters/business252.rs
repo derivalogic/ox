@@ -28,13 +28,13 @@ impl DayCountProvider for Business252 {
     }
 
     fn year_fraction(start: Date, end: Date) -> NumericType {
-        NumericType::new(Self::day_count(start, end)) / NumericType::new(252.0)
+        NumericType::new(Business252::day_count(start, end) as f64 / 252.0)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::time::daycounters::traits::DayCountProvider;
+    use super::*;
 
     #[test]
     fn test_business252() {
@@ -43,7 +43,7 @@ mod test {
         let start = Date::new(2020, 1, 1);
         let end = Date::new(2020, 2, 1);
         assert_eq!(Business252::day_count(start, end), 22);
-        let yf: f64 = Business252::year_fraction(start, end);
-        assert_eq!(yf, 22.0 / 252.0);
+        let yf = Business252::year_fraction(start, end);
+        assert_eq!(yf.value(), 22.0 / 252.0);
     }
 }

@@ -109,21 +109,29 @@ impl ExchangeRateStore {
                 if source == current_ccy && !visited.contains(&dest) {
                     let new_rate = rate * map_rate;
                     if dest == second_ccy {
-                        mutable_cache.insert((first_ccy, second_ccy), new_rate);
-                        mutable_cache.insert((second_ccy, first_ccy), 1.0 / new_rate);
-                        return Ok(new_rate);
+                        let new_rate_value = new_rate.into();
+                        mutable_cache.insert((first_ccy, second_ccy), new_rate_value);
+                        mutable_cache.insert(
+                            (second_ccy, first_ccy),
+                            (NumericType::one() / new_rate_value).into(),
+                        );
+                        return Ok(new_rate_value);
                     }
                     visited.insert(dest);
-                    q.push_back((dest, new_rate));
+                    q.push_back((dest, new_rate.into()));
                 } else if dest == current_ccy && !visited.contains(&source) {
                     let new_rate = rate / map_rate;
                     if source == second_ccy {
-                        mutable_cache.insert((first_ccy, second_ccy), new_rate);
-                        mutable_cache.insert((second_ccy, first_ccy), 1.0 / new_rate);
-                        return Ok(new_rate);
+                        let new_rate_value = new_rate.into();
+                        mutable_cache.insert((first_ccy, second_ccy), new_rate_value);
+                        mutable_cache.insert(
+                            (second_ccy, first_ccy),
+                            (NumericType::one() / new_rate_value).into(),
+                        );
+                        return Ok(new_rate_value);
                     }
                     visited.insert(source);
-                    q.push_back((source, new_rate));
+                    q.push_back((source, new_rate.into()));
                 }
             }
         }
@@ -155,7 +163,7 @@ impl AdvanceExchangeRateStoreInTime for ExchangeRateStore {
         for ((ccy1, ccy2), fx) in self.exchange_rate_map.iter() {
             let compound_factor = index_store.currency_forescast_factor(*ccy1, *ccy2, date);
             match compound_factor {
-                Ok(cf) => new_store.add_exchange_rate(*ccy1, *ccy2, *fx * cf),
+                Ok(cf) => new_store.add_exchange_rate(*ccy1, *ccy2, (*fx * cf).into()),
                 Err(_) => {
                     // If the compound factor is not available, we use the last fx rate
                     new_store.add_exchange_rate(*ccy1, *ccy2, *fx);
@@ -190,7 +198,7 @@ mod tests {
             volatility_map: HashMap::new(),
             exchange_rate_map: {
                 let mut map = HashMap::new();
-                map.insert((Currency::USD, Currency::EUR), 0.85);
+                map.insert((Currency::USD, Currency::EUR), NumericType::from(0.85));
                 map
             },
             exchange_rate_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -235,8 +243,11 @@ mod tests {
             volatility_map: HashMap::new(),
             exchange_rate_map: {
                 let mut map = HashMap::new();
-                map.insert((Currency::USD, Currency::EUR), 0.85);
-                map.insert((Currency::EUR, Currency::USD), 1.0 / 0.85);
+                map.insert((Currency::USD, Currency::EUR), NumericType::from(0.85));
+                map.insert(
+                    (Currency::EUR, Currency::USD),
+                    NumericType::from(1.0 / 0.85),
+                );
                 map
             },
             exchange_rate_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -260,8 +271,8 @@ mod tests {
     fn test_triangulation_case() {
         let ref_date = Date::new(2021, 1, 1);
         let mut manager = ExchangeRateStore::new(ref_date);
-        manager.add_exchange_rate(Currency::CLP, Currency::USD, 800.0);
-        manager.add_exchange_rate(Currency::USD, Currency::EUR, 1.1);
+        manager.add_exchange_rate(Currency::CLP, Currency::USD, NumericType::from(800.0));
+        manager.add_exchange_rate(Currency::USD, Currency::EUR, NumericType::from(1.1));
 
         assert_eq!(
             manager

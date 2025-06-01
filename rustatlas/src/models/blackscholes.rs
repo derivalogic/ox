@@ -101,8 +101,8 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
                         store.get_exchange_rate_volatility(fx_req.first_currency(), second_ccy)?;
                     let z = rng.sample::<f64, _>(StandardNormal);
 
-                    let drift = (r_quote - r_base) - sigma * sigma * 0.5;
-                    let s_t = s0 * (drift * t + sigma * t.sqrt() * z).exp();
+                    let drift = (r_quote.clone() - r_base) - sigma * sigma * 0.5;
+                    let s_t: ADNumber = (s0 * (drift * t + sigma * t.sqrt() * z).exp()).into();
 
                     /* ---------------- numerarie (local-currency) -----------
                      *
@@ -115,10 +115,10 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
                      *    3. else     → use interest-parity forward
                      * ----------------------------------------------------*/
 
-                    let fx_b_to_l = if local_ccy == second_ccy {
-                        1.0 // case (1)
+                    let fx_b_to_l: ADNumber = if local_ccy == second_ccy {
+                        1.0.into() // case (1)
                     } else if local_ccy == fx_req.first_currency() {
-                        1.0 / s_t // case (2)
+                        (NumericType::one() / s_t).into() // case (2)
                     } else {
                         /* case (3) – build forward B/L using interest parity */
                         let spot_b_l = self
@@ -130,7 +130,7 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
                             ))
                             .unwrap();
 
-                        let fwd = spot_b_l * ((r_quote - r_local) * t).exp();
+                        let fwd = (spot_b_l * ((r_quote - r_local) * t).exp()).into();
                         fwd
                     };
                     let numerarie = fx_b_to_l / p_local;
@@ -151,7 +151,7 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
                         /* df  */ df,
                         /* fwd */ fwd,
                         /* fx  */ Some(s_t),
-                        /* num */ numerarie,
+                        /* num */ numerarie.into(),
                     ));
                 }
                 /* ======================================================

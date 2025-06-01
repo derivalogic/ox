@@ -143,7 +143,7 @@ impl InterestRate {
                     "Non-negative time required".to_string(),
                 ));
             }
-            r = 0.0;
+            r = NumericType::new(0.0);
         } else {
             if t <= 0.0 {
                 return Err(AtlasError::InvalidValueErr(
@@ -151,22 +151,29 @@ impl InterestRate {
                 ));
             }
             match comp {
-                Compounding::Simple => r = (compound - 1.0) / t,
-                Compounding::Compounded => r = (compound.powf(1.0 / (f * t)) - 1.0) * f,
+                Compounding::Simple => r = ((compound - 1.0) / t).into(),
+                Compounding::Compounded => {
+                    r = ((compound.pow_expr(NumericType::one() / (t * f)) - NumericType::one()) * f)
+                        .into()
+                }
 
-                Compounding::Continuous => r = compound.ln() / t,
+                Compounding::Continuous => r = (compound.ln() / t).into(),
                 Compounding::SimpleThenCompounded => {
                     if t <= 1.0 / f {
-                        r = (compound - 1.0) / t
+                        r = ((compound - NumericType::one()) / t).into()
                     } else {
-                        r = (compound.powf(1.0 / (f * t)) - 1.0) * f
+                        r = ((compound.pow_expr(NumericType::one() / (t * f)) - NumericType::one())
+                            * f)
+                            .into()
                     }
                 }
                 Compounding::CompoundedThenSimple => {
                     if t > 1.0 / f {
-                        r = (compound - 1.0) / t
+                        r = ((compound - NumericType::one()) / t).into()
                     } else {
-                        r = (compound.powf(1.0 / (f * t)) - 1.0) * f
+                        r = ((compound.pow_expr(NumericType::one() / (t * f)) - NumericType::one())
+                            * f)
+                            .into()
                     }
                 }
             }
@@ -185,29 +192,35 @@ impl InterestRate {
         let compounding = self.compounding();
         let f = self.frequency() as i64 as f64;
         match compounding {
-            Compounding::Simple => rate * year_fraction + 1.0,
-            Compounding::Compounded => (1.0 + rate / f).powf(year_fraction * f),
+            Compounding::Simple => (rate * year_fraction + 1.0).into(),
+            Compounding::Compounded => (NumericType::one() + rate / f)
+                .pow_expr(year_fraction * f)
+                .into(),
 
-            Compounding::Continuous => (rate * year_fraction).exp(),
+            Compounding::Continuous => (rate * year_fraction).exp().into(),
             Compounding::SimpleThenCompounded => {
                 if year_fraction <= 1.0 / f {
-                    rate * year_fraction + 1.0
+                    (rate * year_fraction + 1.0).into()
                 } else {
-                    (1.0 + rate / f).powf(year_fraction * f)
+                    (NumericType::one() + rate / f)
+                        .pow_expr(year_fraction * f)
+                        .into()
                 }
             }
             Compounding::CompoundedThenSimple => {
                 if year_fraction > 1.0 / f {
-                    1.0 + rate * year_fraction
+                    (NumericType::one() + rate * year_fraction).into()
                 } else {
-                    (1.0 + rate / f).powf(year_fraction * f)
+                    (NumericType::one() + rate / f)
+                        .pow_expr(year_fraction * f)
+                        .into()
                 }
             }
         }
     }
 
     pub fn discount_factor(&self, start: Date, end: Date) -> NumericType {
-        return 1.0 / self.compound_factor(start, end);
+        return (NumericType::one() / self.compound_factor(start, end)).into();
     }
 
     pub fn forward_rate(
@@ -545,17 +558,17 @@ mod tests {
         let test_cases = test_cases();
         for test_case in test_cases {
             let rate = InterestRate::new(
-                test_case.rate,
+                test_case.rate.into(),
                 test_case.compounding,
                 test_case.frequency,
                 DayCounter::Actual360,
             );
             let implied_rate = InterestRate::implied_rate(
-                rate.compound_factor_from_yf(test_case.time),
+                rate.compound_factor_from_yf(test_case.time.into()),
                 DayCounter::Actual360,
                 test_case.compounding2,
                 test_case.frequency2,
-                test_case.time,
+                test_case.time.into(),
             )
             .unwrap();
             assert!(
@@ -588,7 +601,7 @@ mod tests {
     #[test]
     fn test_interest_rate_new() {
         let ir = InterestRate::new(
-            0.05,
+            NumericType::new(0.05),
             Compounding::Simple,
             Frequency::Annual,
             DayCounter::Actual360,
@@ -606,7 +619,7 @@ mod tests {
             Compounding::Simple,
             Frequency::Annual,
         );
-        let ir = InterestRate::from_rate_definition(0.05, rd);
+        let ir = InterestRate::from_rate_definition(0.05.into(), rd);
         assert_eq!(ir.rate(), 0.05);
         assert_eq!(ir.compounding(), Compounding::Simple);
         assert_eq!(ir.frequency(), Frequency::Annual);
@@ -620,11 +633,11 @@ mod tests {
         // Choose parameters that make sense for your implied_rate function
         // For example:
         let ir = InterestRate::implied_rate(
-            1.05,
+            1.05.into(),
             DayCounter::Actual360,
             Compounding::Simple,
             Frequency::Annual,
-            1.0,
+            1.0.into(),
         )
         .unwrap();
         let expected_rate = 0.05;
@@ -634,11 +647,11 @@ mod tests {
     #[test]
     fn test_implied_rate_panic() {
         let err = InterestRate::implied_rate(
-            0.0,
+            0.0.into(),
             DayCounter::Actual360,
             Compounding::Simple,
             Frequency::Annual,
-            1.0,
+            1.0.into(),
         );
         assert!(err.is_err());
     }

@@ -39,28 +39,28 @@ impl DayCountProvider for ActualActual {
         let y2 = end.year() as i32;
 
         if y1 == y2 {
-            return NumericType::new(days) / NumericType::new(days_in_year(y1));
+            return NumericType::new(days as f64 / days_in_year(y1) as f64);
         } else {
             if y2 > y1 {
                 let mut sum = NumericType::new(0.0);
-                sum += NumericType::new(Date::new(y1 + 1 as i32, 1, 1) - start)
-                    / NumericType::new(days_in_year(y1 as i32));
+                sum += NumericType::new((Date::new(y1 + 1 as i32, 1, 1) - start) as f64)
+                    / NumericType::new(days_in_year(y1 as i32) as f64);
                 for _year in y1 + 1..y2 - 1 {
                     sum += NumericType::new(1.0);
                 }
-                sum += NumericType::new(end - Date::new(y2 as i32, 1, 1))
-                    / NumericType::new(days_in_year(y2 as i32));
+                sum += NumericType::new((end - Date::new(y2 as i32, 1, 1)) as f64)
+                    / NumericType::new(days_in_year(y2 as i32) as f64);
 
                 return sum;
             } else {
                 let mut sum = NumericType::new(0.0);
-                sum -= NumericType::new(Date::new(y2 + 1 as i32, 1, 1) - end)
-                    / NumericType::new(days_in_year(y2 as i32));
+                sum -= NumericType::new((Date::new(y2 + 1 as i32, 1, 1) - end) as f64)
+                    / NumericType::new(days_in_year(y2 as i32) as f64);
                 for _year in y2 + 1..y1 - 1 {
                     sum -= NumericType::new(1.0);
                 }
-                sum -= NumericType::new(start - Date::new(y1 as i32, 1, 1))
-                    / NumericType::new(days_in_year(y1 as i32));
+                sum -= NumericType::new((start - Date::new(y1 as i32, 1, 1)) as f64)
+                    / NumericType::new(days_in_year(y1 as i32) as f64);
                 return sum;
             }
         }
@@ -69,7 +69,7 @@ impl DayCountProvider for ActualActual {
 
 #[cfg(test)]
 mod tests {
-    use crate::time::daycounters::traits::DayCountProvider;
+    use super::*;
 
     #[test]
     fn test_actualactual_day_count() {
@@ -86,8 +86,8 @@ mod tests {
         use crate::time::date::Date;
         let start = Date::new(2020, 1, 1);
         let end = Date::new(2020, 2, 1);
-        let yf: f64 = ActualActual::year_fraction(start, end);
-        assert_eq!(yf, 31.0 / 366.0);
+        let yf = ActualActual::year_fraction(start, end);
+        assert_eq!(yf.value(), 31.0 / 366.0);
     }
 
     #[test]
@@ -96,8 +96,8 @@ mod tests {
         use crate::time::date::Date;
         let start = Date::new(2020, 1, 1);
         let end = Date::new(2021, 1, 1);
-        let yf: f64 = ActualActual::year_fraction(start, end);
-        assert_eq!(yf, 1.0);
+        let yf = ActualActual::year_fraction(start, end);
+        assert_eq!(yf.value(), 1.0);
     }
 
     #[test]
@@ -106,7 +106,7 @@ mod tests {
         use crate::time::date::Date;
         let start = Date::new(2021, 1, 1);
         let end = Date::new(2020, 1, 1);
-        let yf: f64 = ActualActual::year_fraction(start, end);
-        assert_eq!(yf, -1.0);
+        let yf = ActualActual::year_fraction(start, end);
+        assert_eq!(yf.value(), -1.0);
     }
 }

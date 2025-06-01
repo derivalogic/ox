@@ -215,7 +215,7 @@ impl RequiresFixingRate for Cashflow {
 
 impl Display for Cashflow {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let amount = self.amount().unwrap_or(0.0);
+        let amount = self.amount().unwrap_or(NumericType::new(0.0));
         match self {
             Cashflow::Redemption(cashflow) => write!(
                 f,

@@ -15,7 +15,7 @@ use crate::prelude::*;
 /// * `side` - The side of the coupon (Pay or Receive)
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FixedRateCoupon {
-    notional: NumericType,
+    notional: f64,
     rate: InterestRate,
     accrual_start_date: Date,
     accrual_end_date: Date,
@@ -24,7 +24,7 @@ pub struct FixedRateCoupon {
 
 impl FixedRateCoupon {
     pub fn new(
-        notional: NumericType,
+        notional: f64,
         rate: InterestRate,
         accrual_start_date: Date,
         accrual_end_date: Date,
@@ -35,7 +35,7 @@ impl FixedRateCoupon {
         let delta = rate.compound_factor(accrual_start_date, accrual_end_date) - 1.0;
         let amount = delta * notional; // one final flatten
 
-        let cashflow = SimpleCashflow::new(payment_date, currency, side).with_amount(amount);
+        let cashflow = SimpleCashflow::new(payment_date, currency, side).with_amount(amount.into());
         FixedRateCoupon {
             notional,
             rate,
@@ -62,21 +62,19 @@ impl FixedRateCoupon {
     pub fn set_rate(&mut self, rate: InterestRate) {
         self.rate = rate;
         // Update the cashflow amount
-        self.cashflow.set_amount(
-            (rate.compound_factor(self.accrual_start_date, self.accrual_end_date) - 1.0)
-                * self.notional,
-        );
+        let amount = (rate.compound_factor(self.accrual_start_date, self.accrual_end_date) - 1.0)
+            * self.notional;
+        self.cashflow.set_amount(amount.into());
     }
 
     pub fn set_notional(&mut self, notional: f64) {
         self.notional = notional;
-        self.cashflow.set_amount(
-            (self
-                .rate
-                .compound_factor(self.accrual_start_date, self.accrual_end_date)
-                - 1.0)
-                * self.notional,
-        );
+        let amount = (self
+            .rate
+            .compound_factor(self.accrual_start_date, self.accrual_end_date)
+            - 1.0)
+            * self.notional;
+        self.cashflow.set_amount(amount.into());
     }
 
     pub fn notional(&self) -> f64 {
@@ -137,8 +135,8 @@ impl InterestAccrual for FixedRateCoupon {
 
         let (d1, d2) = self.relevant_accrual_dates(self.accrual_start_date, start_date)?;
         let acc_2 = (self.rate.compound_factor(d1, d2) - 1.0) * self.notional;
-
-        return Ok(acc_1 - acc_2);
+        let result = acc_1 - acc_2;
+        return Ok(result.into());
     }
 }
 
@@ -177,7 +175,7 @@ mod tests {
     fn test_fixed_rate_coupon_creation() -> Result<()> {
         let notional = 1000.0;
         let rate = InterestRate::new(
-            0.05,
+            0.05.into(),
             Compounding::Compounded,
             Frequency::Annual,
             DayCounter::Thirty360,
@@ -207,7 +205,7 @@ mod tests {
     fn test_amount_calculation() {
         let notional = 1000.0;
         let rate = InterestRate::new(
-            0.05,
+            0.05.into(),
             Compounding::Compounded,
             Frequency::Annual,
             DayCounter::Actual360,
@@ -230,8 +228,8 @@ mod tests {
 
         coupon.set_discount_curve_id(id);
 
-        let expected_amount =
-            notional * (rate.compound_factor(accrual_start_date, accrual_end_date) - 1.0);
+        let expected_amount: ADNumber =
+            ((rate.compound_factor(accrual_start_date, accrual_end_date) - 1.0) * notional).into();
         assert_eq!(
             coupon
                 .accrued_amount(accrual_start_date, accrual_end_date)
@@ -244,7 +242,7 @@ mod tests {
     fn test_accrual() {
         let notional = 1000.0;
         let rate = InterestRate::new(
-            0.05,
+            0.05.into(),
             Compounding::Compounded,
             Frequency::Annual,
             DayCounter::Thirty360,

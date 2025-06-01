@@ -69,7 +69,10 @@ impl YieldProvider for FlatForwardTermStructure {
     ) -> Result<NumericType> {
         let comp_factor = self.discount_factor(start_date)? / self.discount_factor(end_date)?;
         let t = self.rate.day_counter().year_fraction(start_date, end_date);
-        Ok(InterestRate::implied_rate(comp_factor, self.rate.day_counter(), comp, freq, t)?.rate())
+        Ok(
+            InterestRate::implied_rate(comp_factor.into(), self.rate.day_counter(), comp, freq, t)?
+                .rate(),
+        )
     }
 }
 
@@ -108,7 +111,7 @@ mod tests {
         let reference_date = Date::new(2023, 8, 19);
 
         let term_structure =
-            FlatForwardTermStructure::new(reference_date, 0.5, RateDefinition::default());
+            FlatForwardTermStructure::new(reference_date, 0.5.into(), RateDefinition::default());
         assert_eq!(term_structure.reference_date(), reference_date);
     }
 
@@ -116,10 +119,11 @@ mod tests {
     fn test_discount() -> Result<()> {
         let reference_date = Date::new(2023, 8, 19);
         let target_date = Date::new(2024, 8, 19);
-        let interest_rate = InterestRate::from_rate_definition(0.05, RateDefinition::default());
+        let interest_rate =
+            InterestRate::from_rate_definition(0.05.into(), RateDefinition::default());
 
         let term_structure =
-            FlatForwardTermStructure::new(reference_date, 0.05, RateDefinition::default());
+            FlatForwardTermStructure::new(reference_date, 0.05.into(), RateDefinition::default());
 
         let expected_discount = interest_rate.discount_factor(reference_date, target_date);
         let actual_discount = term_structure.discount_factor(target_date)?;
@@ -137,8 +141,9 @@ mod tests {
             Compounding::Continuous,
             Frequency::Semiannual,
         );
-        let interest_rate = InterestRate::from_rate_definition(0.05, rate_definition);
-        let term_structure = FlatForwardTermStructure::new(reference_date, 0.05, rate_definition);
+        let interest_rate = InterestRate::from_rate_definition(0.05.into(), rate_definition);
+        let term_structure =
+            FlatForwardTermStructure::new(reference_date, 0.05.into(), rate_definition);
 
         let expected_discount = interest_rate.discount_factor(reference_date, target_date);
         let actual_discount = term_structure.discount_factor(target_date)?;
@@ -151,7 +156,7 @@ mod tests {
     fn test_forward_rate() -> Result<()> {
         let reference_date = Date::new(2023, 8, 19);
         let interest_rate: InterestRate = InterestRate::new(
-            0.05,
+            0.05.into(),
             Compounding::Simple,
             Frequency::Annual,
             DayCounter::Actual360,
@@ -162,7 +167,7 @@ mod tests {
         let freq = Frequency::Annual;
 
         let term_structure =
-            FlatForwardTermStructure::new(reference_date, 0.5, RateDefinition::default());
+            FlatForwardTermStructure::new(reference_date, 0.5.into(), RateDefinition::default());
 
         let comp_factor = term_structure.discount_factor(start_date)?
             / term_structure.discount_factor(end_date)?;
@@ -170,9 +175,14 @@ mod tests {
             .day_counter()
             .year_fraction(start_date, end_date);
 
-        let expected_forward_rate =
-            InterestRate::implied_rate(comp_factor, interest_rate.day_counter(), comp, freq, t)?
-                .rate();
+        let expected_forward_rate = InterestRate::implied_rate(
+            comp_factor.into(),
+            interest_rate.day_counter(),
+            comp,
+            freq,
+            t,
+        )?
+        .rate();
         let actual_forward_rate = term_structure.forward_rate(start_date, end_date, comp, freq)?;
 
         assert_eq!(actual_forward_rate, expected_forward_rate);

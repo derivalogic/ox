@@ -1,59 +1,151 @@
 //! aad.rs  ―  Expression-template reverse-mode AD in pure Rust
-//! Public API:  ADNumber  +  free fns  exp, log, sqrt, fabs,
-//! normal_dens, normal_cdf, pow, max, min  +  flatten/propagation helpers.
+//! Public API:  ADNumber  +  helpers  exp, log, sqrt, fabs, sin, cos,
+//! pow, max, min, abs  +  flatten / propagation helpers.
+//
+//! This file is standalone except for the tape machinery:
+//! `Node`, `TAPE`, `propagate_range` live in the surrounding crate
+//! exactly as in the original version.
+
+use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
-use std::ops::*;
+use core::fmt;
+use std::{cmp::Ordering, ops::*};
+
+/* ───────────────────────── Feature aliases ───────────────────────── */
 
 #[cfg(feature = "adnumber")]
 pub type NumericType = ADNumber;
-
 #[cfg(feature = "f64")]
 pub type NumericType = f64;
 
-pub trait NewNumericType<T> {
+/* ═══════════════════  Value ⇆ Wrapper convenience  ═════════════════ */
+
+pub trait ToNumeric<T> {
     fn new(v: T) -> Self;
+    fn value(&self) -> T;
+    fn one() -> Self;
+    fn zero() -> Self;
 }
 
-impl NewNumericType<f64> for f64 {
+/* ---- primitive  ↔  f64 ------------------------------------------- */
+
+impl ToNumeric<f64> for f64 {
+    #[inline]
     fn new(v: f64) -> Self {
         v
     }
-}
+    #[inline]
+    fn value(&self) -> f64 {
+        *self
+    }
 
-impl NewNumericType<f32> for f64 {
+    #[inline]
+    fn one() -> Self {
+        1.0
+    }
+    #[inline]
+    fn zero() -> Self {
+        0.0
+    }
+}
+impl ToNumeric<f32> for f64 {
+    #[inline]
     fn new(v: f32) -> Self {
         v as f64
     }
+    #[inline]
+    fn value(&self) -> f32 {
+        *self as f32
+    }
+    #[inline]
+    fn one() -> Self {
+        1.0
+    }
+    #[inline]
+    fn zero() -> Self {
+        0.0
+    }
 }
-
-impl NewNumericType<i32> for f64 {
+impl ToNumeric<i32> for f64 {
+    #[inline]
     fn new(v: i32) -> Self {
         v as f64
     }
+    #[inline]
+    fn value(&self) -> i32 {
+        *self as i32
+    }
+    #[inline]
+    fn one() -> Self {
+        1.0
+    }
+    #[inline]
+    fn zero() -> Self {
+        0.0
+    }
 }
-
-impl NewNumericType<i64> for f64 {
+impl ToNumeric<i64> for f64 {
+    #[inline]
     fn new(v: i64) -> Self {
         v as f64
     }
+    #[inline]
+    fn value(&self) -> i64 {
+        *self as i64
+    }
+    #[inline]
+    fn one() -> Self {
+        1.0
+    }
+    #[inline]
+    fn zero() -> Self {
+        0.0
+    }
 }
 
-impl NewNumericType<f64> for ADNumber {
+impl fmt::Debug for ADNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ADNumber({})", self.val)
+    }
+}
+
+impl fmt::Display for ADNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ADNumber({})", self.val)
+    }
+}
+
+/* ---- ADNumber  ↔  f64 -------------------------------------------- */
+
+impl ToNumeric<f64> for ADNumber {
+    #[inline]
     fn new(v: f64) -> Self {
         let idx = TAPE.with(|t| t.borrow_mut().new_leaf());
         Self { val: v, idx }
     }
+    #[inline]
+    fn value(&self) -> f64 {
+        self.val
+    }
+    #[inline]
+    fn one() -> Self {
+        ADNumber::new(1.0)
+    }
+    #[inline]
+    fn zero() -> Self {
+        ADNumber::new(0.0)
+    }
 }
 
-/* ═══════════════════════  EXPRESSION TRAIT  ═════════════════════════ */
+/* ═════════════════════  TRAIT FOR ALL NODES  ═══════════════════════ */
 
 pub trait Expr: Clone {
-    fn value(&self) -> f64;
+    fn inner_value(&self) -> f64;
     fn push_adj(&self, parent: &mut Node, adj: f64);
 }
 
-/* ═══════════════════════  LEAF: ADNumber  ═════════════════════════════ */
+/* ════════════════════════  LEAF: ADNumber  ═════════════════════════ */
 
 #[derive(Clone)]
 pub struct ADNumber {
@@ -61,13 +153,14 @@ pub struct ADNumber {
     idx: usize, // position on the tape
 }
 
+/* ---- constructors & tape helpers --------------------------------- */
+
 impl ADNumber {
     pub fn new(v: f64) -> Self {
         let idx = TAPE.with(|t| t.borrow_mut().new_leaf());
         Self { val: v, idx }
     }
 
-    /* ---- accessors ---- */
     #[inline]
     pub fn value(&self) -> f64 {
         self.val
@@ -77,7 +170,6 @@ impl ADNumber {
         TAPE.with(|t| t.borrow().nodes[self.idx].adj)
     }
 
-    /* ---- tape helpers ---- */
     pub fn reset_adjoints() {
         TAPE.with(|t| {
             for n in &mut t.borrow_mut().nodes {
@@ -85,22 +177,18 @@ impl ADNumber {
             }
         });
     }
-
     pub fn put_on_tape(&mut self) {
         self.idx = TAPE.with(|t| t.borrow_mut().new_leaf());
     }
-
     pub fn propagate_to_start(&self) {
         TAPE.with(|t| t.borrow_mut().nodes[self.idx].adj = 1.0);
         propagate_range(self.idx, 0);
     }
-
     pub fn propagate_to_mark(&self) {
         let stop = TAPE.with(|t| t.borrow().mark);
         TAPE.with(|t| t.borrow_mut().nodes[self.idx].adj = 1.0);
         propagate_range(self.idx, stop);
     }
-
     pub fn propagate_mark_to_start() {
         let (from, to) = TAPE.with(|t| {
             let t = t.borrow();
@@ -110,23 +198,56 @@ impl ADNumber {
     }
 }
 
+/* ---- integrate with Expr ----------------------------------------- */
+
 impl Expr for ADNumber {
-    fn value(&self) -> f64 {
+    #[inline]
+    fn inner_value(&self) -> f64 {
         self.val
     }
-
     fn push_adj(&self, parent: &mut Node, adj: f64) {
         parent.childs.push(self.idx);
         parent.derivs.push(adj);
     }
 }
 
-/* ═══════════════════════  CONSTANT LEAF  ════════════════════════════ */
+/* ---- debug / serde / ordering ------------------------------------ */
+
+impl PartialEq for ADNumber {
+    fn eq(&self, o: &Self) -> bool {
+        self.val == o.val
+    }
+}
+impl PartialOrd for ADNumber {
+    fn partial_cmp(&self, o: &Self) -> Option<Ordering> {
+        self.val.partial_cmp(&o.val)
+    }
+}
+
+impl Copy for ADNumber {}
+
+impl Serialize for ADNumber {
+    fn serialize<S>(&self, s: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        s.serialize_f64(self.val)
+    }
+}
+impl<'de> Deserialize<'de> for ADNumber {
+    fn deserialize<D>(d: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let v = f64::deserialize(d)?;
+        Ok(ADNumber::new(v))
+    }
+}
+
+/* ═════════════════════  CONSTANT LEAF (Const)  ═════════════════════ */
 
 #[derive(Clone, Copy)]
 pub struct Const(pub f64);
-
-/* ── primitive → Const ────────────────────────────────────────────── */
 
 impl From<f64> for Const {
     #[inline]
@@ -134,22 +255,18 @@ impl From<f64> for Const {
         Const(v)
     }
 }
-
 impl From<f32> for Const {
     #[inline]
     fn from(v: f32) -> Self {
         Const(v as f64)
     }
 }
-
 impl From<i32> for Const {
     #[inline]
     fn from(v: i32) -> Self {
         Const(v as f64)
     }
 }
-
-/* (optional but convenient) further primitives */
 impl From<u32> for Const {
     #[inline]
     fn from(v: u32) -> Self {
@@ -168,9 +285,6 @@ impl From<u64> for Const {
         Const(v as f64)
     }
 }
-
-/* ── Const → primitive ────────────────────────────────────────────── */
-
 impl From<Const> for f64 {
     #[inline]
     fn from(c: Const) -> Self {
@@ -178,18 +292,16 @@ impl From<Const> for f64 {
     }
 }
 
-/* ── AD expression integration (unchanged) ────────────────────────── */
-
 impl Expr for Const {
     #[inline]
-    fn value(&self) -> f64 {
+    fn inner_value(&self) -> f64 {
         self.0
     }
     #[inline]
-    fn push_adj(&self, _parent: &mut Node, _adj: f64) {}
+    fn push_adj(&self, _: &mut Node, _: f64) {}
 }
 
-/* ═════════════════════  OPERATOR “TYPE CLASSES”  ════════════════════ */
+/* ═════════════════════  BIN-OP “TYPE CLASS”  ═══════════════════════ */
 
 pub trait BinOp {
     fn eval(l: f64, r: f64) -> f64;
@@ -197,76 +309,97 @@ pub trait BinOp {
     fn d_right(l: f64, r: f64) -> f64;
 }
 
+/* ---- concrete binary ops ----------------------------------------- */
+
+#[derive(Clone, Copy, Debug)]
 pub struct AddOp;
 impl BinOp for AddOp {
+    #[inline]
     fn eval(l: f64, r: f64) -> f64 {
         l + r
     }
-    fn d_left(_l: f64, _r: f64) -> f64 {
+    #[inline]
+    fn d_left(_: f64, _: f64) -> f64 {
         1.0
     }
-    fn d_right(_l: f64, _r: f64) -> f64 {
+    #[inline]
+    fn d_right(_: f64, _: f64) -> f64 {
         1.0
     }
 }
-
+#[derive(Clone, Copy, Debug)]
 pub struct SubOp;
 impl BinOp for SubOp {
+    #[inline]
     fn eval(l: f64, r: f64) -> f64 {
         l - r
     }
-    fn d_left(_l: f64, _r: f64) -> f64 {
+    #[inline]
+    fn d_left(_: f64, _: f64) -> f64 {
         1.0
     }
-    fn d_right(_l: f64, _r: f64) -> f64 {
+    #[inline]
+    fn d_right(_: f64, _: f64) -> f64 {
         -1.0
     }
 }
-
+#[derive(Clone, Copy, Debug)]
 pub struct MulOp;
 impl BinOp for MulOp {
+    #[inline]
     fn eval(l: f64, r: f64) -> f64 {
         l * r
     }
-    fn d_left(_l: f64, r: f64) -> f64 {
+    #[inline]
+    fn d_left(_: f64, r: f64) -> f64 {
         r
     }
-    fn d_right(l: f64, _r: f64) -> f64 {
+    #[inline]
+    fn d_right(l: f64, _: f64) -> f64 {
         l
     }
 }
-
+#[derive(Clone, Copy, Debug)]
 pub struct DivOp;
 impl BinOp for DivOp {
+    #[inline]
     fn eval(l: f64, r: f64) -> f64 {
         l / r
     }
-    fn d_left(_l: f64, r: f64) -> f64 {
+    #[inline]
+    fn d_left(_: f64, r: f64) -> f64 {
         1.0 / r
     }
+    #[inline]
     fn d_right(l: f64, r: f64) -> f64 {
         -l / (r * r)
     }
 }
-
+#[derive(Clone, Copy, Debug)]
 pub struct PowOp;
 impl BinOp for PowOp {
+    #[inline]
     fn eval(l: f64, r: f64) -> f64 {
         l.powf(r)
     }
+    #[inline]
     fn d_left(l: f64, r: f64) -> f64 {
         r * l.powf(r - 1.0)
     }
+    #[inline]
     fn d_right(l: f64, r: f64) -> f64 {
         l.powf(r) * l.ln()
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct MaxOp;
 impl BinOp for MaxOp {
+    #[inline]
     fn eval(l: f64, r: f64) -> f64 {
         l.max(r)
     }
+    #[inline]
     fn d_left(l: f64, r: f64) -> f64 {
         if l > r {
             1.0
@@ -274,6 +407,7 @@ impl BinOp for MaxOp {
             0.0
         }
     }
+    #[inline]
     fn d_right(l: f64, r: f64) -> f64 {
         if r > l {
             1.0
@@ -282,13 +416,14 @@ impl BinOp for MaxOp {
         }
     }
 }
-
+#[derive(Clone, Copy, Debug)]
 pub struct MinOp;
-
 impl BinOp for MinOp {
+    #[inline]
     fn eval(l: f64, r: f64) -> f64 {
         l.min(r)
     }
+    #[inline]
     fn d_left(l: f64, r: f64) -> f64 {
         if l < r {
             1.0
@@ -296,6 +431,7 @@ impl BinOp for MinOp {
             0.0
         }
     }
+    #[inline]
     fn d_right(l: f64, r: f64) -> f64 {
         if r < l {
             1.0
@@ -305,45 +441,7 @@ impl BinOp for MinOp {
     }
 }
 
-/* ═══════════════════════  CLONE OPERATORS  ══════════════════════════ */
-
-impl Clone for AddOp {
-    fn clone(&self) -> Self {
-        AddOp
-    }
-}
-
-impl Clone for SubOp {
-    fn clone(&self) -> Self {
-        SubOp
-    }
-}
-
-impl Clone for MulOp {
-    fn clone(&self) -> Self {
-        MulOp
-    }
-}
-
-impl Clone for DivOp {
-    fn clone(&self) -> Self {
-        DivOp
-    }
-}
-
-impl Clone for PowOp {
-    fn clone(&self) -> Self {
-        PowOp
-    }
-}
-
-impl Clone for MinOp {
-    fn clone(&self) -> Self {
-        MinOp
-    }
-}
-
-/* ════════════════════  BINARY EXPRESSION NODE  ══════════════════════ */
+/* ═══════════════════  NODE: BinExpr (binary)  ══════════════════════ */
 
 #[derive(Clone)]
 pub struct BinExpr<L, R, O> {
@@ -352,10 +450,10 @@ pub struct BinExpr<L, R, O> {
     val: f64,
     _ph: std::marker::PhantomData<O>,
 }
-
 impl<L: Expr, R: Expr, O: BinOp> BinExpr<L, R, O> {
+    #[inline]
     fn new(l: L, r: R) -> Self {
-        let val = O::eval(l.value(), r.value());
+        let val = O::eval(l.inner_value(), r.inner_value());
         Self {
             l,
             r,
@@ -364,34 +462,41 @@ impl<L: Expr, R: Expr, O: BinOp> BinExpr<L, R, O> {
         }
     }
 }
-
 impl<L: Expr, R: Expr, O: BinOp + Clone> Expr for BinExpr<L, R, O> {
-    fn value(&self) -> f64 {
+    #[inline]
+    fn inner_value(&self) -> f64 {
         self.val
     }
-
     fn push_adj(&self, parent: &mut Node, adj: f64) {
-        self.l
-            .push_adj(parent, adj * O::d_left(self.l.value(), self.r.value()));
-        self.r
-            .push_adj(parent, adj * O::d_right(self.l.value(), self.r.value()));
+        self.l.push_adj(
+            parent,
+            adj * O::d_left(self.l.inner_value(), self.r.inner_value()),
+        );
+        self.r.push_adj(
+            parent,
+            adj * O::d_right(self.l.inner_value(), self.r.inner_value()),
+        );
     }
 }
 
-/* ═══════════════════════  UNARY OPERATORS  ═════════════════════════ */
+/* ═════════════════════  UNARY OPERATORS  ═══════════════════════════ */
 
 pub trait UnOp {
     fn eval(x: f64) -> f64;
     fn deriv(x: f64, v: f64) -> f64;
 }
 
+/* every unary-operator struct gets Clone+Copy+Debug via derive */
 macro_rules! un_op {
-    ($name:ident, $eval:expr, $d:expr) => {
+    ($name:ident,$eval:expr,$d:expr) => {
+        #[derive(Clone, Copy, Debug)]
         pub struct $name;
         impl UnOp for $name {
+            #[inline]
             fn eval(x: f64) -> f64 {
                 $eval(x)
             }
+            #[inline]
             fn deriv(x: f64, v: f64) -> f64 {
                 $d(x, v)
             }
@@ -399,12 +504,16 @@ macro_rules! un_op {
     };
 }
 
+/* instantiate concrete unary ops */
 un_op!(ExpOp, f64::exp, |_x, v| v);
-un_op!(LogOp, f64::ln, |x, _v| 1.0 / x);
+un_op!(LogOp, f64::ln, |x, _| 1.0 / x);
 un_op!(SqrtOp, f64::sqrt, |_x, v| 0.5 / v);
-un_op!(FabsOp, f64::abs, |x, _v| if x >= 0.0 { 1.0 } else { -1.0 });
+un_op!(FabsOp, f64::abs, |x, _| if x >= 0.0 { 1.0 } else { -1.0 });
 un_op!(SinOp, f64::sin, |x, v| v * f64::cos(x));
-un_op!(CosOp, f64::cos, |x: f64, v: f64| -v * f64::sin(x));
+un_op!(CosOp, f64::cos, |x, v: f64| -v * f64::sin(x));
+un_op!(AbsOp, f64::abs, |x, v: f64| if x >= 0.0 { v } else { -v });
+
+/* ---- node: UnExpr (unary) ---------------------------------------- */
 
 #[derive(Clone)]
 pub struct UnExpr<A, O> {
@@ -412,10 +521,10 @@ pub struct UnExpr<A, O> {
     val: f64,
     _ph: std::marker::PhantomData<O>,
 }
-
 impl<A: Expr, O: UnOp> UnExpr<A, O> {
+    #[inline]
     fn new(a: A) -> Self {
-        let val = O::eval(a.value());
+        let val = O::eval(a.inner_value());
         Self {
             a,
             val,
@@ -423,23 +532,22 @@ impl<A: Expr, O: UnOp> UnExpr<A, O> {
         }
     }
 }
-
 impl<A: Expr, O: UnOp + Clone> Expr for UnExpr<A, O> {
-    fn value(&self) -> f64 {
+    #[inline]
+    fn inner_value(&self) -> f64 {
         self.val
     }
-
     fn push_adj(&self, parent: &mut Node, adj: f64) {
         self.a
-            .push_adj(parent, adj * O::deriv(self.a.value(), self.val));
+            .push_adj(parent, adj * O::deriv(self.a.inner_value(), self.val));
     }
 }
 
-/* ══════════════  OPERATOR OVERLOADS (coherence-safe)  ═══════════════ */
+/* ═══════════════  ARITHMETIC OPERATOR OVERLOADS  ═══════════════════ */
 
 macro_rules! impl_bin_ops_local {
     ($Self:ty) => {
-        /* Add */
+        /* Add ------------------------------------------------------- */
         impl<Rhs> Add<Rhs> for $Self
         where
             Rhs: Expr + Clone,
@@ -459,7 +567,8 @@ macro_rules! impl_bin_ops_local {
                 BinExpr::new(self, Const(rhs))
             }
         }
-        /* Sub */
+
+        /* Sub ------------------------------------------------------- */
         impl<Rhs> Sub<Rhs> for $Self
         where
             Rhs: Expr + Clone,
@@ -479,7 +588,8 @@ macro_rules! impl_bin_ops_local {
                 BinExpr::new(self, Const(rhs))
             }
         }
-        /* Mul */
+
+        /* Mul ------------------------------------------------------- */
         impl<Rhs> Mul<Rhs> for $Self
         where
             Rhs: Expr + Clone,
@@ -499,7 +609,8 @@ macro_rules! impl_bin_ops_local {
                 BinExpr::new(self, Const(rhs))
             }
         }
-        /* Div */
+
+        /* Div ------------------------------------------------------- */
         impl<Rhs> Div<Rhs> for $Self
         where
             Rhs: Expr + Clone,
@@ -519,7 +630,8 @@ macro_rules! impl_bin_ops_local {
                 BinExpr::new(self, Const(rhs))
             }
         }
-        /* Neg */
+
+        /* Neg ------------------------------------------------------- */
         impl Neg for $Self
         where
             Self: Expr + Clone,
@@ -532,184 +644,114 @@ macro_rules! impl_bin_ops_local {
     };
 }
 
-/* apply the macro to every local expression kind */
+/* apply to both leaf types */
 impl_bin_ops_local!(ADNumber);
 impl_bin_ops_local!(Const);
 
-/* Manual implementations for generic types to avoid macro expansion issues */
-impl<L, R, O, Rhs> Add<Rhs> for BinExpr<L, R, O>
-where
-    Rhs: Expr + Clone,
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Rhs, AddOp>;
-    fn add(self, rhs: Rhs) -> Self::Output {
-        BinExpr::new(self, rhs)
-    }
-}
-impl<L, R, O> Add<f64> for BinExpr<L, R, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Const, AddOp>;
-    fn add(self, rhs: f64) -> Self::Output {
-        BinExpr::new(self, Const(rhs))
-    }
-}
-impl<L, R, O, Rhs> Sub<Rhs> for BinExpr<L, R, O>
-where
-    Rhs: Expr + Clone,
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Rhs, SubOp>;
-    fn sub(self, rhs: Rhs) -> Self::Output {
-        BinExpr::new(self, rhs)
-    }
-}
-impl<L, R, O> Sub<f64> for BinExpr<L, R, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Const, SubOp>;
-    fn sub(self, rhs: f64) -> Self::Output {
-        BinExpr::new(self, Const(rhs))
-    }
-}
-impl<L, R, O, Rhs> Mul<Rhs> for BinExpr<L, R, O>
-where
-    Rhs: Expr + Clone,
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Rhs, MulOp>;
-    fn mul(self, rhs: Rhs) -> Self::Output {
-        BinExpr::new(self, rhs)
-    }
-}
-impl<L, R, O> Mul<f64> for BinExpr<L, R, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Const, MulOp>;
-    fn mul(self, rhs: f64) -> Self::Output {
-        BinExpr::new(self, Const(rhs))
-    }
-}
-impl<L, R, O, Rhs> Div<Rhs> for BinExpr<L, R, O>
-where
-    Rhs: Expr + Clone,
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Rhs, DivOp>;
-    fn div(self, rhs: Rhs) -> Self::Output {
-        BinExpr::new(self, rhs)
-    }
-}
-impl<L, R, O> Div<f64> for BinExpr<L, R, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Const, DivOp>;
-    fn div(self, rhs: f64) -> Self::Output {
-        BinExpr::new(self, Const(rhs))
-    }
-}
-impl<L, R, O> Neg for BinExpr<L, R, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Const, Self, SubOp>;
-    fn neg(self) -> Self::Output {
-        BinExpr::new(Const(0.0), self)
-    }
+/* ---- generic overloads for BinExpr -------------------------------- */
+
+macro_rules! impl_bin_ops_expr {
+    ($Expr:ident) => {
+        /* Add ------------------------------------------------------- */
+        impl<L, R, O, Rhs> Add<Rhs> for $Expr<L, R, O>
+        where
+            Rhs: Expr + Clone,
+            Self: Expr + Clone,
+        {
+            type Output = BinExpr<Self, Rhs, AddOp>;
+            fn add(self, rhs: Rhs) -> Self::Output {
+                BinExpr::new(self, rhs)
+            }
+        }
+        impl<L, R, O> Add<f64> for $Expr<L, R, O>
+        where
+            Self: Expr + Clone,
+        {
+            type Output = BinExpr<Self, Const, AddOp>;
+            fn add(self, rhs: f64) -> Self::Output {
+                BinExpr::new(self, Const(rhs))
+            }
+        }
+
+        /* Sub ------------------------------------------------------- */
+        impl<L, R, O, Rhs> Sub<Rhs> for $Expr<L, R, O>
+        where
+            Rhs: Expr + Clone,
+            Self: Expr + Clone,
+        {
+            type Output = BinExpr<Self, Rhs, SubOp>;
+            fn sub(self, rhs: Rhs) -> Self::Output {
+                BinExpr::new(self, rhs)
+            }
+        }
+        impl<L, R, O> Sub<f64> for $Expr<L, R, O>
+        where
+            Self: Expr + Clone,
+        {
+            type Output = BinExpr<Self, Const, SubOp>;
+            fn sub(self, rhs: f64) -> Self::Output {
+                BinExpr::new(self, Const(rhs))
+            }
+        }
+
+        /* Mul ------------------------------------------------------- */
+        impl<L, R, O, Rhs> Mul<Rhs> for $Expr<L, R, O>
+        where
+            Rhs: Expr + Clone,
+            Self: Expr + Clone,
+        {
+            type Output = BinExpr<Self, Rhs, MulOp>;
+            fn mul(self, rhs: Rhs) -> Self::Output {
+                BinExpr::new(self, rhs)
+            }
+        }
+        impl<L, R, O> Mul<f64> for $Expr<L, R, O>
+        where
+            Self: Expr + Clone,
+        {
+            type Output = BinExpr<Self, Const, MulOp>;
+            fn mul(self, rhs: f64) -> Self::Output {
+                BinExpr::new(self, Const(rhs))
+            }
+        }
+
+        /* Div ------------------------------------------------------- */
+        impl<L, R, O, Rhs> Div<Rhs> for $Expr<L, R, O>
+        where
+            Rhs: Expr + Clone,
+            Self: Expr + Clone,
+        {
+            type Output = BinExpr<Self, Rhs, DivOp>;
+            fn div(self, rhs: Rhs) -> Self::Output {
+                BinExpr::new(self, rhs)
+            }
+        }
+        impl<L, R, O> Div<f64> for $Expr<L, R, O>
+        where
+            Self: Expr + Clone,
+        {
+            type Output = BinExpr<Self, Const, DivOp>;
+            fn div(self, rhs: f64) -> Self::Output {
+                BinExpr::new(self, Const(rhs))
+            }
+        }
+
+        /* Neg ------------------------------------------------------- */
+        impl<L, R, O> Neg for $Expr<L, R, O>
+        where
+            Self: Expr + Clone,
+        {
+            type Output = BinExpr<Const, Self, SubOp>;
+            fn neg(self) -> Self::Output {
+                BinExpr::new(Const(0.0), self)
+            }
+        }
+    };
 }
 
-impl<A, O, Rhs> Add<Rhs> for UnExpr<A, O>
-where
-    Rhs: Expr + Clone,
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Rhs, AddOp>;
-    fn add(self, rhs: Rhs) -> Self::Output {
-        BinExpr::new(self, rhs)
-    }
-}
-impl<A, O> Add<f64> for UnExpr<A, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Const, AddOp>;
-    fn add(self, rhs: f64) -> Self::Output {
-        BinExpr::new(self, Const(rhs))
-    }
-}
-impl<A, O, Rhs> Sub<Rhs> for UnExpr<A, O>
-where
-    Rhs: Expr + Clone,
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Rhs, SubOp>;
-    fn sub(self, rhs: Rhs) -> Self::Output {
-        BinExpr::new(self, rhs)
-    }
-}
-impl<A, O> Sub<f64> for UnExpr<A, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Const, SubOp>;
-    fn sub(self, rhs: f64) -> Self::Output {
-        BinExpr::new(self, Const(rhs))
-    }
-}
-impl<A, O, Rhs> Mul<Rhs> for UnExpr<A, O>
-where
-    Rhs: Expr + Clone,
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Rhs, MulOp>;
-    fn mul(self, rhs: Rhs) -> Self::Output {
-        BinExpr::new(self, rhs)
-    }
-}
-impl<A, O> Mul<f64> for UnExpr<A, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Const, MulOp>;
-    fn mul(self, rhs: f64) -> Self::Output {
-        BinExpr::new(self, Const(rhs))
-    }
-}
-impl<A, O, Rhs> Div<Rhs> for UnExpr<A, O>
-where
-    Rhs: Expr + Clone,
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Rhs, DivOp>;
-    fn div(self, rhs: Rhs) -> Self::Output {
-        BinExpr::new(self, rhs)
-    }
-}
-impl<A, O> Div<f64> for UnExpr<A, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Self, Const, DivOp>;
-    fn div(self, rhs: f64) -> Self::Output {
-        BinExpr::new(self, Const(rhs))
-    }
-}
-impl<A, O> Neg for UnExpr<A, O>
-where
-    Self: Expr + Clone,
-{
-    type Output = BinExpr<Const, Self, SubOp>;
-    fn neg(self) -> Self::Output {
-        BinExpr::new(Const(0.0), self)
-    }
-}
+impl_bin_ops_expr!(BinExpr);
 
-/* ----  assignment variants only for ADNumber  ------------------------- */
+/* ---- ADNumber assignment variants -------------------------------- */
 
 macro_rules! impl_assign {
     ($Trait:ident, $func:ident, $Op:ident, $sym:tt) => {
@@ -734,7 +776,89 @@ impl_assign!(SubAssign, sub_assign, SubOp, -);
 impl_assign!(MulAssign, mul_assign, MulOp, *);
 impl_assign!(DivAssign, div_assign, DivOp, /);
 
-/* ════════════════  PUBLIC MATH HELPERS (free fns)  ══════════════════ */
+/* ═════════════  COMPARISON TRAITS (value based)  ═══════════════════ */
+
+/* UnExpr ≷ UnExpr & f64 */
+impl<A, O> PartialEq for UnExpr<A, O>
+where
+    A: Expr,
+    O: UnOp + Clone,
+{
+    fn eq(&self, rhs: &Self) -> bool {
+        self.inner_value() == rhs.inner_value()
+    }
+}
+impl<A, O> PartialOrd for UnExpr<A, O>
+where
+    A: Expr,
+    O: UnOp + Clone,
+{
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        self.inner_value().partial_cmp(&rhs.inner_value())
+    }
+}
+impl<A, O> PartialEq<f64> for UnExpr<A, O>
+where
+    A: Expr,
+    O: UnOp + Clone,
+{
+    fn eq(&self, rhs: &f64) -> bool {
+        self.inner_value() == *rhs
+    }
+}
+impl<A, O> PartialOrd<f64> for UnExpr<A, O>
+where
+    A: Expr,
+    O: UnOp + Clone,
+{
+    fn partial_cmp(&self, rhs: &f64) -> Option<Ordering> {
+        self.inner_value().partial_cmp(rhs)
+    }
+}
+
+/* BinExpr ≷ BinExpr & f64 */
+impl<L, R, O> PartialEq for BinExpr<L, R, O>
+where
+    L: Expr,
+    R: Expr,
+    O: BinOp + Clone,
+{
+    fn eq(&self, rhs: &Self) -> bool {
+        self.inner_value() == rhs.inner_value()
+    }
+}
+impl<L, R, O> PartialOrd for BinExpr<L, R, O>
+where
+    L: Expr,
+    R: Expr,
+    O: BinOp + Clone,
+{
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        self.inner_value().partial_cmp(&rhs.inner_value())
+    }
+}
+impl<L, R, O> PartialEq<f64> for BinExpr<L, R, O>
+where
+    L: Expr,
+    R: Expr,
+    O: BinOp + Clone,
+{
+    fn eq(&self, rhs: &f64) -> bool {
+        self.inner_value() == *rhs
+    }
+}
+impl<L, R, O> PartialOrd<f64> for BinExpr<L, R, O>
+where
+    L: Expr,
+    R: Expr,
+    O: BinOp + Clone,
+{
+    fn partial_cmp(&self, rhs: &f64) -> Option<Ordering> {
+        self.inner_value().partial_cmp(rhs)
+    }
+}
+
+/* ═══════════════  PUBLIC MATH HELPERS (free fns)  ═════════════════ */
 
 #[inline]
 pub fn exp<A: Expr + Clone>(a: A) -> UnExpr<A, ExpOp> {
@@ -752,14 +876,18 @@ pub fn sqrt<A: Expr + Clone>(a: A) -> UnExpr<A, SqrtOp> {
 pub fn fabs<A: Expr + Clone>(a: A) -> UnExpr<A, FabsOp> {
     UnExpr::new(a)
 }
-// #[inline]
-// pub fn normal_dens<A: Expr + Clone>(a: A) -> UnExpr<A, NormDensOp> {
-//     UnExpr::new(a)
-// }
-// #[inline]
-// pub fn normal_cdf<A: Expr + Clone>(a: A) -> UnExpr<A, NormCdfOp> {
-//     UnExpr::new(a)
-// }
+#[inline]
+pub fn sin<A: Expr + Clone>(a: A) -> UnExpr<A, SinOp> {
+    UnExpr::new(a)
+}
+#[inline]
+pub fn cos<A: Expr + Clone>(a: A) -> UnExpr<A, CosOp> {
+    UnExpr::new(a)
+}
+#[inline]
+pub fn abs<A: Expr + Clone>(a: A) -> UnExpr<A, AbsOp> {
+    UnExpr::new(a)
+}
 
 #[inline]
 pub fn pow<L: Expr + Clone, R: Expr + Clone>(l: L, r: R) -> BinExpr<L, R, PowOp> {
@@ -774,18 +902,19 @@ pub fn min<L: Expr + Clone, R: Expr + Clone>(l: L, r: R) -> BinExpr<L, R, MinOp>
     BinExpr::new(l, r)
 }
 
-/* ════════════════  FLATTEN AN EXPRESSION TO A ADNumber  ═══════════════ */
+/* ═══════  FLATTEN ANY EXPRESSION INTO A TAPE NODE (ADNumber)  ═════ */
 
-/// “Flatten” an arbitrary expression into a concrete `ADNumber` node on the tape
 fn flatten<E: Expr + Clone>(e: &E) -> ADNumber {
     let mut node = Node::default();
     e.push_adj(&mut node, 1.0);
     let idx = TAPE.with(|t| t.borrow_mut().record(node));
     ADNumber {
-        val: e.value(),
+        val: e.inner_value(),
         idx,
     }
 }
+
+/* ---- From conversions into ADNumber ------------------------------ */
 
 impl<L, R, O> From<BinExpr<L, R, O>> for ADNumber
 where
@@ -793,23 +922,19 @@ where
     R: Expr + Clone,
     O: BinOp + Clone,
 {
-    fn from(expr: BinExpr<L, R, O>) -> Self {
-        // `flatten` does the real work
-        flatten(&expr)
+    fn from(e: BinExpr<L, R, O>) -> Self {
+        flatten(&e)
     }
 }
-
-// ── Unary expressions ────────────────────────────────────────────────
 impl<A, O> From<UnExpr<A, O>> for ADNumber
 where
     A: Expr + Clone,
     O: UnOp + Clone,
 {
-    fn from(expr: UnExpr<A, O>) -> Self {
-        flatten(&expr)
+    fn from(e: UnExpr<A, O>) -> Self {
+        flatten(&e)
     }
 }
-
 impl From<f64> for ADNumber {
     fn from(v: f64) -> Self {
         ADNumber::new(v)
@@ -826,29 +951,179 @@ impl From<i32> for ADNumber {
     }
 }
 
+/* ═════════════  OPTIONAL METHOD-STYLE EXTENSIONS  ═════════════════ */
+
+pub trait FloatExt: Expr + Clone + Sized {
+    #[inline]
+    fn exp(self) -> UnExpr<Self, ExpOp> {
+        UnExpr::new(self)
+    }
+    #[inline]
+    fn ln(self) -> UnExpr<Self, LogOp> {
+        UnExpr::new(self)
+    }
+    #[inline]
+    fn sin(self) -> UnExpr<Self, SinOp> {
+        UnExpr::new(self)
+    }
+    #[inline]
+    fn cos(self) -> UnExpr<Self, CosOp> {
+        UnExpr::new(self)
+    }
+    #[inline]
+    fn abs(self) -> UnExpr<Self, AbsOp> {
+        UnExpr::new(self)
+    }
+
+    #[inline]
+    fn powf(self, p: f64) -> BinExpr<Self, Const, PowOp> {
+        BinExpr::new(self, Const(p))
+    }
+
+    #[inline]
+    fn sqrt(self) -> UnExpr<Self, SqrtOp> {
+        UnExpr::new(self)
+    }
+
+    /// Raise `self` to an **expression** power ( x.pow_expr(y) )
+    #[inline]
+    fn pow_expr<R: Expr + Clone>(self, p: R) -> BinExpr<Self, R, PowOp> {
+        BinExpr::new(self, p)
+    }
+}
+impl<T: Expr + Clone> FloatExt for T {}
+
+/* ─────────────────  ARITHMETIC FOR UnExpr  ─────────────────────── */
+impl<A, O, Rhs> Add<Rhs> for UnExpr<A, O>
+where
+    Rhs: Expr + Clone,
+    Self: Expr + Clone,
+{
+    type Output = BinExpr<Self, Rhs, AddOp>;
+    fn add(self, rhs: Rhs) -> Self::Output {
+        BinExpr::new(self, rhs)
+    }
+}
+impl<A, O> Add<f64> for UnExpr<A, O>
+where
+    Self: Expr + Clone,
+{
+    type Output = BinExpr<Self, Const, AddOp>;
+    fn add(self, rhs: f64) -> Self::Output {
+        BinExpr::new(self, Const(rhs))
+    }
+}
+
+/* Sub */
+impl<A, O, Rhs> Sub<Rhs> for UnExpr<A, O>
+where
+    Rhs: Expr + Clone,
+    Self: Expr + Clone,
+{
+    type Output = BinExpr<Self, Rhs, SubOp>;
+    fn sub(self, rhs: Rhs) -> Self::Output {
+        BinExpr::new(self, rhs)
+    }
+}
+impl<A, O> Sub<f64> for UnExpr<A, O>
+where
+    Self: Expr + Clone,
+{
+    type Output = BinExpr<Self, Const, SubOp>;
+    fn sub(self, rhs: f64) -> Self::Output {
+        BinExpr::new(self, Const(rhs))
+    }
+}
+
+/* Mul */
+impl<A, O, Rhs> Mul<Rhs> for UnExpr<A, O>
+where
+    Rhs: Expr + Clone,
+    Self: Expr + Clone,
+{
+    type Output = BinExpr<Self, Rhs, MulOp>;
+    fn mul(self, rhs: Rhs) -> Self::Output {
+        BinExpr::new(self, rhs)
+    }
+}
+impl<A, O> Mul<f64> for UnExpr<A, O>
+where
+    Self: Expr + Clone,
+{
+    type Output = BinExpr<Self, Const, MulOp>;
+    fn mul(self, rhs: f64) -> Self::Output {
+        BinExpr::new(self, Const(rhs))
+    }
+}
+
+/* Div */
+impl<A, O, Rhs> Div<Rhs> for UnExpr<A, O>
+where
+    Rhs: Expr + Clone,
+    Self: Expr + Clone,
+{
+    type Output = BinExpr<Self, Rhs, DivOp>;
+    fn div(self, rhs: Rhs) -> Self::Output {
+        BinExpr::new(self, rhs)
+    }
+}
+impl<A, O> Div<f64> for UnExpr<A, O>
+where
+    Self: Expr + Clone,
+{
+    type Output = BinExpr<Self, Const, DivOp>;
+    fn div(self, rhs: f64) -> Self::Output {
+        BinExpr::new(self, Const(rhs))
+    }
+}
+
+/* Neg */
+impl<A, O> Neg for UnExpr<A, O>
+where
+    Self: Expr + Clone,
+{
+    type Output = BinExpr<Const, Self, SubOp>;
+    fn neg(self) -> Self::Output {
+        BinExpr::new(Const(0.0), self)
+    }
+}
+
+impl PartialEq<f64> for ADNumber {
+    #[inline]
+    fn eq(&self, rhs: &f64) -> bool {
+        self.value() == *rhs
+    }
+}
+
+impl PartialOrd<f64> for ADNumber {
+    #[inline]
+    fn partial_cmp(&self, rhs: &f64) -> Option<Ordering> {
+        self.value().partial_cmp(rhs)
+    }
+}
+
+/* ═════════════════════════  TESTS  ════════════════════════════════ */
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_flatten() {
-        let a = ADNumber::new(3.0);
-        let b = ADNumber::new(4.0);
-        let expr = a + b;
-        let result: ADNumber = expr.into();
-        assert_eq!(result.value(), 7.0);
-        assert_eq!(result.adjoint(), 0.0); // adjoint should be zero before propagation
+    fn compare_and_flatten() {
+        let x = ADNumber::new(5.0);
+        let y = abs(x - 2.0);
+        assert!(y > 2.0); // value-based comparison
+        let z: ADNumber = (y + 1.0).into();
+        assert_eq!(z.value(), 4.0);
     }
 
     #[test]
-    fn test_propagation() {
+    fn backprop_basic() {
         let a = ADNumber::new(3.0);
         let b = ADNumber::new(4.0);
-        let z = ADNumber::new(2.0);
-        let y = a * b + z.clone();
-        let x = y / z;
-        let result = flatten(&x);
-        result.propagate_to_start();
-        assert_eq!(result.adjoint(), 1.0); // adjoint should be 1 after propagation
+        let expr = (a * b).sin();
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 1.0);
     }
 }

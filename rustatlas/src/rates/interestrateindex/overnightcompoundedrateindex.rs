@@ -24,7 +24,7 @@ pub fn calculate_overnight_index(
         .day_counter()
         .year_fraction(start_date, end_date);
     let new_index = (rate * year_fraction + 1.0) * index;
-    return new_index;
+    new_index.into()
 }
 
 pub fn compose_fixing_rate(
@@ -36,7 +36,7 @@ pub fn compose_fixing_rate(
 
     let mut fixing_index = HashMap::new();
 
-    let mut index = 1000.0;
+    let mut index = 1000.0.into();
     fixing_index.insert(fixings_rates[0].0, index);
 
     for i in 1..fixings_rates.len() {
@@ -47,7 +47,7 @@ pub fn compose_fixing_rate(
         fixing_index.insert(date, new_index);
         index = new_index;
     }
-    return fixing_index;
+    fixing_index.into()
 }
 
 impl OvernightCompoundedRateIndex {
@@ -204,7 +204,7 @@ mod tests {
     fn test_with_fixings() {
         let date = Date::new(2021, 1, 1);
         let mut fixings = HashMap::new();
-        fixings.insert(Date::new(2021, 1, 1), 0.02);
+        fixings.insert(Date::new(2021, 1, 1), 0.02.into());
         let overnight_index =
             OvernightCompoundedRateIndex::new(date).with_fixings_rates(fixings.clone());
         assert_eq!(*overnight_index.fixings_rates(), fixings);
@@ -215,12 +215,12 @@ mod tests {
         let date = Date::new(2021, 1, 1);
         let mut fixings = HashMap::new();
 
-        fixings.insert(Date::new(2021, 1, 1), 0.02);
-        fixings.insert(Date::new(2021, 1, 2), 0.025);
-        fixings.insert(Date::new(2021, 1, 3), 0.03);
-        fixings.insert(Date::new(2021, 1, 4), 0.035);
-        fixings.insert(Date::new(2021, 1, 5), 0.04);
-        fixings.insert(Date::new(2021, 1, 6), 0.045);
+        fixings.insert(Date::new(2021, 1, 1), 0.02.into());
+        fixings.insert(Date::new(2021, 1, 2), 0.025.into());
+        fixings.insert(Date::new(2021, 1, 3), 0.03.into());
+        fixings.insert(Date::new(2021, 1, 4), 0.035.into());
+        fixings.insert(Date::new(2021, 1, 5), 0.04.into());
+        fixings.insert(Date::new(2021, 1, 6), 0.045.into());
 
         let overnight_index =
             OvernightCompoundedRateIndex::new(date).with_fixings_rates(fixings.clone());
@@ -235,12 +235,12 @@ mod tests {
         let date = Date::new(2021, 1, 1);
         let mut fixings = HashMap::new();
 
-        fixings.insert(Date::new(2021, 1, 2), 0.025);
-        fixings.insert(Date::new(2021, 1, 3), 0.03);
-        fixings.insert(Date::new(2021, 1, 5), 0.04);
-        fixings.insert(Date::new(2021, 1, 6), 0.045);
-        fixings.insert(Date::new(2021, 1, 1), 0.02);
-        fixings.insert(Date::new(2021, 1, 4), 0.035);
+        fixings.insert(Date::new(2021, 1, 2), 0.025.into());
+        fixings.insert(Date::new(2021, 1, 3), 0.03.into());
+        fixings.insert(Date::new(2021, 1, 5), 0.04.into());
+        fixings.insert(Date::new(2021, 1, 6), 0.045.into());
+        fixings.insert(Date::new(2021, 1, 1), 0.02.into());
+        fixings.insert(Date::new(2021, 1, 4), 0.035.into());
 
         let overnight_index =
             OvernightCompoundedRateIndex::new(date).with_fixings_rates(fixings.clone());
@@ -254,7 +254,7 @@ mod tests {
     fn test_fixing() -> Result<()> {
         let date = Date::new(2021, 1, 1);
         let mut fixings = HashMap::new();
-        fixings.insert(Date::new(2021, 1, 1), 0.02);
+        fixings.insert(Date::new(2021, 1, 1), 0.02.into());
         let overnight_index =
             OvernightCompoundedRateIndex::new(date).with_fixings_rates(fixings.clone());
 
@@ -268,23 +268,23 @@ mod tests {
         let mut fixings = HashMap::new();
         let ref_date = Date::new(2021, 1, 1);
 
-        fixings.insert(ref_date, 1.5);
+        fixings.insert(ref_date, 1.5.into());
         let overnight_index = OvernightCompoundedRateIndex::new(date)
             .with_fixings_rates(fixings.clone())
             .with_term_structure(Arc::new(FlatForwardTermStructure::new(
                 ref_date,
-                0.2,
+                0.2.into(),
                 RateDefinition::default(),
             )));
 
         assert_eq!(overnight_index.reference_date(), ref_date);
 
         let next_date_2 = Date::new(2021, 1, 3);
-        fixings.insert(next_date_2, 1.5);
+        fixings.insert(next_date_2, 1.5.into());
         let overnight_index = OvernightCompoundedRateIndex::new(next_date_2)
             .with_term_structure(Arc::new(FlatForwardTermStructure::new(
                 next_date_2,
-                0.2,
+                0.2.into(),
                 RateDefinition::default(),
             )))
             .with_fixings_rates(fixings.clone());
@@ -294,11 +294,13 @@ mod tests {
 
     #[test]
     fn test_fixing_provider_overnight() -> Result<()> {
-        let fixing: HashMap<Date, f64> =
-            [(Date::new(2023, 6, 2), 2.5), (Date::new(2023, 6, 5), 3.0)]
-                .iter()
-                .cloned()
-                .collect();
+        let fixing: HashMap<Date, NumericType> = [
+            (Date::new(2023, 6, 2), 2.5.into()),
+            (Date::new(2023, 6, 5), 3.0.into()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
 
         let mut overnight_index =
             OvernightCompoundedRateIndex::new(Date::new(2023, 6, 5)).with_fixings_rates(fixing);
@@ -310,8 +312,9 @@ mod tests {
                 .fixings()
                 .get(&Date::new(2023, 6, 3))
                 .unwrap()
-                - 1006.944444)
-                .abs()
+                .clone()
+                - NumericType::from(1006.944444))
+            .abs()
                 < 0.001
         );
         Ok(())

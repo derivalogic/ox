@@ -262,18 +262,23 @@ mod tests {
 
     #[test]
     fn test_fixing_interpolation_ibor() -> Result<()> {
-        let fixing: HashMap<Date, f64> = [
-            (Date::new(2023, 6, 1), 21938.71),
-            (Date::new(2023, 6, 2), 21945.57),
-            (Date::new(2023, 6, 5), 21966.14),
-            (Date::new(2023, 6, 6), 21973.0),
+        let fixing: HashMap<Date, NumericType> = [
+            (Date::new(2023, 6, 1), NumericType::from(21938.71)),
+            (Date::new(2023, 6, 2), NumericType::from(21945.57)),
+            (Date::new(2023, 6, 5), NumericType::from(21966.14)),
+            (Date::new(2023, 6, 6), NumericType::from(21973.0)),
         ]
         .iter()
         .cloned()
         .collect();
         let mut ibor_index = IborIndex::new(Date::new(2023, 11, 6)).with_fixings(fixing);
         ibor_index.fill_missing_fixings(Interpolator::Linear);
-        assert!(ibor_index.fixings().get(&Date::new(2023, 6, 3)).unwrap() - 21952.4266666 < 0.001);
+        let fixing = ibor_index
+            .fixings()
+            .get(&Date::new(2023, 6, 3))
+            .unwrap()
+            .clone();
+        assert!((fixing - 21952.4266666).abs() < 0.001);
         Ok(())
     }
 
@@ -293,13 +298,13 @@ mod tests {
 
         let base_term_structure = Arc::new(FlatForwardTermStructure::new(
             ref_date,
-            0.05,
+            NumericType::from(0.05),
             RateDefinition::default(),
         ));
 
         let spread_term_structure = Arc::new(FlatForwardTermStructure::new(
             ref_date,
-            0.01,
+            NumericType::from(0.01),
             RateDefinition::default(),
         ));
 

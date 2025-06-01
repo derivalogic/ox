@@ -231,6 +231,6 @@ impl IndexStore {
         let first_df = first_curve.read_index()?.discount_factor(date)?;
         let second_df = second_curve.read_index()?.discount_factor(date)?;
 
-        Ok(second_df / first_df)
+        Ok((second_df / first_df).into())
     }
 }

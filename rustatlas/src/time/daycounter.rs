@@ -113,15 +113,15 @@ mod tests {
         let end = Date::new(2020, 1, 2);
 
         let year_fraction = DayCounter::Actual360.year_fraction(start, end);
-        assert_eq!(year_fraction, 1.0 / 360.0);
+        assert_eq!(year_fraction.value(), 1.0 / 360.0);
         let year_fraction = DayCounter::Actual365.year_fraction(start, end);
-        assert_eq!(year_fraction, 1.0 / 365.0);
+        assert_eq!(year_fraction.value(), 1.0 / 365.0);
         let year_fraction = DayCounter::Thirty360.year_fraction(start, end);
-        assert_eq!(year_fraction, 1.0 / 360.0);
+        assert_eq!(year_fraction.value(), 1.0 / 360.0);
         let year_fraction = DayCounter::Thirty360US.year_fraction(start, end);
-        assert_eq!(year_fraction, 1.0 / 360.0);
+        assert_eq!(year_fraction.value(), 1.0 / 360.0);
         let year_fraction = DayCounter::ActualActual.year_fraction(start, end);
-        assert_eq!(year_fraction, 1.0 / 366.0);
+        assert_eq!(year_fraction.value(), 1.0 / 366.0);
     }
 
     #[test]
@@ -130,15 +130,15 @@ mod tests {
         let end = Date::new(2020, 1, 2);
 
         let year_fraction = DayCounter::Actual360.year_fraction(end, start);
-        assert_eq!(year_fraction, -1.0 / 360.0);
+        assert_eq!(year_fraction.value(), -1.0 / 360.0);
         let year_fraction = DayCounter::Actual365.year_fraction(end, start);
-        assert_eq!(year_fraction, -1.0 / 365.0);
+        assert_eq!(year_fraction.value(), -1.0 / 365.0);
         let year_fraction = DayCounter::Thirty360.year_fraction(end, start);
-        assert_eq!(year_fraction, -1.0 / 360.0);
+        assert_eq!(year_fraction.value(), -1.0 / 360.0);
         let year_fraction = DayCounter::Thirty360US.year_fraction(end, start);
-        assert_eq!(year_fraction, -1.0 / 360.0);
+        assert_eq!(year_fraction.value(), -1.0 / 360.0);
         let year_fraction = DayCounter::ActualActual.year_fraction(end, start);
-        assert_eq!(year_fraction, -1.0 / 366.0);
+        assert_eq!(year_fraction.value(), -1.0 / 366.0);
     }
 
     #[test]

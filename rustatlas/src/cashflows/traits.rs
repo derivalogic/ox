@@ -70,7 +70,7 @@ mod tests {
     fn test_delta_accrued_amount_simple() {
         let notional = 10000.0;
         let rate = InterestRate::new(
-            0.05,
+            NumericType::new(0.05),
             Compounding::Simple,
             Frequency::Annual,
             DayCounter::Thirty360,
@@ -105,7 +105,7 @@ mod tests {
     fn test_delta_accrued_amount_compounded() {
         let notional = 10000.0;
         let rate = InterestRate::new(
-            0.05,
+            0.05.into(),
             Compounding::Compounded,
             Frequency::Annual,
             DayCounter::Thirty360,
