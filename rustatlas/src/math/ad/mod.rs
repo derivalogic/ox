@@ -1,5 +1,4 @@
 pub mod node;
-pub mod num;
-pub mod number;
-pub mod real;
+pub mod adnumber;
+pub mod genericnumber;
 pub mod tape;

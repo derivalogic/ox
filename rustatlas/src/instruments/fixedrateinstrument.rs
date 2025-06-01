@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::traits::Structure;
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 
 use crate::{
     cashflows::{

@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::math::ad::num::Real;
-
-use super::{linear::LinearInterpolator, loglinear::LogLinearInterpolator, traits::Interpolate};
+use crate::prelude::*;
 
 /// # Interpolator
 /// Enum that represents the type of interpolation.
@@ -24,7 +22,7 @@ pub enum Interpolator {
 }
 
 impl Interpolator {
-    pub fn interpolate<T: Real>(
+    pub fn interpolate<T: GenericNumber>(
         &self,
         x: T,
         x_: &Vec<T>,

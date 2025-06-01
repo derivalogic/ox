@@ -1,23 +1,6 @@
 use std::sync::Arc;
 
-use crate::math::ad::num::Real;
-use crate::{
-    math::interpolation::enums::Interpolator,
-    rates::{
-        enums::Compounding,
-        interestrate::InterestRate,
-        traits::{HasReferenceDate, YieldProvider},
-    },
-    time::{
-        date::Date,
-        daycounter::DayCounter,
-        enums::{Frequency, TimeUnit},
-        period::Period,
-    },
-    utils::errors::{AtlasError, Result},
-};
-
-use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
+use crate::prelude::*;
 
 /// # DiscountTermStructure
 /// A discount factors term structure.
@@ -63,7 +46,7 @@ use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 ///  ```
 
 #[derive(Clone)]
-pub struct DiscountTermStructure<T: Real> {
+pub struct DiscountTermStructure<T: GenericNumber> {
     reference_date: Date,
     dates: Vec<Date>,
     year_fractions: Vec<T>,
@@ -73,7 +56,7 @@ pub struct DiscountTermStructure<T: Real> {
     enable_extrapolation: bool,
 }
 
-impl<T: Real> DiscountTermStructure<T> {
+impl<T: GenericNumber> DiscountTermStructure<T> {
     pub fn new(
         dates: Vec<Date>,
         discount_factors: Vec<T>,
@@ -140,13 +123,13 @@ impl<T: Real> DiscountTermStructure<T> {
     }
 }
 
-impl<T: Real> HasReferenceDate for DiscountTermStructure<T> {
+impl<T: GenericNumber> HasReferenceDate for DiscountTermStructure<T> {
     fn reference_date(&self) -> Date {
         return self.reference_date;
     }
 }
 
-impl<T: Real> YieldProvider<T> for DiscountTermStructure<T> {
+impl<T: GenericNumber> YieldProvider<T> for DiscountTermStructure<T> {
     fn discount_factor(&self, date: Date) -> Result<T> {
         if date < self.reference_date() {
             return Err(AtlasError::InvalidValueErr(
@@ -188,7 +171,9 @@ impl<T: Real> YieldProvider<T> for DiscountTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for DiscountTermStructure
-impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for DiscountTermStructure<T> {
+impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
+    for DiscountTermStructure<T>
+{
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_dates: Vec<Date> = self
             .dates()
@@ -226,7 +211,10 @@ impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for Discount
     }
 }
 
-impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T> for DiscountTermStructure<T> {}
+impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
+    for DiscountTermStructure<T>
+{
+}
 
 #[cfg(test)]
 mod tests {

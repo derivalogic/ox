@@ -3,17 +3,7 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard},
 };
 
-use crate::math::ad::num::Real;
-use crate::{
-    currencies::enums::Currency,
-    time::{date::Date, enums::TimeUnit, period::Period},
-    utils::errors::{AtlasError, Result},
-};
-
-use super::{
-    interestrateindex::traits::InterestRateIndexTrait,
-    yieldtermstructure::traits::YieldTermStructureTrait,
-};
+use crate::prelude::*;
 
 /// # IndexStore
 /// A store for interest rate indices.
@@ -21,24 +11,24 @@ use super::{
 /// ## Parameters
 /// * `reference_date` - The reference date of the index store
 #[derive(Clone)]
-pub struct IndexStore<T: Real> {
+pub struct IndexStore<T: GenericNumber> {
     reference_date: Date,
     index_map: HashMap<usize, Arc<RwLock<dyn InterestRateIndexTrait<T>>>>,
     currency_curve: HashMap<Currency, usize>,
 }
 
-pub trait ReadIndex<T: Real> {
+pub trait ReadIndex<T: GenericNumber> {
     fn read_index(&self) -> Result<RwLockReadGuard<dyn InterestRateIndexTrait<T>>>;
 }
 
-impl<T: Real> ReadIndex<T> for Arc<RwLock<dyn InterestRateIndexTrait<T>>> {
+impl<T: GenericNumber> ReadIndex<T> for Arc<RwLock<dyn InterestRateIndexTrait<T>>> {
     fn read_index(&self) -> Result<RwLockReadGuard<dyn InterestRateIndexTrait<T>>> {
         self.read()
             .map_err(|_| AtlasError::InvalidValueErr("Could not read index".to_string()))
     }
 }
 
-impl<T: Real> IndexStore<T> {
+impl<T: GenericNumber> IndexStore<T> {
     pub fn new(reference_date: Date) -> IndexStore<T> {
         IndexStore {
             reference_date,

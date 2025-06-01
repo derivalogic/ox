@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use serde::{Deserialize, Serialize};
 
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 use crate::{
     core::{
         meta::MarketRequest,

@@ -1,7 +1,5 @@
-/// # Interpolation trait
-/// A trait that defines the interpolation of a function.
-use crate::math::ad::num::Real;
+use crate::prelude::*;
 
-pub trait Interpolate<T: Real> {
+pub trait Interpolate<T: GenericNumber> {
     fn interpolate(x: T, x_: &Vec<T>, y_: &Vec<T>, enable_extrapolation: bool) -> T;
 }

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 use crate::{
     cashflows::{
         cashflow::{Cashflow, CashflowType, Side},

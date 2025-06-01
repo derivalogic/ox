@@ -9,7 +9,7 @@ use crate::{
     utils::errors::{AtlasError, Result},
 };
 
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 /// # DayCounter
 /// Day count convention enum.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]

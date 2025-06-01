@@ -3,20 +3,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::math::ad::num::Real;
-use crate::{
-    math::interpolation::enums::Interpolator,
-    rates::{
-        traits::{HasReferenceDate, YieldProvider},
-        yieldtermstructure::traits::YieldTermStructureTrait,
-    },
-    time::{date::Date, enums::TimeUnit, period::Period},
-    utils::errors::Result,
-};
-
+use crate::prelude::*;
 /// # FixingProvider
 /// Implement this trait for a struct that provides fixing information.
-pub trait FixingProvider<T: Real> {
+pub trait FixingProvider<T: GenericNumber> {
     fn fixing(&self, date: Date) -> Result<T>;
     fn fixings(&self) -> &HashMap<Date, T>;
     fn add_fixing(&mut self, date: Date, rate: T);
@@ -78,7 +68,7 @@ pub trait FixingProvider<T: Real> {
 /// # AdvanceInterestRateIndexInTime
 /// Trait for advancing in time a given object. Returns a represation of the object
 /// as it would be after the given period/time.
-pub trait AdvanceInterestRateIndexInTime<T: Real> {
+pub trait AdvanceInterestRateIndexInTime<T: GenericNumber> {
     fn advance_to_period(
         &self,
         period: Period,
@@ -93,7 +83,7 @@ pub trait HasTenor {
 
 /// # HasTermStructure
 /// Implement this trait for a struct that holds a term structure.
-pub trait HasTermStructure<T: Real> {
+pub trait HasTermStructure<T: GenericNumber> {
     fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait<T>>>;
 }
 
@@ -105,7 +95,7 @@ pub trait HasName {
 
 /// # RelinkableTermStructure
 /// Allows to link a term structure to another.
-pub trait RelinkableTermStructure<T: Real> {
+pub trait RelinkableTermStructure<T: GenericNumber> {
     fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait<T>>);
 }
 
@@ -115,7 +105,7 @@ pub trait RelinkableTermStructure<T: Real> {
 /// The trait is required to be [`Send`] and [`Sync`] so that references to index
 /// objects can be safely shared across threads during parallel Monte-Carlo
 /// simulations.
-pub trait InterestRateIndexTrait<T: Real>:
+pub trait InterestRateIndexTrait<T: GenericNumber>:
     FixingProvider<T>
     + YieldProvider<T>
     + HasReferenceDate

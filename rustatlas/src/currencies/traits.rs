@@ -1,9 +1,4 @@
-use crate::math::ad::num::Real;
-use crate::{
-    rates::indexstore::IndexStore,
-    time::{date::Date, period::Period},
-    utils::errors::Result,
-};
+use crate::prelude::*;
 
 use super::exchangeratestore::ExchangeRateStore;
 
@@ -21,7 +16,7 @@ pub trait CurrencyDetails {
 /// Trait for advancing an exchange rate store in time using de index store
 /// It is necessary for any currency, have free risk curve tabulated in the index store
 /// If the currency does not have a free risk curve, method advance_to_period and advance_to_date will mantain the same fx
-pub trait AdvanceExchangeRateStoreInTime<T: Real> {
+pub trait AdvanceExchangeRateStoreInTime<T: GenericNumber> {
     fn advance_to_period(
         &self,
         period: Period,

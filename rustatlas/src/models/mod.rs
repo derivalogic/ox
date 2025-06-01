@@ -1,6 +1,6 @@
 pub mod blackscholes;
 pub mod deterministicmodel;
-pub mod stochasticvol;
-pub mod montecarlomodel;
+pub mod model;
 pub mod simplemodel;
-pub mod traits;
+pub mod stochasticmodel;
+pub mod stochasticvol;

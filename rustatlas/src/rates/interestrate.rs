@@ -1,12 +1,13 @@
+use crate::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::math::ad::num::Real;
-use crate::{
-    time::{date::Date, daycounter::DayCounter, enums::Frequency},
-    utils::errors::{AtlasError, Result},
-};
+// use crate::math::ad::num::GenericNumber;
+// use crate::{
+//     time::{date::Date, daycounter::DayCounter, enums::Frequency},
+//     utils::errors::{AtlasError, Result},
+// };
 
-use super::enums::Compounding;
+// use super::enums::Compounding;
 
 /// # RateDefinition
 /// Struct that defines a rate.
@@ -87,12 +88,12 @@ impl Default for RateDefinition {
 /// assert_eq!(rate.rate().value(), 0.05);
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-pub struct InterestRate<T: Real = f64> {
+pub struct InterestRate<T: GenericNumber = f64> {
     rate: T,
     rate_definition: RateDefinition,
 }
 
-impl<T: Real> InterestRate<T> {
+impl<T: GenericNumber> InterestRate<T> {
     pub fn new(
         rate: T,
         compounding: Compounding,
@@ -234,17 +235,7 @@ impl<T: Real> InterestRate<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        math::ad::{
-            num::Real,
-            real::{backward, reset_tape, Var},
-        },
-        rates::{
-            enums::Compounding,
-            interestrate::{InterestRate, RateDefinition},
-        },
-        time::{daycounter::DayCounter, enums::Frequency},
-    };
+    use crate::prelude::*;
 
     struct InterestRateData {
         rate: f64,
@@ -662,86 +653,5 @@ mod tests {
             1.0,
         );
         assert!(err.is_err());
-    }
-
-    #[test]
-    fn test_ad_compound_factor_simple() {
-        reset_tape();
-        let rate = Var::new(0.05);
-        let t = Var::new(2.0);
-        let ir = InterestRate::new(
-            rate,
-            Compounding::Simple,
-            Frequency::Annual,
-            DayCounter::Actual360,
-        );
-        let cf = ir.compound_factor_from_yf(t);
-        let grad = backward(&cf);
-
-        assert!((cf.value() - 1.1).abs() < 1e-12);
-        assert!((grad[rate.id()] - 2.0).abs() < 1e-12);
-        assert!((grad[t.id()] - 0.05).abs() < 1e-12);
-    }
-
-    #[test]
-    fn test_ad_compound_factor_continuous() {
-        reset_tape();
-        let rate = Var::new(0.07);
-        let t = Var::new(1.5);
-        let ir = InterestRate::new(
-            rate,
-            Compounding::Continuous,
-            Frequency::Annual,
-            DayCounter::Actual360,
-        );
-        let cf = ir.compound_factor_from_yf(t);
-        let grad = backward(&cf);
-
-        let expected_cf = (rate.value() * t.value()).exp();
-        assert!((cf.value() - expected_cf).abs() < 1e-12);
-        assert!((grad[rate.id()] - t.value() * expected_cf).abs() < 1e-12);
-        assert!((grad[t.id()] - rate.value() * expected_cf).abs() < 1e-12);
-    }
-
-    #[test]
-    fn test_ad_discount_factor_simple_time() {
-        reset_tape();
-        let rate = Var::new(0.05);
-        let t = Var::new(3.0);
-        let ir = InterestRate::new(
-            rate,
-            Compounding::Simple,
-            Frequency::Annual,
-            DayCounter::Actual360,
-        );
-        let cf = ir.compound_factor_from_yf(t);
-        let df = <Var as Real>::div_from_const(1.0, cf);
-        let grad = backward(&df);
-
-        let expected_df = 1.0 / (1.0 + rate.value() * t.value());
-        assert!((df.value() - expected_df).abs() < 1e-12);
-        let expected_dt = -rate.value() / (1.0 + rate.value() * t.value()).powi(2);
-        assert!((grad[t.id()] - expected_dt).abs() < 1e-12);
-    }
-
-    #[test]
-    fn test_ad_discount_factor_continuous_time() {
-        reset_tape();
-        let rate = Var::new(0.07);
-        let t = Var::new(2.0);
-        let ir = InterestRate::new(
-            rate,
-            Compounding::Continuous,
-            Frequency::Annual,
-            DayCounter::Actual360,
-        );
-        let cf = ir.compound_factor_from_yf(t);
-        let df = <Var as Real>::div_from_const(1.0, cf);
-        let grad = backward(&df);
-
-        let expected_df = (-rate.value() * t.value()).exp();
-        assert!((df.value() - expected_df).abs() < 1e-12);
-        let expected_dt = -rate.value() * expected_df;
-        assert!((grad[t.id()] - expected_dt).abs() < 1e-12);
     }
 }

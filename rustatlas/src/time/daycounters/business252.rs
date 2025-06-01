@@ -1,6 +1,6 @@
 use super::traits::DayCountProvider;
 use crate::time::{calendar::Calendar, calendars::{brazil::Brazil, traits::ImplCalendar}, date::Date};
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 use crate::time::calendars::brazil::Market;
 
 

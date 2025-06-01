@@ -3,32 +3,12 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{
-    rates::{
-        enums::Compounding,
-        interestrate::{InterestRate, RateDefinition},
-        traits::{HasReferenceDate, YieldProvider},
-        yieldtermstructure::traits::YieldTermStructureTrait,
-    },
-    time::{
-        date::Date,
-        enums::{Frequency, TimeUnit},
-        period::Period,
-    },
-    utils::errors::{AtlasError, Result},
-};
-
-use crate::math::ad::num::Real;
-
-use super::traits::{
-    AdvanceInterestRateIndexInTime, FixingProvider, HasName, HasTenor, HasTermStructure,
-    InterestRateIndexTrait, RelinkableTermStructure,
-};
+use crate::prelude::*;
 
 /// # OvernightIndex
 /// Overnight index, used for overnight rates. Uses a price index (such as ICP) to calculate the overnight rates.
 #[derive(Clone)]
-pub struct OvernightIndex<T: Real> {
+pub struct OvernightIndex<T: GenericNumber> {
     name: Option<String>,
     fixings: HashMap<Date, T>,
     term_structure: Option<Arc<dyn YieldTermStructureTrait<T>>>,
@@ -37,7 +17,7 @@ pub struct OvernightIndex<T: Real> {
     reference_date: Date,
 }
 
-impl<T: Real> OvernightIndex<T> {
+impl<T: GenericNumber> OvernightIndex<T> {
     pub fn new(reference_date: Date) -> OvernightIndex<T> {
         OvernightIndex {
             name: None,
@@ -93,7 +73,7 @@ impl<T: Real> OvernightIndex<T> {
     }
 }
 
-impl<T: Real> FixingProvider<T> for OvernightIndex<T> {
+impl<T: GenericNumber> FixingProvider<T> for OvernightIndex<T> {
     fn fixing(&self, date: Date) -> Result<T> {
         self.fixings
             .get(&date)
@@ -113,19 +93,19 @@ impl<T: Real> FixingProvider<T> for OvernightIndex<T> {
     }
 }
 
-impl<T: Real> HasReferenceDate for OvernightIndex<T> {
+impl<T: GenericNumber> HasReferenceDate for OvernightIndex<T> {
     fn reference_date(&self) -> Date {
         self.reference_date
     }
 }
 
-impl<T: Real> HasTenor for OvernightIndex<T> {
+impl<T: GenericNumber> HasTenor for OvernightIndex<T> {
     fn tenor(&self) -> Period {
         self.tenor
     }
 }
 
-impl<T: Real> HasName for OvernightIndex<T> {
+impl<T: GenericNumber> HasName for OvernightIndex<T> {
     fn name(&self) -> Result<String> {
         self.name
             .clone()
@@ -133,7 +113,7 @@ impl<T: Real> HasName for OvernightIndex<T> {
     }
 }
 
-impl<T: Real> YieldProvider<T> for OvernightIndex<T> {
+impl<T: GenericNumber> YieldProvider<T> for OvernightIndex<T> {
     fn discount_factor(&self, date: Date) -> Result<T> {
         self.term_structure()?.discount_factor(date)
     }
@@ -184,7 +164,9 @@ impl<T: Real> YieldProvider<T> for OvernightIndex<T> {
     }
 }
 
-impl<T: Real + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T> for OvernightIndex<T> {
+impl<T: GenericNumber + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T>
+    for OvernightIndex<T>
+{
     fn advance_to_period(
         &self,
         period: Period,
@@ -238,7 +220,7 @@ impl<T: Real + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T> for Over
     }
 }
 
-impl<T: Real> HasTermStructure<T> for OvernightIndex<T> {
+impl<T: GenericNumber> HasTermStructure<T> for OvernightIndex<T> {
     fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         self.term_structure
             .clone()
@@ -248,13 +230,13 @@ impl<T: Real> HasTermStructure<T> for OvernightIndex<T> {
     }
 }
 
-impl<T: Real> RelinkableTermStructure<T> for OvernightIndex<T> {
+impl<T: GenericNumber> RelinkableTermStructure<T> for OvernightIndex<T> {
     fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait<T>>) {
         self.term_structure = Some(term_structure);
     }
 }
 
-impl<T: Real + Send + Sync + 'static> InterestRateIndexTrait<T> for OvernightIndex<T> {}
+impl<T: GenericNumber + Send + Sync + 'static> InterestRateIndexTrait<T> for OvernightIndex<T> {}
 
 #[cfg(test)]
 mod tests {

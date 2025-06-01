@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use super::traits::{HasCashflows, Visit};
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 use crate::{
     core::{meta::MarketRequest, traits::Registrable},
     utils::errors::Result,

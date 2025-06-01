@@ -1,17 +1,5 @@
+use crate::prelude::*;
 use std::sync::Arc;
-
-use crate::{
-    rates::{
-        enums::Compounding,
-        interestrate::{InterestRate, RateDefinition},
-        traits::{HasReferenceDate, YieldProvider},
-    },
-    time::{date::Date, enums::Frequency, period::Period},
-    utils::errors::{AtlasError, Result},
-};
-use crate::math::ad::num::Real;
-
-use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 
 /// # FlatForwardTermStructure
 /// Struct that defines a flat forward term structure.
@@ -37,12 +25,12 @@ use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 /// assert_eq!(ts.rate().rate().value(), 0.5);
 /// ```
 #[derive(Clone, Copy)]
-pub struct FlatForwardTermStructure<T: Real = f64> {
+pub struct FlatForwardTermStructure<T: GenericNumber = f64> {
     reference_date: Date,
     rate: InterestRate<T>,
 }
 
-impl<T: Real> FlatForwardTermStructure<T> {
+impl<T: GenericNumber> FlatForwardTermStructure<T> {
     pub fn new(
         reference_date: Date,
         rate: T,
@@ -68,13 +56,13 @@ impl<T: Real> FlatForwardTermStructure<T> {
     }
 }
 
-impl<T: Real> HasReferenceDate for FlatForwardTermStructure<T> {
+impl<T: GenericNumber> HasReferenceDate for FlatForwardTermStructure<T> {
     fn reference_date(&self) -> Date {
         return self.reference_date;
     }
 }
 
-impl<T: Real> YieldProvider<T> for FlatForwardTermStructure<T> {
+impl<T: GenericNumber> YieldProvider<T> for FlatForwardTermStructure<T> {
     fn discount_factor(&self, date: Date) -> Result<T> {
         if date < self.reference_date() {
             return Err(AtlasError::InvalidValueErr(format!(
@@ -102,7 +90,7 @@ impl<T: Real> YieldProvider<T> for FlatForwardTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for FlatForwardTermStructure
-impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T>
+impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
     for FlatForwardTermStructure<T>
 {
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
@@ -125,7 +113,10 @@ impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T>
     }
 }
 
-impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T> for FlatForwardTermStructure<T> {}
+impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
+    for FlatForwardTermStructure<T>
+{
+}
 
 #[cfg(test)]
 mod tests {

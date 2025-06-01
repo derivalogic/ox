@@ -17,11 +17,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use super::traits::{
-    AdvanceInterestRateIndexInTime, FixingProvider, HasName, HasTenor, HasTermStructure,
-    InterestRateIndexTrait, RelinkableTermStructure,
-};
-use crate::math::ad::num::Real;
+use crate::prelude::*;
 
 /// # IborIndex
 /// Struct that defines an Ibor index.
@@ -41,7 +37,7 @@ use crate::math::ad::num::Real;
 /// assert_eq!(ibor_index.rate_definition().day_counter(), DayCounter::Actual360);
 /// ```
 #[derive(Clone)]
-pub struct IborIndex<T: Real> {
+pub struct IborIndex<T: GenericNumber> {
     name: Option<String>,
     tenor: Period,
     rate_definition: RateDefinition,
@@ -50,7 +46,7 @@ pub struct IborIndex<T: Real> {
     reference_date: Date,
 }
 
-impl<T: Real> IborIndex<T> {
+impl<T: GenericNumber> IborIndex<T> {
     pub fn new(reference_date: Date) -> IborIndex<T> {
         IborIndex {
             name: None,
@@ -100,7 +96,7 @@ impl<T: Real> IborIndex<T> {
     }
 }
 
-impl<T: Real> FixingProvider<T> for IborIndex<T> {
+impl<T: GenericNumber> FixingProvider<T> for IborIndex<T> {
     fn fixing(&self, date: Date) -> Result<T> {
         self.fixings
             .get(&date)
@@ -123,19 +119,19 @@ impl<T: Real> FixingProvider<T> for IborIndex<T> {
     }
 }
 
-impl<T: Real> HasReferenceDate for IborIndex<T> {
+impl<T: GenericNumber> HasReferenceDate for IborIndex<T> {
     fn reference_date(&self) -> Date {
         self.reference_date
     }
 }
 
-impl<T: Real> HasTenor for IborIndex<T> {
+impl<T: GenericNumber> HasTenor for IborIndex<T> {
     fn tenor(&self) -> Period {
         self.tenor
     }
 }
 
-impl<T: Real> HasName for IborIndex<T> {
+impl<T: GenericNumber> HasName for IborIndex<T> {
     fn name(&self) -> Result<String> {
         self.name
             .clone()
@@ -143,7 +139,7 @@ impl<T: Real> HasName for IborIndex<T> {
     }
 }
 
-impl<T: Real> YieldProvider<T> for IborIndex<T> {
+impl<T: GenericNumber> YieldProvider<T> for IborIndex<T> {
     fn discount_factor(&self, date: Date) -> Result<T> {
         self.term_structure()?.discount_factor(date)
     }
@@ -171,7 +167,7 @@ impl<T: Real> YieldProvider<T> for IborIndex<T> {
     }
 }
 
-impl<T: Real> HasTermStructure<T> for IborIndex<T> {
+impl<T: GenericNumber> HasTermStructure<T> for IborIndex<T> {
     fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         self.term_structure
             .clone()
@@ -181,15 +177,15 @@ impl<T: Real> HasTermStructure<T> for IborIndex<T> {
     }
 }
 
-impl<T: Real> RelinkableTermStructure<T> for IborIndex<T> {
+impl<T: GenericNumber> RelinkableTermStructure<T> for IborIndex<T> {
     fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait<T>>) {
         self.term_structure = Some(term_structure);
     }
 }
 
-impl<T: Real + Send + Sync + 'static> InterestRateIndexTrait<T> for IborIndex<T> {}
+impl<T: GenericNumber + Send + Sync + 'static> InterestRateIndexTrait<T> for IborIndex<T> {}
 
-impl<T: Real + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T> for IborIndex<T> {
+impl<T: GenericNumber + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T> for IborIndex<T> {
     fn advance_to_period(
         &self,
         period: Period,

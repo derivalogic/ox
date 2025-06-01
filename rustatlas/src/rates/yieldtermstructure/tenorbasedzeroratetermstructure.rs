@@ -1,22 +1,5 @@
+use crate::prelude::*;
 use std::sync::Arc;
-
-use crate::math::ad::num::Real;
-use crate::{
-    math::interpolation::enums::Interpolator,
-    rates::{
-        enums::Compounding,
-        interestrate::{InterestRate, RateDefinition},
-        traits::{HasReferenceDate, YieldProvider},
-    },
-    time::{
-        date::Date,
-        enums::{Frequency, TimeUnit},
-        period::Period,
-    },
-    utils::errors::Result,
-};
-
-use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 
 /// # TenorBasedZeroRateTermStructure
 /// A term structure of zero rates based on tenors.
@@ -47,7 +30,7 @@ use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 /// assert_eq!(curve.reference_date(), reference_date);
 /// ```
 #[derive(Clone)]
-pub struct TenorBasedZeroRateTermStructure<T: Real> {
+pub struct TenorBasedZeroRateTermStructure<T: GenericNumber> {
     reference_date: Date,
     tenors: Vec<Period>,
     spreads: Vec<T>,
@@ -57,7 +40,7 @@ pub struct TenorBasedZeroRateTermStructure<T: Real> {
     enable_extrapolation: bool,
 }
 
-impl<T: Real> TenorBasedZeroRateTermStructure<T> {
+impl<T: GenericNumber> TenorBasedZeroRateTermStructure<T> {
     pub fn new(
         reference_date: Date,
         tenors: Vec<Period>,
@@ -96,13 +79,13 @@ impl<T: Real> TenorBasedZeroRateTermStructure<T> {
     }
 }
 
-impl<T: Real> HasReferenceDate for TenorBasedZeroRateTermStructure<T> {
+impl<T: GenericNumber> HasReferenceDate for TenorBasedZeroRateTermStructure<T> {
     fn reference_date(&self) -> Date {
         return self.reference_date;
     }
 }
 
-impl<T: Real> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
+impl<T: GenericNumber> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
     fn discount_factor(&self, date: Date) -> Result<T> {
         let year_fraction = self
             .rate_definition
@@ -145,7 +128,7 @@ impl<T: Real> YieldProvider<T> for TenorBasedZeroRateTermStructure<T> {
     }
 }
 
-impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T>
+impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
     for TenorBasedZeroRateTermStructure<T>
 {
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
@@ -167,7 +150,7 @@ impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T>
     }
 }
 
-impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T>
+impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
     for TenorBasedZeroRateTermStructure<T>
 {
 }

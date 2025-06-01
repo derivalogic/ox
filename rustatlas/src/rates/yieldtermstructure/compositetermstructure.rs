@@ -1,16 +1,6 @@
 use std::sync::Arc;
 
-use crate::math::ad::num::Real;
-use crate::{
-    rates::{
-        enums::Compounding,
-        traits::{HasReferenceDate, YieldProvider},
-    },
-    time::{date::Date, enums::Frequency, period::Period},
-    utils::errors::Result,
-};
-
-use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
+use crate::prelude::*;
 
 /// # CompositeTermStructure
 /// Struct that defines a term structure made with a combination of two curves. It's defined as:
@@ -40,13 +30,13 @@ use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 /// assert_eq!(spreaded_curve.reference_date(), ref_date);
 /// ```
 #[derive(Clone)]
-pub struct CompositeTermStructure<T: Real> {
+pub struct CompositeTermStructure<T: GenericNumber> {
     date_reference: Date, // reference_date
     spread_curve: Arc<dyn YieldTermStructureTrait<T>>,
     base_curve: Arc<dyn YieldTermStructureTrait<T>>,
 }
 
-impl<T: Real> CompositeTermStructure<T> {
+impl<T: GenericNumber> CompositeTermStructure<T> {
     pub fn new(
         spread_curve: Arc<dyn YieldTermStructureTrait<T>>,
         base_curve: Arc<dyn YieldTermStructureTrait<T>>,
@@ -67,13 +57,13 @@ impl<T: Real> CompositeTermStructure<T> {
     }
 }
 
-impl<T: Real> HasReferenceDate for CompositeTermStructure<T> {
+impl<T: GenericNumber> HasReferenceDate for CompositeTermStructure<T> {
     fn reference_date(&self) -> Date {
         return self.date_reference;
     }
 }
 
-impl<T: Real> YieldProvider<T> for CompositeTermStructure<T> {
+impl<T: GenericNumber> YieldProvider<T> for CompositeTermStructure<T> {
     fn discount_factor(&self, date: Date) -> Result<T> {
         let spread_discount_factor = self.spread_curve.discount_factor(date)?;
         let base_discount_factor = self.base_curve.discount_factor(date)?;
@@ -99,7 +89,9 @@ impl<T: Real> YieldProvider<T> for CompositeTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for CompositeTermStructure
-impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for CompositeTermStructure<T> {
+impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
+    for CompositeTermStructure<T>
+{
     fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let base = self.base_curve().advance_to_date(date)?;
         let spread = self.spread_curve().advance_to_date(date)?;
@@ -113,7 +105,10 @@ impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for Composit
     }
 }
 
-impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T> for CompositeTermStructure<T> {}
+impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
+    for CompositeTermStructure<T>
+{
+}
 
 #[cfg(test)]
 mod test {

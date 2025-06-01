@@ -5,7 +5,7 @@ use std::{
 
 use super::{enums::Currency, traits::AdvanceExchangeRateStoreInTime};
 
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 use crate::{
     rates::indexstore::IndexStore,
     time::{date::Date, period::Period},
@@ -23,6 +23,7 @@ use crate::{
 pub struct ExchangeRateStore<T: Real> {
     reference_date: Date,
     exchange_rate_map: HashMap<(Currency, Currency), T>,
+    volatility_map: HashMap<(Currency, Currency), T>,
     exchange_rate_cache: Arc<Mutex<HashMap<(Currency, Currency), T>>>,
 }
 
@@ -30,6 +31,7 @@ impl<T: Real> ExchangeRateStore<T> {
     pub fn new(date: Date) -> ExchangeRateStore<T> {
         ExchangeRateStore {
             reference_date: date,
+            volatility_map: HashMap::new(),
             exchange_rate_map: HashMap::new(),
             exchange_rate_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -49,6 +51,28 @@ impl<T: Real> ExchangeRateStore<T> {
 
     pub fn reference_date(&self) -> Date {
         self.reference_date
+    }
+
+    pub fn add_volatility(&mut self, currency1: Currency, currency2: Currency, volatility: T) {
+        self.volatility_map
+            .insert((currency1, currency2), volatility);
+    }
+
+    pub fn get_volatility(&self, currency1: Currency, currency2: Currency) -> Result<T> {
+        if let Some(vol) = self.volatility_map.get(&(currency1, currency2)) {
+            Ok(*vol)
+        } else if let Some(vol) = self.volatility_map.get(&(currency2, currency1)) {
+            Ok(*vol)
+        } else {
+            Err(AtlasError::NotFoundErr(format!(
+                "No volatility for pair {:?}/{:?}",
+                currency1, currency2
+            )))
+        }
+    }
+
+    pub fn get_volatility_map(&self) -> HashMap<(Currency, Currency), T> {
+        self.volatility_map.clone()
     }
 
     pub fn get_exchange_rate_map(&self) -> HashMap<(Currency, Currency), T> {
@@ -147,7 +171,7 @@ mod tests {
     use super::*;
     use crate::{
         currencies::enums::Currency::{CLP, EUR, USD},
-        math::ad::real::{backward, reset_tape, Var},
+        math::ad::genericnumber::{backward, reset_tape, Var},
     };
 
     #[test]
@@ -162,6 +186,7 @@ mod tests {
         let ref_date = Date::new(2021, 1, 1);
         let manager = ExchangeRateStore {
             reference_date: ref_date,
+            volatility_map: HashMap::new(),
             exchange_rate_map: {
                 let mut map = HashMap::new();
                 map.insert((USD, EUR), 0.85);
@@ -186,6 +211,7 @@ mod tests {
     fn test_nonexistent_rate() {
         let ref_date = Date::new(2021, 1, 1);
         let manager: ExchangeRateStore<f64> = ExchangeRateStore {
+            volatility_map: HashMap::new(),
             reference_date: ref_date,
             exchange_rate_map: HashMap::new(),
             exchange_rate_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -200,6 +226,7 @@ mod tests {
         let ref_date = Date::new(2021, 1, 1);
         let manager = ExchangeRateStore {
             reference_date: ref_date,
+            volatility_map: HashMap::new(),
             exchange_rate_map: {
                 let mut map = HashMap::new();
                 map.insert((USD, EUR), 0.85);

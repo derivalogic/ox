@@ -1,5 +1,5 @@
 use super::traits::{ConstVisit, HasCashflows};
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 use crate::{
     cashflows::traits::Payable,
     core::{meta::MarketData, traits::Registrable},

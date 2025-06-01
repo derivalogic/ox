@@ -12,10 +12,14 @@ pub use crate::{
         fixedrateinstrument::*, floatingrateinstrument::*, instrument::*,
         makefixedrateinstrument::*, makefloatingrateinstrument::*, traits::*,
     },
-    math::{
-        ad::real::*,
-        interpolation::{enums::*, linear::*, loglinear::*, traits::*},
-    },
+    math::ad::adnumber::*,
+    math::ad::genericnumber::*,
+    math::ad::node::*,
+    math::ad::tape::*,
+    math::interpolation::enums::*,
+    math::interpolation::linear::*,
+    math::interpolation::loglinear::*,
+    math::interpolation::traits::*,
     models::{blackscholes::*, simplemodel::*},
     rates::{
         enums::*,

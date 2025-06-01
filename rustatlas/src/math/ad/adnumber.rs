@@ -1,12 +1,10 @@
 //! aad.rs  ―  Expression-template reverse-mode AD in pure Rust
-//! Public API:  Number  +  free fns  exp, log, sqrt, fabs,
+//! Public API:  ADNumber  +  free fns  exp, log, sqrt, fabs,
 //! normal_dens, normal_cdf, pow, max, min  +  flatten/propagation helpers.
 
 #![allow(clippy::needless_return)]
 
-use super::node::Node;
-use crate::math::ad::tape::{propagate_all, propagate_range, TAPE};
-use std::f64::consts::FRAC_1_SQRT_2;
+use crate::prelude::*;
 use std::ops::*;
 /* ═════════════════════════  REVERSE-MODE TAPE  ═══════════════════════ */
 
@@ -17,15 +15,15 @@ pub trait Expr: Clone {
     fn push_adj(&self, parent: &mut Node, adj: f64);
 }
 
-/* ═══════════════════════  LEAF: NUMBER  ═════════════════════════════ */
+/* ═══════════════════════  LEAF: ADNumber  ═════════════════════════════ */
 
 #[derive(Clone)]
-pub struct Number {
+pub struct ADNumber {
     val: f64,
     idx: usize, // position on the tape
 }
 
-impl Number {
+impl ADNumber {
     pub fn new(v: f64) -> Self {
         let idx = TAPE.with(|t| t.borrow_mut().new_leaf());
         Self { val: v, idx }
@@ -74,7 +72,7 @@ impl Number {
     }
 }
 
-impl Expr for Number {
+impl Expr for ADNumber {
     fn value(&self) -> f64 {
         self.val
     }
@@ -198,6 +196,7 @@ impl BinOp for MaxOp {
 }
 
 pub struct MinOp;
+
 impl BinOp for MinOp {
     fn eval(l: f64, r: f64) -> f64 {
         l.min(r)
@@ -218,26 +217,32 @@ impl BinOp for MinOp {
     }
 }
 
+/* ═══════════════════════  CLONE OPERATORS  ══════════════════════════ */
+
 impl Clone for AddOp {
     fn clone(&self) -> Self {
         AddOp
     }
 }
+
 impl Clone for SubOp {
     fn clone(&self) -> Self {
         SubOp
     }
 }
+
 impl Clone for MulOp {
     fn clone(&self) -> Self {
         MulOp
     }
 }
+
 impl Clone for DivOp {
     fn clone(&self) -> Self {
         DivOp
     }
 }
+
 impl Clone for PowOp {
     fn clone(&self) -> Self {
         PowOp
@@ -310,30 +315,8 @@ un_op!(ExpOp, f64::exp, |_x, v| v);
 un_op!(LogOp, f64::ln, |x, _v| 1.0 / x);
 un_op!(SqrtOp, f64::sqrt, |_x, v| 0.5 / v);
 un_op!(FabsOp, f64::abs, |x, _v| if x >= 0.0 { 1.0 } else { -1.0 });
-// const INV_SQRT_2PI: f64 = 0.398_942_280_401_432_7;
-// /* fast erf (Abramowitz & Stegun 7.1.26) */
-// fn erf(x: f64) -> f64 {
-//     let t = 1.0 / (1.0 + 0.3275911 * x.abs());
-//     let tau = t
-//         * (0.254829592
-//             + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
-//     let res = 1.0 - tau * (-x * x).exp();
-//     if x >= 0.0 {
-//         res
-//     } else {
-//         -res
-//     }
-// }
-// un_op!(
-//     NormDensOp,
-//     |x| INV_SQRT_2PI * (-0.5 * x * x).exp(),
-//     |x, v| -x * v
-// );
-// un_op!(
-//     NormCdfOp,
-//     |x| 0.5 * (1.0 + erf(x * FRAC_1_SQRT_2)),
-//     |x, _v| INV_SQRT_2PI * (-0.5 * x * x).exp()
-// );
+un_op!(SinOp, f64::sin, |x, v| v * f64::cos(x));
+un_op!(CosOp, f64::cos, |x, v| -v * f64::sin(x));
 
 #[derive(Clone)]
 pub struct UnExpr<A, O> {
@@ -462,7 +445,7 @@ macro_rules! impl_bin_ops_local {
 }
 
 /* apply the macro to every local expression kind */
-impl_bin_ops_local!(Number);
+impl_bin_ops_local!(ADNumber);
 impl_bin_ops_local!(Const);
 
 /* Manual implementations for generic types to avoid macro expansion issues */
@@ -638,11 +621,11 @@ where
     }
 }
 
-/* ----  assignment variants only for Number  ------------------------- */
+/* ----  assignment variants only for ADNumber  ------------------------- */
 
 macro_rules! impl_assign {
     ($Trait:ident, $func:ident, $Op:ident, $sym:tt) => {
-        impl<E> $Trait<E> for Number
+        impl<E> $Trait<E> for ADNumber
         where
             E: Expr + Clone,
         {
@@ -650,7 +633,7 @@ macro_rules! impl_assign {
                 *self = flatten(&(self.clone() $sym rhs));
             }
         }
-        impl $Trait<f64> for Number {
+        impl $Trait<f64> for ADNumber {
             fn $func(&mut self, rhs: f64) {
                 *self = flatten(&(self.clone() $sym Const(rhs)));
             }
@@ -703,20 +686,20 @@ pub fn min<L: Expr + Clone, R: Expr + Clone>(l: L, r: R) -> BinExpr<L, R, MinOp>
     BinExpr::new(l, r)
 }
 
-/* ════════════════  FLATTEN AN EXPRESSION TO A NUMBER  ═══════════════ */
+/* ════════════════  FLATTEN AN EXPRESSION TO A ADNumber  ═══════════════ */
 
-/// “Flatten” an arbitrary expression into a concrete `Number` node on the tape
-pub fn flatten<E: Expr + Clone>(e: &E) -> Number {
+/// “Flatten” an arbitrary expression into a concrete `ADNumber` node on the tape
+fn flatten<E: Expr + Clone>(e: &E) -> ADNumber {
     let mut node = Node::default();
     e.push_adj(&mut node, 1.0);
     let idx = TAPE.with(|t| t.borrow_mut().record(node));
-    Number {
+    ADNumber {
         val: e.value(),
         idx,
     }
 }
 
-impl<L, R, O> From<BinExpr<L, R, O>> for Number
+impl<L, R, O> From<BinExpr<L, R, O>> for ADNumber
 where
     L: Expr + Clone,
     R: Expr + Clone,
@@ -729,7 +712,7 @@ where
 }
 
 // ── Unary expressions ────────────────────────────────────────────────
-impl<A, O> From<UnExpr<A, O>> for Number
+impl<A, O> From<UnExpr<A, O>> for ADNumber
 where
     A: Expr + Clone,
     O: UnOp + Clone,
@@ -746,18 +729,18 @@ mod tests {
 
     #[test]
     fn test_flatten() {
-        let a = Number::new(3.0);
-        let b = Number::new(4.0);
+        let a = ADNumber::new(3.0);
+        let b = ADNumber::new(4.0);
         let expr = a + b;
-        let result: Number = expr.into();
+        let result: ADNumber = expr.into();
         assert_eq!(result.value(), 7.0);
         assert_eq!(result.adjoint(), 0.0); // adjoint should be zero before propagation
     }
 
     #[test]
     fn test_propagation() {
-        let a = Number::new(3.0);
-        let b = Number::new(4.0);
+        let a = ADNumber::new(3.0);
+        let b = ADNumber::new(4.0);
         let expr = a + b;
         let result = flatten(&expr);
         result.propagate_to_start();
@@ -766,8 +749,8 @@ mod tests {
 
     #[test]
     fn test_aritmetics() {
-        let a = Number::new(3.0);
-        let b = Number::new(4.0);
+        let a = ADNumber::new(3.0);
+        let b = ADNumber::new(4.0);
         let c = a * b;
         let result = flatten(&c);
         assert_eq!(result.value(), 12.0);

@@ -1,11 +1,6 @@
 use std::sync::Arc;
 
-use crate::math::ad::num::Real;
-use crate::{
-    rates::traits::{HasReferenceDate, YieldProvider},
-    time::{date::Date, period::Period},
-    utils::errors::Result,
-};
+use crate::prelude::*;
 
 // /// # YieldTermStructureTraitClone
 // /// Trait for cloning a given object.
@@ -31,7 +26,7 @@ use crate::{
 /// # AdvanceTermStructureInTime
 /// Trait for advancing in time a given object. Returns a represation of the object
 /// as it would be after the given period.
-pub trait AdvanceTermStructureInTime<T: Real> {
+pub trait AdvanceTermStructureInTime<T: GenericNumber> {
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>>;
     fn advance_to_date(&self, date: Date) -> Result<Arc<dyn YieldTermStructureTrait<T>>>;
 }
@@ -49,7 +44,7 @@ pub trait AdvanceTermStructureInTime<T: Real> {
 ///
 /// These auto traits are required to be able to share term structures
 /// across threads when generating Monte–Carlo scenarios in parallel.
-pub trait YieldTermStructureTrait<T: Real>:
+pub trait YieldTermStructureTrait<T: GenericNumber>:
     YieldProvider<T> + HasReferenceDate + AdvanceTermStructureInTime<T> + Send + Sync
 {
 }

@@ -1,5 +1,5 @@
 use super::traits::DayCountProvider;
-use crate::{math::ad::num::Real, time::date::Date};
+use crate::{math::ad::genericnumber::Real, time::date::Date};
 
 /// # Actual360
 /// Actual/360 day count convention.

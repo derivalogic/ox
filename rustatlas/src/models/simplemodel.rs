@@ -1,15 +1,4 @@
-use crate::math::ad::num::Real;
-use crate::{
-    core::{
-        marketstore::MarketStore,
-        meta::{DiscountFactorRequest, ExchangeRateRequest, ForwardRateRequest},
-    },
-    rates::{indexstore::ReadIndex, traits::HasReferenceDate},
-    time::date::Date,
-    utils::errors::Result,
-};
-
-use super::deterministicmodel::DeterministicModel;
+use crate::prelude::*;
 
 /// # SimpleModel
 /// A simple model that provides market data based on the current market state. Uses the
@@ -20,12 +9,12 @@ use super::deterministicmodel::DeterministicModel;
 /// * `market_store` - The market store.
 /// * `transform_currencies` - If true, the model will transform the currencies to the local currency of the market store.
 #[derive(Clone)]
-pub struct SimpleModel<'a, T: Real> {
+pub struct SimpleModel<'a, T: GenericNumber> {
     market_store: &'a MarketStore<T>,
     transform_currencies: bool,
 }
 
-impl<'a, T: Real> SimpleModel<'a, T> {
+impl<'a, T: GenericNumber> SimpleModel<'a, T> {
     pub fn new(market_store: &'a MarketStore<T>) -> SimpleModel<'a, T> {
         SimpleModel {
             market_store,
@@ -43,7 +32,7 @@ impl<'a, T: Real> SimpleModel<'a, T> {
     }
 }
 
-impl<'a, T: Real> DeterministicModel<T> for SimpleModel<'a, T> {
+impl<'a, T: GenericNumber> DeterministicModel<T> for SimpleModel<'a, T> {
     fn reference_date(&self) -> Date {
         self.market_store.reference_date()
     }

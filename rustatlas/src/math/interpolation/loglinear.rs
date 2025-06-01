@@ -1,14 +1,13 @@
 use std::cmp::Ordering;
 
-use super::traits::Interpolate;
-use crate::math::ad::num::Real;
+use crate::prelude::*;
 
 /// # Log-Linear Interpolator
 /// Log-linear interpolator.
 #[derive(Clone)]
 pub struct LogLinearInterpolator {}
 
-impl<T: Real> Interpolate<T> for LogLinearInterpolator {
+impl<T: GenericNumber> Interpolate<T> for LogLinearInterpolator {
     fn interpolate(x: T, x_: &Vec<T>, y_: &Vec<T>, enable_extrapolation: bool) -> T {
         let index =
             match x_.binary_search_by(|&probe| probe.partial_cmp(&x).unwrap_or(Ordering::Less)) {

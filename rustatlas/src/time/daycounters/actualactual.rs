@@ -1,5 +1,5 @@
 use super::traits::DayCountProvider;
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 use crate::time::date::Date;
 /// # ActualActual
 /// Actual/Actual day count convention.

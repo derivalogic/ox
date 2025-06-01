@@ -1,4 +1,4 @@
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 use crate::{
     prelude::{
         Date, DiscountFactorRequest, ExchangeRateRequest, ForwardRateRequest, MarketData,

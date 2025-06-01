@@ -1,22 +1,6 @@
 use std::sync::Arc;
 
-use crate::math::ad::num::Real;
-use crate::{
-    math::interpolation::enums::Interpolator,
-    rates::{
-        enums::Compounding,
-        interestrate::{InterestRate, RateDefinition},
-        traits::{HasReferenceDate, YieldProvider},
-    },
-    time::{
-        date::Date,
-        enums::{Frequency, TimeUnit},
-        period::Period,
-    },
-    utils::errors::{AtlasError, Result},
-};
-
-use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
+use crate::prelude::*;
 
 /// # ZeroRateTermStructure
 /// Struct that defines a zero rate term structure.
@@ -60,7 +44,7 @@ use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 /// assert_eq!(curve.reference_date(), ref_date);
 /// ```
 #[derive(Clone)]
-pub struct ZeroRateTermStructure<T: Real = f64> {
+pub struct ZeroRateTermStructure<T: GenericNumber = f64> {
     reference_date: Date,
     dates: Vec<Date>,
     year_fractions: Vec<T>,
@@ -70,7 +54,7 @@ pub struct ZeroRateTermStructure<T: Real = f64> {
     enable_extrapolation: bool,
 }
 
-impl<T: Real> ZeroRateTermStructure<T> {
+impl<T: GenericNumber> ZeroRateTermStructure<T> {
     pub fn new(
         reference_date: Date,
         dates: Vec<Date>,
@@ -134,13 +118,13 @@ impl<T: Real> ZeroRateTermStructure<T> {
     }
 }
 
-impl<T: Real> HasReferenceDate for ZeroRateTermStructure<T> {
+impl<T: GenericNumber> HasReferenceDate for ZeroRateTermStructure<T> {
     fn reference_date(&self) -> Date {
         return self.reference_date;
     }
 }
 
-impl<T: Real> YieldProvider<T> for ZeroRateTermStructure<T> {
+impl<T: GenericNumber> YieldProvider<T> for ZeroRateTermStructure<T> {
     fn discount_factor(&self, date: Date) -> Result<T> {
         let year_fraction = self
             .rate_definition()
@@ -189,7 +173,9 @@ impl<T: Real> YieldProvider<T> for ZeroRateTermStructure<T> {
 }
 
 /// # AdvanceTermStructureInTime for ZeroRateTermStructure
-impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for ZeroRateTermStructure<T> {
+impl<T: GenericNumber + Send + Sync + 'static> AdvanceTermStructureInTime<T>
+    for ZeroRateTermStructure<T>
+{
     fn advance_to_period(&self, period: Period) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         let new_reference_date = self
             .reference_date()
@@ -234,7 +220,10 @@ impl<T: Real + Send + Sync + 'static> AdvanceTermStructureInTime<T> for ZeroRate
     }
 }
 
-impl<T: Real + Send + Sync + 'static> YieldTermStructureTrait<T> for ZeroRateTermStructure<T> {}
+impl<T: GenericNumber + Send + Sync + 'static> YieldTermStructureTrait<T>
+    for ZeroRateTermStructure<T>
+{
+}
 
 #[cfg(test)]
 mod tests {

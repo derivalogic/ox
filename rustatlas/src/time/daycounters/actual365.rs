@@ -1,6 +1,6 @@
 use super::traits::DayCountProvider;
 use crate::time::date::Date;
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 /// # Actual365 (Fixed)
 /// Actual/365 day count convention.
 /// Calculates the day count fraction according to the formula:

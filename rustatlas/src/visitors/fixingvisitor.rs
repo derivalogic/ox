@@ -1,5 +1,5 @@
 use super::traits::{HasCashflows, Visit};
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 use crate::{
     cashflows::{cashflow::Cashflow, traits::RequiresFixingRate},
     core::{meta::MarketData, traits::Registrable},

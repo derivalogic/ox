@@ -3,39 +3,17 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::math::ad::num::Real;
-use crate::{
-    rates::{
-        enums::Compounding,
-        interestrate::RateDefinition,
-        traits::{HasReferenceDate, YieldProvider},
-        yieldtermstructure::traits::YieldTermStructureTrait,
-    },
-    time::{
-        date::Date,
-        enums::{Frequency, TimeUnit},
-        period::Period,
-    },
-    utils::errors::{AtlasError, Result},
-};
-
-use super::{
-    overnightindex::OvernightIndex,
-    traits::{
-        AdvanceInterestRateIndexInTime, FixingProvider, HasName, HasTenor, HasTermStructure,
-        InterestRateIndexTrait, RelinkableTermStructure,
-    },
-};
+use crate::prelude::*;
 
 /// # OvernightCompoundedRateIndex
 /// Overnight index, used for overnight rates. Uses a price index (such as ICP) to calculate the overnight rates.
 #[derive(Clone)]
-pub struct OvernightCompoundedRateIndex<T: Real> {
+pub struct OvernightCompoundedRateIndex<T: GenericNumber> {
     fixings_rates: HashMap<Date, T>,
     overnight_index: OvernightIndex<T>,
 }
 
-pub fn calculate_overnight_index<T: Real>(
+pub fn calculate_overnight_index<T: GenericNumber>(
     start_date: Date,
     end_date: Date,
     index: T,
@@ -49,7 +27,7 @@ pub fn calculate_overnight_index<T: Real>(
     return new_index;
 }
 
-pub fn compose_fixing_rate<T: Real>(
+pub fn compose_fixing_rate<T: GenericNumber>(
     fixings_rates: HashMap<Date, T>,
     rate_definition: RateDefinition,
 ) -> HashMap<Date, T> {
@@ -77,7 +55,7 @@ pub fn compose_fixing_rate<T: Real>(
     return fixing_index;
 }
 
-impl<T: Real> OvernightCompoundedRateIndex<T> {
+impl<T: GenericNumber> OvernightCompoundedRateIndex<T> {
     pub fn new(reference_date: Date) -> OvernightCompoundedRateIndex<T> {
         OvernightCompoundedRateIndex {
             fixings_rates: HashMap::new(),
@@ -123,7 +101,7 @@ impl<T: Real> OvernightCompoundedRateIndex<T> {
     }
 }
 
-impl<T: Real> FixingProvider<T> for OvernightCompoundedRateIndex<T> {
+impl<T: GenericNumber> FixingProvider<T> for OvernightCompoundedRateIndex<T> {
     fn fixing(&self, date: Date) -> Result<T> {
         self.overnight_index
             .fixings()
@@ -145,25 +123,25 @@ impl<T: Real> FixingProvider<T> for OvernightCompoundedRateIndex<T> {
     }
 }
 
-impl<T: Real> HasReferenceDate for OvernightCompoundedRateIndex<T> {
+impl<T: GenericNumber> HasReferenceDate for OvernightCompoundedRateIndex<T> {
     fn reference_date(&self) -> Date {
         self.overnight_index.reference_date()
     }
 }
 
-impl<T: Real> HasTenor for OvernightCompoundedRateIndex<T> {
+impl<T: GenericNumber> HasTenor for OvernightCompoundedRateIndex<T> {
     fn tenor(&self) -> Period {
         self.overnight_index.tenor()
     }
 }
 
-impl<T: Real> HasName for OvernightCompoundedRateIndex<T> {
+impl<T: GenericNumber> HasName for OvernightCompoundedRateIndex<T> {
     fn name(&self) -> Result<String> {
         self.overnight_index.name()
     }
 }
 
-impl<T: Real> YieldProvider<T> for OvernightCompoundedRateIndex<T> {
+impl<T: GenericNumber> YieldProvider<T> for OvernightCompoundedRateIndex<T> {
     fn discount_factor(&self, date: Date) -> Result<T> {
         self.overnight_index.discount_factor(date)
     }
@@ -180,7 +158,7 @@ impl<T: Real> YieldProvider<T> for OvernightCompoundedRateIndex<T> {
     }
 }
 
-impl<T: Real + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T>
+impl<T: GenericNumber + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T>
     for OvernightCompoundedRateIndex<T>
 {
     fn advance_to_period(
@@ -197,19 +175,19 @@ impl<T: Real + Send + Sync + 'static> AdvanceInterestRateIndexInTime<T>
     }
 }
 
-impl<T: Real> HasTermStructure<T> for OvernightCompoundedRateIndex<T> {
+impl<T: GenericNumber> HasTermStructure<T> for OvernightCompoundedRateIndex<T> {
     fn term_structure(&self) -> Result<Arc<dyn YieldTermStructureTrait<T>>> {
         self.overnight_index.term_structure()
     }
 }
 
-impl<T: Real> RelinkableTermStructure<T> for OvernightCompoundedRateIndex<T> {
+impl<T: GenericNumber> RelinkableTermStructure<T> for OvernightCompoundedRateIndex<T> {
     fn link_to(&mut self, term_structure: Arc<dyn YieldTermStructureTrait<T>>) {
         self.overnight_index.link_to(term_structure);
     }
 }
 
-impl<T: Real + Send + Sync + 'static> InterestRateIndexTrait<T>
+impl<T: GenericNumber + Send + Sync + 'static> InterestRateIndexTrait<T>
     for OvernightCompoundedRateIndex<T>
 {
 }

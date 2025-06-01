@@ -2,25 +2,18 @@ use core::fmt;
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    currencies::{
-        enums::Currency,
-        exchangeratestore::ExchangeRateStore,
-        traits::{AdvanceExchangeRateStoreInTime, CurrencyDetails},
-    },
-    equities::equitystore::{AdvanceEquityStoreInTime, EquityStore},
+    currencies::{enums::Currency, exchangeratestore::ExchangeRateStore, traits::CurrencyDetails},
+    equities::equitystore::EquityStore,
     rates::{
         indexstore::{IndexStore, ReadIndex},
         interestrateindex::traits::InterestRateIndexTrait,
         traits::HasReferenceDate,
     },
-    time::{date::Date, enums::TimeUnit, period::Period},
-    utils::{
-        errors::{AtlasError, Result},
-        tools,
-    },
+    time::date::Date,
+    utils::{errors::Result, tools},
 };
 
-use crate::math::ad::num::Real;
+use crate::math::ad::genericnumber::Real;
 
 /// # MarketStore
 /// A store for market data.
@@ -92,49 +85,53 @@ impl<T: Real> MarketStore<T> {
             .get_exchange_rate(first_currency, second_currency);
     }
 
-    pub fn get_volatility(&self, first_currency: Currency, second_currency: Currency) -> Result<T> {
-        self.equity_store
-            .volatility(first_currency, second_currency)
+    pub fn get_exchange_rate_volatility(
+        &self,
+        first_currency: Currency,
+        second_currency: Currency,
+    ) -> Result<T> {
+        self.exchange_rate_store
+            .get_volatility(first_currency, second_currency)
     }
 
     pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait<T>>>> {
         return self.index_store.get_index(id);
     }
 
-    pub fn advance_to_period(&self, period: Period) -> Result<MarketStore<T>> {
-        if period.length() < 0 {
-            return Err(AtlasError::InvalidValueErr(format!(
-                "Negative periods are not allowed when advancing market store in time ({:?})",
-                period
-            )));
-        }
-        let new_reference_date = self.reference_date + period;
-        let new_exchange_rate_store = self
-            .exchange_rate_store
-            .advance_to_period(period, &self.index_store)?;
-        let new_index_store = self.index_store.advance_to_period(period)?;
-        let new_equity_store = self.equity_store.advance_to_period(period)?;
+    // pub fn advance_to_period(&self, period: Period) -> Result<MarketStore<T>> {
+    //     if period.length() < 0 {
+    //         return Err(AtlasError::InvalidValueErr(format!(
+    //             "Negative periods are not allowed when advancing market store in time ({:?})",
+    //             period
+    //         )));
+    //     }
+    //     let new_reference_date = self.reference_date + period;
+    //     let new_exchange_rate_store = self
+    //         .exchange_rate_store
+    //         .advance_to_period(period, &self.index_store)?;
+    //     let new_index_store = self.index_store.advance_to_period(period)?;
+    //     let new_equity_store = self.equity_store.advance_to_period(period)?;
 
-        Ok(MarketStore {
-            reference_date: new_reference_date,
-            local_currency: self.local_currency,
-            exchange_rate_store: new_exchange_rate_store,
-            index_store: new_index_store,
-            equity_store: new_equity_store,
-        })
-    }
+    //     Ok(MarketStore {
+    //         reference_date: new_reference_date,
+    //         local_currency: self.local_currency,
+    //         exchange_rate_store: new_exchange_rate_store,
+    //         index_store: new_index_store,
+    //         equity_store: new_equity_store,
+    //     })
+    // }
 
-    pub fn advance_to_date(&self, date: Date) -> Result<MarketStore<T>> {
-        if date < self.reference_date {
-            return Err(AtlasError::InvalidValueErr(format!(
-                "Date {} is before reference date {}",
-                date, self.reference_date
-            )));
-        }
-        let days = (date - self.reference_date) as i32;
-        let period = Period::new(days, TimeUnit::Days);
-        self.advance_to_period(period)
-    }
+    // pub fn advance_to_date(&self, date: Date) -> Result<MarketStore<T>> {
+    //     if date < self.reference_date {
+    //         return Err(AtlasError::InvalidValueErr(format!(
+    //             "Date {} is before reference date {}",
+    //             date, self.reference_date
+    //         )));
+    //     }
+    //     let days = (date - self.reference_date) as i32;
+    //     let period = Period::new(days, TimeUnit::Days);
+    //     self.advance_to_period(period)
+    // }
 }
 
 impl<T: Real> HasReferenceDate for MarketStore<T> {
@@ -213,18 +210,16 @@ impl<T: Real + fmt::Display> fmt::Display for MarketStore<T> {
         }
 
         let vol_store = self.equity_store();
-        let vol_map = vol_store.vol_map();
+        let vol_map = vol_store.get_volatility_map();
         msg.push_str("-------------------------------------\n");
         msg.push_str("> Equity volatilities (");
         msg.push_str(&vol_map.len().to_string());
         msg.push_str("):\n");
-        for (pair, vol) in &vol_map {
+        for (name, volatility) in vol_map {
             msg.push_str(">> ");
-            msg.push_str(&pair.0.code());
-            msg.push_str(" -> ");
-            msg.push_str(&pair.1.code());
+            msg.push_str(name);
             msg.push_str(": ");
-            msg.push_str(&vol.to_string());
+            msg.push_str(&volatility.to_string());
             msg.push_str("\n");
         }
 
