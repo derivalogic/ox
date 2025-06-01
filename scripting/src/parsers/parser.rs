@@ -267,7 +267,7 @@ impl Parser {
                     Some(true) => Ok(Box::new(Node::True)),
                     Some(false) => Ok(Box::new(Node::False)),
                     None => match value {
-                        Some(v) => Ok(Box::new(Node::Constant(v))),
+                        Some(v) => Ok(Box::new(Node::Constant(NumericType::new(v)))),
                         None => Err(self.invalid_syntax_err("Invalid constant")),
                     },
                 }
@@ -463,15 +463,19 @@ impl Parser {
                     let s1 = get_str(a)?;
                     let s2 = get_str(b)?;
                     let s3 = get_str(c)?;
-                    Date::from_str(&s1, "%Y-%m-%d").map_err(|_| self.invalid_syntax_err("Invalid date"))?;
-                    Date::from_str(&s2, "%Y-%m-%d").map_err(|_| self.invalid_syntax_err("Invalid date"))?;
-                    DayCounter::try_from(s3).map_err(|_| self.invalid_syntax_err("Invalid day counter"))?;
+                    Date::from_str(&s1, "%Y-%m-%d")
+                        .map_err(|_| self.invalid_syntax_err("Invalid date"))?;
+                    Date::from_str(&s2, "%Y-%m-%d")
+                        .map_err(|_| self.invalid_syntax_err("Invalid date"))?;
+                    DayCounter::try_from(s3)
+                        .map_err(|_| self.invalid_syntax_err("Invalid day counter"))?;
                 } else {
                     return Err(self.invalid_syntax_err("Invalid number of arguments"));
                 }
             }
 
-            args.iter().for_each(|arg| expr.as_mut().unwrap().add_child(arg.clone()));
+            args.iter()
+                .for_each(|arg| expr.as_mut().unwrap().add_child(arg.clone()));
             return Ok(Box::new(expr.unwrap()));
         }
 
@@ -486,14 +490,19 @@ impl Parser {
         self.expect_token(Token::OpenParen)?;
         self.advance();
         let first = match *self.parse_string()? {
-            Node::String(s) => Currency::try_from(s).map_err(|_| self.invalid_syntax_err("Invalid currency"))?,
+            Node::String(s) => {
+                Currency::try_from(s).map_err(|_| self.invalid_syntax_err("Invalid currency"))?
+            }
             _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
         };
         let mut second = None;
         if self.current_token() == Token::Comma {
             self.advance();
             second = match *self.parse_string()? {
-                Node::String(s) => Some(Currency::try_from(s).map_err(|_| self.invalid_syntax_err("Invalid currency"))?),
+                Node::String(s) => Some(
+                    Currency::try_from(s)
+                        .map_err(|_| self.invalid_syntax_err("Invalid currency"))?,
+                ),
                 _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
             };
         }
@@ -527,8 +536,10 @@ impl Parser {
         self.expect_token(Token::CloseParen)?;
         self.advance();
 
-        let start = Date::from_str(&start_str, "%Y-%m-%d").map_err(|_| self.invalid_syntax_err("Invalid date"))?;
-        let end = Date::from_str(&end_str, "%Y-%m-%d").map_err(|_| self.invalid_syntax_err("Invalid date"))?;
+        let start = Date::from_str(&start_str, "%Y-%m-%d")
+            .map_err(|_| self.invalid_syntax_err("Invalid date"))?;
+        let end = Date::from_str(&end_str, "%Y-%m-%d")
+            .map_err(|_| self.invalid_syntax_err("Invalid date"))?;
 
         Ok(Box::new(Node::RateIndex(name, start, end, OnceLock::new())))
     }
@@ -545,9 +556,7 @@ impl Parser {
             let token = self.current_token();
             self.advance();
             match self.current_token() {
-                Token::EOF => {
-                    return Err(self.invalid_syntax_err("Unexpected end of expression"))
-                }
+                Token::EOF => return Err(self.invalid_syntax_err("Unexpected end of expression")),
                 _ => {
                     let rhs = self.parse_comparison()?;
                     lhs = match token {
@@ -682,997 +691,1011 @@ mod other_tests {
     }
 }
 
-/// Tests for the `parse` method
-#[cfg(test)]
-mod tests_expect_token {
-    use std::sync::OnceLock;
-
-    use rustatlas::currencies::enums::Currency;
-    use rustatlas::prelude::*;
-
-    use crate::{
-        nodes::node::Node,
-        parsers::{lexer::Lexer, parser::Parser},
-    };
-
-    #[test]
-    fn test_parse_empty() {
-        let tokens = Lexer::new("".to_string()).tokenize().unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-        assert_eq!(result, Box::new(Node::Base(Vec::new())));
-    }
-
-    #[test]
-    fn test_handle_newline() {
-        let tokens = Lexer::new("\n\n\n".to_string()).tokenize().unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-        assert_eq!(result, Box::new(Node::Base(Vec::new())));
-    }
-
-    #[test]
-    fn test_variable_assignment() {
-        let tokens = Lexer::new("a = 1;".to_string()).tokenize().unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-            Box::new(Node::Constant(1.0)),
-        ]))]));
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_variable_assignment_with_new_lines() {
-        let tokens = Lexer::new("a = 1;".to_string()).tokenize().unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-            Box::new(Node::Constant(1.0)),
-        ]))]));
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_boolean_expression_assignment() {
-        let tokens = Lexer::new("a = 1 < 2;".to_string()).tokenize().unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-            Box::new(Node::Inferior(vec![
-                Box::new(Node::Constant(1.0)),
-                Box::new(Node::Constant(2.0)),
-            ])),
-        ]))]));
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_if_statement() {
-        let tokens = Lexer::new(
-            "
-            if a == 1 { 
-                b = 2; 
-            }"
-            .to_string(),
-        )
-        .tokenize()
-        .unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-            vec![
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(1.0)),
-                ])),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(2.0)),
-                ])),
-            ],
-            None,
-        ))]));
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_if_else_statement() {
-        let tokens = Lexer::new(
-            "
-        if a == 1 { 
-            b = 2; 
-        } else {
-            b = 3; 
-        }
-        "
-            .to_string(),
-        )
-        .tokenize()
-        .unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-            vec![
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(1.0)),
-                ])),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(2.0)),
-                ])),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(3.0)),
-                ])),
-            ],
-            Some(1),
-        ))]));
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_nested_if_else_statement() {
-        let tokens = Lexer::new(
-            "
-            if a == 1 { 
-                if b == 2 {
-                    c = 3;
-                }else {
-                    c = 4;
-                }
-            } else {
-                c = 5;
-            }"
-            .to_string(),
-        )
-        .tokenize()
-        .unwrap();
-
-        let result = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-            vec![
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(1.0)),
-                ])),
-                Box::new(Node::If(
-                    vec![
-                        Box::new(Node::Equal(vec![
-                            Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                            Box::new(Node::Constant(2.0)),
-                        ])),
-                        Box::new(Node::Assign(vec![
-                            Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                            Box::new(Node::Constant(3.0)),
-                        ])),
-                        Box::new(Node::Assign(vec![
-                            Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                            Box::new(Node::Constant(4.0)),
-                        ])),
-                    ],
-                    Some(1),
-                )),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(5.0)),
-                ])),
-            ],
-            Some(1),
-        ))]));
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_nested_if_else_statement_with_multiple_statements() {
-        let tokens = Lexer::new(
-            "
-            if a == 1 {
-                if b == 2 {
-                    c = 3; 
-                    d = 4;
-                } else {
-                    c = 5;
-                    d = 6;
-                }
-            } else {
-                c = 7;
-                d = 8;
-            }"
-            .to_string(),
-        )
-        .tokenize()
-        .unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-            vec![
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(1.0)),
-                ])),
-                Box::new(Node::If(
-                    vec![
-                        Box::new(Node::Equal(vec![
-                            Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                            Box::new(Node::Constant(2.0)),
-                        ])),
-                        Box::new(Node::Assign(vec![
-                            Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                            Box::new(Node::Constant(3.0)),
-                        ])),
-                        Box::new(Node::Assign(vec![
-                            Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
-                            Box::new(Node::Constant(4.0)),
-                        ])),
-                        Box::new(Node::Assign(vec![
-                            Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                            Box::new(Node::Constant(5.0)),
-                        ])),
-                        Box::new(Node::Assign(vec![
-                            Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
-                            Box::new(Node::Constant(6.0)),
-                        ])),
-                    ],
-                    Some(2),
-                )),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(7.0)),
-                ])),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(8.0)),
-                ])),
-            ],
-            Some(1),
-        ))]));
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_if_multiple_conditions() {
-        let tokens = Lexer::new(
-            "
-            if a == 1 and b == 2 { 
-                c = 3;
-            }"
-            .to_string(),
-        )
-        .tokenize()
-        .unwrap();
-
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-            vec![
-                Box::new(Node::And(vec![
-                    Box::new(Node::Equal(vec![
-                        Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(1.0)),
-                    ])),
-                    Box::new(Node::Equal(vec![
-                        Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(2.0)),
-                    ])),
-                ])),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(3.0)),
-                ])),
-            ],
-            None,
-        ))]));
-
-        assert_eq!(result, expected);
-
-        let tokens = Lexer::new(
-            "
-            if a == 1 or b == 2 {
-                c = 3;
-            }"
-            .to_string(),
-        )
-        .tokenize();
-
-        let parser = Parser::new(tokens.unwrap());
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-            vec![
-                Box::new(Node::Or(vec![
-                    Box::new(Node::Equal(vec![
-                        Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(1.0)),
-                    ])),
-                    Box::new(Node::Equal(vec![
-                        Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(2.0)),
-                    ])),
-                ])),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(3.0)),
-                ])),
-            ],
-            None,
-        ))]));
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_if_new_variable() {
-        let tokens = Lexer::new(
-            "
-                x = 2;           
-                if x == 1 {
-                    z = 3;
-                    w = 4;
-                }
-            "
-            .to_string(),
-        )
-        .tokenize()
-        .unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(2.0)),
-            ])),
-            Box::new(Node::If(
-                vec![
-                    Box::new(Node::Equal(vec![
-                        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(1.0)),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(3.0)),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "w".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(4.0)),
-                    ])),
-                ],
-                None,
-            )),
-        ]));
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_bool_variables_with_if() {
-        let tokens = Lexer::new(
-            "
-                x = true;
-                y = false;
-                if x == true {
-                    z = 3;
-                }
-            "
-            .to_string(),
-        )
-        .tokenize()
-        .unwrap();
-        let parser = Parser::new(tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                Box::new(Node::True),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
-                Box::new(Node::False),
-            ])),
-            Box::new(Node::If(
-                vec![
-                    Box::new(Node::Equal(vec![
-                        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                        Box::new(Node::True),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(3.0)),
-                    ])),
-                ],
-                None,
-            )),
-        ]));
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_multiple_bool_vars() {
-        let script = "
-            x = true;
-            y = false;
-            z = x and y;
-            w = x or y;       
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                Box::new(Node::True),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
-                Box::new(Node::False),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
-                Box::new(Node::And(vec![
-                    Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                    Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
-                ])),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "w".to_string(), OnceLock::new())),
-                Box::new(Node::Or(vec![
-                    Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                    Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
-                ])),
-            ])),
-        ]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_cvg_function() {
-        let script = "
-            x = cvg(\"2020-01-01\", \"2020-06-01\", \"Actual360\");
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::Cvg(vec![
-                Box::new(Node::String("2020-01-01".to_string())),
-                Box::new(Node::String("2020-06-01".to_string())),
-                Box::new(Node::String("Actual360".to_string())),
-            ])),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_max_function() {
-        let script = "
-            z = max(1, 2);
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        tokens.iter().for_each(|t| println!("{:?}", t));
-
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::Constant(1.0)),
-                Box::new(Node::Constant(2.0)),
-            ])),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_string_variable() {
-        let script = "
-            x = \"hello\";
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::String("hello".to_string())),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_spot_function() {
-        let script = "
-            x = Spot(\"USD\", \"EUR\");
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-
-            Box::new(Node::Spot(
-                Currency::try_from("USD".to_string()).unwrap(),
-                Some(Currency::try_from("EUR".to_string()).unwrap()),
-                OnceLock::new(),
-            )),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_rate_index_function() {
-        let script = "
-            x = RateIndex(\"0\", \"2024-01-01\", \"2024-02-01\");
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::RateIndex(
-                "0".to_string(),
-                Date::new(2024, 1, 1),
-                Date::new(2024, 2, 1),
-                OnceLock::new(),
-            )),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-}
-
-/// tests for reserved keywords. These are keywords that are reserved in the scripting language
-/// and cannot be used as variable names
-#[cfg(test)]
-mod test_reserved_keywords {
-    #[test]
-    fn test_if_reserved() {
-        let script = "
-            if = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_else_reserved() {
-        let script = "
-            else = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_and_reserved() {
-        let script = "
-            and = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_or_reserved() {
-        let script = "
-            or = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_true_reserved() {
-        let script = "
-            true = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_false_reserved() {
-        let script = "
-            false = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_max_reserved() {
-        let script = "
-            max = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_min_reserved() {
-        let script = "
-            min = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_pow_reserved() {
-        let script = "
-            pow = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_ln_reserved() {
-        let script = "
-            ln = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_exp_reserved() {
-        let script = "
-            exp = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_spot_reserved() {
-        let script = "
-            Spot = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_rate_index_reserved() {
-        let script = "
-            RateIndex = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_pays_reserved() {
-        let script = "
-            pays = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-
-    #[test]
-    fn test_cvg_reserved() {
-        let script = "
-            cvg = 1;
-        "
-        .to_string();
-
-        let tokens = crate::parsers::lexer::Lexer::new(script)
-            .tokenize()
-            .unwrap();
-        let nodes = crate::parsers::parser::Parser::new(tokens).parse();
-        assert!(nodes.is_err());
-    }
-}
-
-#[cfg(test)]
-mod test_function_args {
-
-    use crate::nodes::node::Node;
-    use crate::parsers::lexer::Lexer;
-    use crate::parsers::parser::OnceLock;
-    use crate::parsers::parser::Parser;
-
-    #[test]
-    fn test_function_args() {
-        let script = "
-            x = max(1, 2);
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::Constant(1.0)),
-                Box::new(Node::Constant(2.0)),
-            ])),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_function_args_multiple() {
-        let script = "
-            x = max(1, 2, 3, 4);
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::Constant(1.0)),
-                Box::new(Node::Constant(2.0)),
-                Box::new(Node::Constant(3.0)),
-                Box::new(Node::Constant(4.0)),
-            ])),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_function_args_nested() {
-        let script = "
-            x = max(max(1, 2), 3);
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::Max(vec![
-                    Box::new(Node::Constant(1.0)),
-                    Box::new(Node::Constant(2.0)),
-                ])),
-                Box::new(Node::Constant(3.0)),
-            ])),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_function_args_nested_multiple() {
-        let script = "
-            x = max(max(1, 2), max(3, 4));
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::Max(vec![
-                    Box::new(Node::Constant(1.0)),
-                    Box::new(Node::Constant(2.0)),
-                ])),
-                Box::new(Node::Max(vec![
-                    Box::new(Node::Constant(3.0)),
-                    Box::new(Node::Constant(4.0)),
-                ])),
-            ])),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_function_args_nested_multiple_with_variables() {
-        let script = "
-            x = max(max(a, b), max(c, d));
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::Max(vec![
-                    Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                    Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                ])),
-                Box::new(Node::Max(vec![
-                    Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                    Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
-                ])),
-            ])),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-
-    #[test]
-    fn test_no_assigmnet() {
-        let script = "
-            max(1, 2);
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse();
-
-        assert!(nodes.is_err());
-    }
-}
-
-#[cfg(test)]
-mod test_pays_expression {
-    use super::*;
-    use rustatlas::currencies::enums::Currency;
-
-    #[test]
-    fn test_pays_as_expression() {
-        let script = "
-            call = pays max(Spot(\"CLP\", \"USD\") - 900.0, 0);
-        "
-        .to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "call".to_string(), OnceLock::new())),
-            Box::new(Node::Pays(
-                vec![Box::new(Node::Max(vec![
-                    Box::new(Node::Subtract(vec![
-                        Box::new(Node::Spot(
-                            Currency::try_from("CLP".to_string()).unwrap(),
-                            Some(Currency::try_from("USD".to_string()).unwrap()),
-                            OnceLock::new(),
-                        )),
-                        Box::new(Node::Constant(900.0)),
-                    ])),
-                    Box::new(Node::Constant(0.0)),
-                ]))],
-                OnceLock::new(),
-            )),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-}
-
-#[cfg(test)]
-mod test_pays_assignment {
-    use super::*;
-
-    #[test]
-    fn test_variable_pays_assignment() {
-        let script = "prd pays 100;".to_string();
-
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "prd".to_string(), OnceLock::new())),
-            Box::new(Node::Add(vec![
-                Box::new(Node::Variable(Vec::new(), "prd".to_string(), OnceLock::new())),
-                Box::new(Node::Pays(vec![Box::new(Node::Constant(100.0))], OnceLock::new())),
-            ])),
-        ]))]));
-
-        assert_eq!(nodes, expected);
-    }
-}
+// /// Tests for the `parse` method
+// #[cfg(test)]
+// mod tests_expect_token {
+//     use std::sync::OnceLock;
+
+//     use rustatlas::currencies::enums::Currency;
+//     use rustatlas::prelude::*;
+
+//     use crate::{
+//         nodes::node::Node,
+//         parsers::{lexer::Lexer, parser::Parser},
+//     };
+
+//     #[test]
+//     fn test_parse_empty() {
+//         let tokens = Lexer::new("".to_string()).tokenize().unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+//         assert_eq!(result, Box::new(Node::Base(Vec::new())));
+//     }
+
+//     #[test]
+//     fn test_handle_newline() {
+//         let tokens = Lexer::new("\n\n\n".to_string()).tokenize().unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+//         assert_eq!(result, Box::new(Node::Base(Vec::new())));
+//     }
+
+//     #[test]
+//     fn test_variable_assignment() {
+//         let tokens = Lexer::new("a = 1;".to_string()).tokenize().unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//             Box::new(Node::Constant(1.0)),
+//         ]))]));
+
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_variable_assignment_with_new_lines() {
+//         let tokens = Lexer::new("a = 1;".to_string()).tokenize().unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//             Box::new(Node::Constant(1.0)),
+//         ]))]));
+
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_boolean_expression_assignment() {
+//         let tokens = Lexer::new("a = 1 < 2;".to_string()).tokenize().unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//             Box::new(Node::Inferior(vec![
+//                 Box::new(Node::Constant(1.0)),
+//                 Box::new(Node::Constant(2.0)),
+//             ])),
+//         ]))]));
+
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_if_statement() {
+//         let tokens = Lexer::new(
+//             "
+//             if a == 1 {
+//                 b = 2;
+//             }"
+//             .to_string(),
+//         )
+//         .tokenize()
+//         .unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::If(
+//             vec![
+//                 Box::new(Node::Equal(vec![
+//                     Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(1.0)),
+//                 ])),
+//                 Box::new(Node::Assign(vec![
+//                     Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(2.0)),
+//                 ])),
+//             ],
+//             None,
+//         ))]));
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_if_else_statement() {
+//         let tokens = Lexer::new(
+//             "
+//         if a == 1 {
+//             b = 2;
+//         } else {
+//             b = 3;
+//         }
+//         "
+//             .to_string(),
+//         )
+//         .tokenize()
+//         .unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::If(
+//             vec![
+//                 Box::new(Node::Equal(vec![
+//                     Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(1.0)),
+//                 ])),
+//                 Box::new(Node::Assign(vec![
+//                     Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(2.0)),
+//                 ])),
+//                 Box::new(Node::Assign(vec![
+//                     Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(3.0)),
+//                 ])),
+//             ],
+//             Some(1),
+//         ))]));
+
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_nested_if_else_statement() {
+//         let tokens = Lexer::new(
+//             "
+//             if a == 1 {
+//                 if b == 2 {
+//                     c = 3;
+//                 }else {
+//                     c = 4;
+//                 }
+//             } else {
+//                 c = 5;
+//             }"
+//             .to_string(),
+//         )
+//         .tokenize()
+//         .unwrap();
+
+//         let result = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::If(
+//             vec![
+//                 Box::new(Node::Equal(vec![
+//                     Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(1.0)),
+//                 ])),
+//                 Box::new(Node::If(
+//                     vec![
+//                         Box::new(Node::Equal(vec![
+//                             Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
+//                             Box::new(Node::Constant(2.0)),
+//                         ])),
+//                         Box::new(Node::Assign(vec![
+//                             Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
+//                             Box::new(Node::Constant(3.0)),
+//                         ])),
+//                         Box::new(Node::Assign(vec![
+//                             Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
+//                             Box::new(Node::Constant(4.0)),
+//                         ])),
+//                     ],
+//                     Some(1),
+//                 )),
+//                 Box::new(Node::Assign(vec![
+//                     Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(5.0)),
+//                 ])),
+//             ],
+//             Some(1),
+//         ))]));
+
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_nested_if_else_statement_with_multiple_statements() {
+//         let tokens = Lexer::new(
+//             "
+//             if a == 1 {
+//                 if b == 2 {
+//                     c = 3;
+//                     d = 4;
+//                 } else {
+//                     c = 5;
+//                     d = 6;
+//                 }
+//             } else {
+//                 c = 7;
+//                 d = 8;
+//             }"
+//             .to_string(),
+//         )
+//         .tokenize()
+//         .unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::If(
+//             vec![
+//                 Box::new(Node::Equal(vec![
+//                     Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(1.0)),
+//                 ])),
+//                 Box::new(Node::If(
+//                     vec![
+//                         Box::new(Node::Equal(vec![
+//                             Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
+//                             Box::new(Node::Constant(2.0)),
+//                         ])),
+//                         Box::new(Node::Assign(vec![
+//                             Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
+//                             Box::new(Node::Constant(3.0)),
+//                         ])),
+//                         Box::new(Node::Assign(vec![
+//                             Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
+//                             Box::new(Node::Constant(4.0)),
+//                         ])),
+//                         Box::new(Node::Assign(vec![
+//                             Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
+//                             Box::new(Node::Constant(5.0)),
+//                         ])),
+//                         Box::new(Node::Assign(vec![
+//                             Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
+//                             Box::new(Node::Constant(6.0)),
+//                         ])),
+//                     ],
+//                     Some(2),
+//                 )),
+//                 Box::new(Node::Assign(vec![
+//                     Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(7.0)),
+//                 ])),
+//                 Box::new(Node::Assign(vec![
+//                     Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(8.0)),
+//                 ])),
+//             ],
+//             Some(1),
+//         ))]));
+
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_if_multiple_conditions() {
+//         let tokens = Lexer::new(
+//             "
+//             if a == 1 and b == 2 {
+//                 c = 3;
+//             }"
+//             .to_string(),
+//         )
+//         .tokenize()
+//         .unwrap();
+
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::If(
+//             vec![
+//                 Box::new(Node::And(vec![
+//                     Box::new(Node::Equal(vec![
+//                         Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//                         Box::new(Node::Constant(1.0)),
+//                     ])),
+//                     Box::new(Node::Equal(vec![
+//                         Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
+//                         Box::new(Node::Constant(2.0)),
+//                     ])),
+//                 ])),
+//                 Box::new(Node::Assign(vec![
+//                     Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(3.0)),
+//                 ])),
+//             ],
+//             None,
+//         ))]));
+
+//         assert_eq!(result, expected);
+
+//         let tokens = Lexer::new(
+//             "
+//             if a == 1 or b == 2 {
+//                 c = 3;
+//             }"
+//             .to_string(),
+//         )
+//         .tokenize();
+
+//         let parser = Parser::new(tokens.unwrap());
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::If(
+//             vec![
+//                 Box::new(Node::Or(vec![
+//                     Box::new(Node::Equal(vec![
+//                         Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//                         Box::new(Node::Constant(1.0)),
+//                     ])),
+//                     Box::new(Node::Equal(vec![
+//                         Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
+//                         Box::new(Node::Constant(2.0)),
+//                     ])),
+//                 ])),
+//                 Box::new(Node::Assign(vec![
+//                     Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
+//                     Box::new(Node::Constant(3.0)),
+//                 ])),
+//             ],
+//             None,
+//         ))]));
+
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_if_new_variable() {
+//         let tokens = Lexer::new(
+//             "
+//                 x = 2;
+//                 if x == 1 {
+//                     z = 3;
+//                     w = 4;
+//                 }
+//             "
+//             .to_string(),
+//         )
+//         .tokenize()
+//         .unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![
+//             Box::new(Node::Assign(vec![
+//                 Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//                 Box::new(Node::Constant(2.0)),
+//             ])),
+//             Box::new(Node::If(
+//                 vec![
+//                     Box::new(Node::Equal(vec![
+//                         Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//                         Box::new(Node::Constant(1.0)),
+//                     ])),
+//                     Box::new(Node::Assign(vec![
+//                         Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
+//                         Box::new(Node::Constant(3.0)),
+//                     ])),
+//                     Box::new(Node::Assign(vec![
+//                         Box::new(Node::Variable(Vec::new(), "w".to_string(), OnceLock::new())),
+//                         Box::new(Node::Constant(4.0)),
+//                     ])),
+//                 ],
+//                 None,
+//             )),
+//         ]));
+
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_bool_variables_with_if() {
+//         let tokens = Lexer::new(
+//             "
+//                 x = true;
+//                 y = false;
+//                 if x == true {
+//                     z = 3;
+//                 }
+//             "
+//             .to_string(),
+//         )
+//         .tokenize()
+//         .unwrap();
+//         let parser = Parser::new(tokens);
+//         let result = parser.parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![
+//             Box::new(Node::Assign(vec![
+//                 Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//                 Box::new(Node::True),
+//             ])),
+//             Box::new(Node::Assign(vec![
+//                 Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+//                 Box::new(Node::False),
+//             ])),
+//             Box::new(Node::If(
+//                 vec![
+//                     Box::new(Node::Equal(vec![
+//                         Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//                         Box::new(Node::True),
+//                     ])),
+//                     Box::new(Node::Assign(vec![
+//                         Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
+//                         Box::new(Node::Constant(3.0)),
+//                     ])),
+//                 ],
+//                 None,
+//             )),
+//         ]));
+
+//         assert_eq!(result, expected);
+//     }
+
+//     #[test]
+//     fn test_multiple_bool_vars() {
+//         let script = "
+//             x = true;
+//             y = false;
+//             z = x and y;
+//             w = x or y;
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![
+//             Box::new(Node::Assign(vec![
+//                 Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//                 Box::new(Node::True),
+//             ])),
+//             Box::new(Node::Assign(vec![
+//                 Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+//                 Box::new(Node::False),
+//             ])),
+//             Box::new(Node::Assign(vec![
+//                 Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
+//                 Box::new(Node::And(vec![
+//                     Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//                     Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+//                 ])),
+//             ])),
+//             Box::new(Node::Assign(vec![
+//                 Box::new(Node::Variable(Vec::new(), "w".to_string(), OnceLock::new())),
+//                 Box::new(Node::Or(vec![
+//                     Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//                     Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+//                 ])),
+//             ])),
+//         ]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_cvg_function() {
+//         let script = "
+//             x = cvg(\"2020-01-01\", \"2020-06-01\", \"Actual360\");
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//             Box::new(Node::Cvg(vec![
+//                 Box::new(Node::String("2020-01-01".to_string())),
+//                 Box::new(Node::String("2020-06-01".to_string())),
+//                 Box::new(Node::String("Actual360".to_string())),
+//             ])),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_max_function() {
+//         let script = "
+//             z = max(1, 2);
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         tokens.iter().for_each(|t| println!("{:?}", t));
+
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
+//             Box::new(Node::Max(vec![
+//                 Box::new(Node::Constant(1.0)),
+//                 Box::new(Node::Constant(2.0)),
+//             ])),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_string_variable() {
+//         let script = "
+//             x = \"hello\";
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//             Box::new(Node::String("hello".to_string())),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_spot_function() {
+//         let script = "
+//             x = Spot(\"USD\", \"EUR\");
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//             Box::new(Node::Spot(
+//                 Currency::try_from("USD".to_string()).unwrap(),
+//                 Some(Currency::try_from("EUR".to_string()).unwrap()),
+//                 OnceLock::new(),
+//             )),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_rate_index_function() {
+//         let script = "
+//             x = RateIndex(\"0\", \"2024-01-01\", \"2024-02-01\");
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//             Box::new(Node::RateIndex(
+//                 "0".to_string(),
+//                 Date::new(2024, 1, 1),
+//                 Date::new(2024, 2, 1),
+//                 OnceLock::new(),
+//             )),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+// }
+
+// /// tests for reserved keywords. These are keywords that are reserved in the scripting language
+// /// and cannot be used as variable names
+// #[cfg(test)]
+// mod test_reserved_keywords {
+//     #[test]
+//     fn test_if_reserved() {
+//         let script = "
+//             if = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_else_reserved() {
+//         let script = "
+//             else = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_and_reserved() {
+//         let script = "
+//             and = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_or_reserved() {
+//         let script = "
+//             or = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_true_reserved() {
+//         let script = "
+//             true = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_false_reserved() {
+//         let script = "
+//             false = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_max_reserved() {
+//         let script = "
+//             max = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_min_reserved() {
+//         let script = "
+//             min = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_pow_reserved() {
+//         let script = "
+//             pow = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_ln_reserved() {
+//         let script = "
+//             ln = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_exp_reserved() {
+//         let script = "
+//             exp = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_spot_reserved() {
+//         let script = "
+//             Spot = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_rate_index_reserved() {
+//         let script = "
+//             RateIndex = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_pays_reserved() {
+//         let script = "
+//             pays = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+
+//     #[test]
+//     fn test_cvg_reserved() {
+//         let script = "
+//             cvg = 1;
+//         "
+//         .to_string();
+
+//         let tokens = crate::parsers::lexer::Lexer::new(script)
+//             .tokenize()
+//             .unwrap();
+//         let nodes = crate::parsers::parser::Parser::new(tokens).parse();
+//         assert!(nodes.is_err());
+//     }
+// }
+
+// #[cfg(test)]
+// mod test_function_args {
+
+//     use crate::nodes::node::Node;
+//     use crate::parsers::lexer::Lexer;
+//     use crate::parsers::parser::OnceLock;
+//     use crate::parsers::parser::Parser;
+
+//     #[test]
+//     fn test_function_args() {
+//         let script = "
+//             x = max(1, 2);
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//             Box::new(Node::Max(vec![
+//                 Box::new(Node::Constant(1.0)),
+//                 Box::new(Node::Constant(2.0)),
+//             ])),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_function_args_multiple() {
+//         let script = "
+//             x = max(1, 2, 3, 4);
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//             Box::new(Node::Max(vec![
+//                 Box::new(Node::Constant(1.0)),
+//                 Box::new(Node::Constant(2.0)),
+//                 Box::new(Node::Constant(3.0)),
+//                 Box::new(Node::Constant(4.0)),
+//             ])),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_function_args_nested() {
+//         let script = "
+//             x = max(max(1, 2), 3);
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//             Box::new(Node::Max(vec![
+//                 Box::new(Node::Max(vec![
+//                     Box::new(Node::Constant(1.0)),
+//                     Box::new(Node::Constant(2.0)),
+//                 ])),
+//                 Box::new(Node::Constant(3.0)),
+//             ])),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_function_args_nested_multiple() {
+//         let script = "
+//             x = max(max(1, 2), max(3, 4));
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//             Box::new(Node::Max(vec![
+//                 Box::new(Node::Max(vec![
+//                     Box::new(Node::Constant(1.0)),
+//                     Box::new(Node::Constant(2.0)),
+//                 ])),
+//                 Box::new(Node::Max(vec![
+//                     Box::new(Node::Constant(3.0)),
+//                     Box::new(Node::Constant(4.0)),
+//                 ])),
+//             ])),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_function_args_nested_multiple_with_variables() {
+//         let script = "
+//             x = max(max(a, b), max(c, d));
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+//             Box::new(Node::Max(vec![
+//                 Box::new(Node::Max(vec![
+//                     Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+//                     Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
+//                 ])),
+//                 Box::new(Node::Max(vec![
+//                     Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
+//                     Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
+//                 ])),
+//             ])),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+
+//     #[test]
+//     fn test_no_assigmnet() {
+//         let script = "
+//             max(1, 2);
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse();
+
+//         assert!(nodes.is_err());
+//     }
+// }
+
+// #[cfg(test)]
+// mod test_pays_expression {
+//     use super::*;
+//     use rustatlas::currencies::enums::Currency;
+
+//     #[test]
+//     fn test_pays_as_expression() {
+//         let script = "
+//             call = pays max(Spot(\"CLP\", \"USD\") - 900.0, 0);
+//         "
+//         .to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(
+//                 Vec::new(),
+//                 "call".to_string(),
+//                 OnceLock::new(),
+//             )),
+//             Box::new(Node::Pays(
+//                 vec![Box::new(Node::Max(vec![
+//                     Box::new(Node::Subtract(vec![
+//                         Box::new(Node::Spot(
+//                             Currency::try_from("CLP".to_string()).unwrap(),
+//                             Some(Currency::try_from("USD".to_string()).unwrap()),
+//                             OnceLock::new(),
+//                         )),
+//                         Box::new(Node::Constant(900.0)),
+//                     ])),
+//                     Box::new(Node::Constant(0.0)),
+//                 ]))],
+//                 OnceLock::new(),
+//             )),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+// }
+
+// #[cfg(test)]
+// mod test_pays_assignment {
+//     use super::*;
+
+//     #[test]
+//     fn test_variable_pays_assignment() {
+//         let script = "prd pays 100;".to_string();
+
+//         let tokens = Lexer::new(script).tokenize().unwrap();
+//         let nodes = Parser::new(tokens).parse().unwrap();
+
+//         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+//             Box::new(Node::Variable(
+//                 Vec::new(),
+//                 "prd".to_string(),
+//                 OnceLock::new(),
+//             )),
+//             Box::new(Node::Add(vec![
+//                 Box::new(Node::Variable(
+//                     Vec::new(),
+//                     "prd".to_string(),
+//                     OnceLock::new(),
+//                 )),
+//                 Box::new(Node::Pays(
+//                     vec![Box::new(Node::Constant(100.0))],
+//                     OnceLock::new(),
+//                 )),
+//             ])),
+//         ]))]));
+
+//         assert_eq!(nodes, expected);
+//     }
+// }

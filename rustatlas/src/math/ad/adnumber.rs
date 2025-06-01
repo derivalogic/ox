@@ -88,7 +88,7 @@ impl ToNumeric<f64> for ADNumber {
 
 pub trait Expr: Clone {
     fn inner_value(&self) -> f64;
-    fn push_adj(&self, parent: &mut Node, adj: f64);
+    fn push_adj(&self, parent: &mut TapeNode, adj: f64);
 }
 
 /* ════════════════════════  LEAF: ADNumber  ═════════════════════════ */
@@ -151,7 +151,7 @@ impl Expr for ADNumber {
     fn inner_value(&self) -> f64 {
         self.val
     }
-    fn push_adj(&self, parent: &mut Node, adj: f64) {
+    fn push_adj(&self, parent: &mut TapeNode, adj: f64) {
         parent.childs.push(self.idx);
         parent.derivs.push(adj);
     }
@@ -244,7 +244,7 @@ impl Expr for Const {
         self.0
     }
     #[inline]
-    fn push_adj(&self, _: &mut Node, _: f64) {}
+    fn push_adj(&self, _: &mut TapeNode, _: f64) {}
 }
 
 /* ═════════════════════  BIN-OP “TYPE CLASS”  ═══════════════════════ */
@@ -413,7 +413,7 @@ impl<L: Expr, R: Expr, O: BinOp + Clone> Expr for BinExpr<L, R, O> {
     fn inner_value(&self) -> f64 {
         self.val
     }
-    fn push_adj(&self, parent: &mut Node, adj: f64) {
+    fn push_adj(&self, parent: &mut TapeNode, adj: f64) {
         self.l.push_adj(
             parent,
             adj * O::d_left(self.l.inner_value(), self.r.inner_value()),
@@ -483,7 +483,7 @@ impl<A: Expr, O: UnOp + Clone> Expr for UnExpr<A, O> {
     fn inner_value(&self) -> f64 {
         self.val
     }
-    fn push_adj(&self, parent: &mut Node, adj: f64) {
+    fn push_adj(&self, parent: &mut TapeNode, adj: f64) {
         self.a
             .push_adj(parent, adj * O::deriv(self.a.inner_value(), self.val));
     }
@@ -851,7 +851,7 @@ pub fn min<L: Expr + Clone, R: Expr + Clone>(l: L, r: R) -> BinExpr<L, R, MinOp>
 /* ═══════  FLATTEN ANY EXPRESSION INTO A TAPE NODE (ADNumber)  ═════ */
 
 fn flatten<E: Expr + Clone>(e: &E) -> ADNumber {
-    let mut node = Node::default();
+    let mut node = TapeNode::default();
     e.push_adj(&mut node, 1.0);
     let idx = TAPE.with(|t| t.borrow_mut().record(node));
     ADNumber {
@@ -935,6 +935,16 @@ pub trait FloatExt: Expr + Clone + Sized {
     #[inline]
     fn pow_expr<R: Expr + Clone>(self, p: R) -> BinExpr<Self, R, PowOp> {
         BinExpr::new(self, p)
+    }
+
+    #[inline]
+    fn min<R: Expr + Clone>(self, r: R) -> BinExpr<Self, R, MinOp> {
+        BinExpr::new(self, r)
+    }
+
+    #[inline]
+    fn max<R: Expr + Clone>(self, r: R) -> BinExpr<Self, R, MaxOp> {
+        BinExpr::new(self, r)
     }
 }
 impl<T: Expr + Clone> FloatExt for T {}

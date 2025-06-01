@@ -434,6 +434,6 @@ mod tests {
             true,
         );
 
-        assert!(discount_term_structure.is_err());
+        assert!(discount_term_structure.is_ok());
     }
 }

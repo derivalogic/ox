@@ -1,6 +1,5 @@
 use std::sync::OnceLock;
 
-use rustatlas::utils::num::Real;
 use rustatlas::prelude::*;
 
 use crate::prelude::*;
@@ -8,12 +7,12 @@ use crate::prelude::*;
 pub type ExprTree = Box<Node>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Node<T: Real = f64> {
+pub enum Node {
     Base(Vec<ExprTree>),
 
     // variables
     Variable(Vec<ExprTree>, String, OnceLock<usize>),
-    Constant(T),
+    Constant(NumericType),
     String(String),
 
     // financial
@@ -108,7 +107,7 @@ impl Node {
         Node::Cvg(Vec::new())
     }
 
-    pub fn new_constant(value: f64) -> Node {
+    pub fn new_constant(value: NumericType) -> Node {
         Node::Constant(value)
     }
 
@@ -376,8 +375,8 @@ mod ai_gen_tests {
     #[test]
     fn test_new_constant() {
         // Test the creation of a new constant node
-        let node = Node::new_constant(3.14);
-        assert_eq!(node, Node::Constant(3.14));
+        let node = Node::new_constant(NumericType::new(3.14));
+        assert_eq!(node, Node::Constant(NumericType::new(3.14)));
     }
 
     #[test]
@@ -554,7 +553,7 @@ mod ai_gen_tests {
     #[should_panic(expected = "Cannot add child to constant node")]
     fn test_add_child_to_constant() {
         // Test adding a child to a constant node, which should panic
-        let mut node = Node::Constant(3.14);
+        let mut node = Node::Constant(NumericType::new(3.14));
         let child = Box::new(Node::new_add());
         node.add_child(child);
     }
@@ -599,7 +598,7 @@ mod ai_gen_tests {
     #[should_panic(expected = "Cannot get children from constant node")]
     fn test_children_of_constant() {
         // Test getting children of a constant node, which should panic
-        let node = Node::Constant(3.14);
+        let node = Node::Constant(NumericType::new(3.14));
         node.children();
     }
 }

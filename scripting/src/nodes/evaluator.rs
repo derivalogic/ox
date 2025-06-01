@@ -1,4 +1,4 @@
-use rustatlas::{math::ad::genericnumber::Real, prelude::*};
+use rustatlas::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use std::{
@@ -15,9 +15,9 @@ use crate::utils::errors::{Result, ScriptingError};
 /// in the scripting language. We could say that this language
 /// is dynamically typed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Value<T: Real = f64> {
+pub enum Value {
     Bool(bool),
-    Number(T),
+    Number(NumericType),
     String(String),
     Null,
 }
@@ -27,7 +27,7 @@ impl Add for Value {
 
     fn add(self, other: Self) -> Self {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(a + b),
+            (Value::Number(a), Value::Number(b)) => Value::Number((a + b).into()),
             (Value::String(a), Value::String(b)) => Value::String(a + &b),
             _ => Value::Null,
         }
@@ -49,7 +49,7 @@ impl Sub for Value {
 
     fn sub(self, other: Self) -> Self {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(a - b),
+            (Value::Number(a), Value::Number(b)) => Value::Number((a - b).into()),
             _ => Value::Null,
         }
     }
@@ -69,7 +69,7 @@ impl Mul for Value {
 
     fn mul(self, other: Self) -> Self {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(a * b),
+            (Value::Number(a), Value::Number(b)) => Value::Number((a * b).into()),
             _ => Value::Null,
         }
     }
@@ -80,28 +80,25 @@ impl Div for Value {
 
     fn div(self, other: Self) -> Self {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(a / b),
+            (Value::Number(a), Value::Number(b)) => Value::Number((a / b).into()),
             _ => Value::Null,
         }
     }
 }
 
-pub type Scenario<T = f64> = Vec<MarketData<T>>;
-pub type Numeraries<T = f64> = Vec<T>;
-
 /// # ExprEvaluator
 /// Visitor that evaluates the expression tree
-pub struct ExprEvaluator<'a, T: Real = f64> {
-    variables: Mutex<Vec<Value<T>>>,
-    digit_stack: Mutex<Vec<T>>,
+pub struct ExprEvaluator<'a> {
+    variables: Mutex<Vec<Value>>,
+    digit_stack: Mutex<Vec<NumericType>>,
     boolean_stack: Mutex<Vec<bool>>,
     string_stack: Mutex<Vec<String>>,
     is_lhs_variable: Mutex<bool>,
     lhs_variable: Mutex<Option<Box<Node>>>,
-    scenario: Option<&'a Scenario<T>>,
+    scenario: Option<&'a Scenario>,
 }
 
-impl<'a, T: Real> ExprEvaluator<'a, T> {
+impl<'a> ExprEvaluator<'a> {
     pub fn new_with_type() -> Self {
         ExprEvaluator {
             variables: Mutex::new(Vec::new()),
@@ -114,7 +111,7 @@ impl<'a, T: Real> ExprEvaluator<'a, T> {
         }
     }
 
-    pub fn with_scenario(mut self, scenario: &'a Scenario<T>) -> Self {
+    pub fn with_scenario(mut self, scenario: &'a Scenario) -> Self {
         self.scenario = Some(scenario);
         self
     }
@@ -124,11 +121,11 @@ impl<'a, T: Real> ExprEvaluator<'a, T> {
         self
     }
 
-    pub fn variables(&self) -> Vec<Value<T>> {
+    pub fn variables(&self) -> Vec<Value> {
         self.variables.lock().unwrap().clone()
     }
 
-    pub fn set_variable(&self, idx: usize, val: Value<T>) {
+    pub fn set_variable(&self, idx: usize, val: Value) {
         let mut vars = self.variables.lock().unwrap();
         if idx >= vars.len() {
             vars.resize(idx + 1, Value::Null);
@@ -136,7 +133,7 @@ impl<'a, T: Real> ExprEvaluator<'a, T> {
         vars[idx] = val;
     }
 
-    pub fn digit_stack(&self) -> Vec<T> {
+    pub fn digit_stack(&self) -> Vec<NumericType> {
         self.digit_stack.lock().unwrap().clone()
     }
 
@@ -147,11 +144,11 @@ impl<'a, T: Real> ExprEvaluator<'a, T> {
 
 impl<'a> ExprEvaluator<'a> {
     pub fn new() -> Self {
-        ExprEvaluator::<'a, f64>::new_with_type()
+        ExprEvaluator::<'a>::new_with_type()
     }
 }
 
-impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
+impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
     type Output = Result<()>;
     fn const_visit(&self, node: Box<Node>) -> Self::Output {
         let eval: Result<()> = match node.as_ref() {
@@ -209,10 +206,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
                         "Spot not found".to_string(),
                     ))?;
 
-                self.digit_stack
-                    .lock()
-                    .unwrap()
-                    .push(T::from(market_data.fx()?));
+                self.digit_stack.lock().unwrap().push(market_data.fx()?);
                 Ok(())
             }
             Node::RateIndex(_, _, _, index) => {
@@ -230,10 +224,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
                         "RateIndex not found".to_string(),
                     ))?;
 
-                self.digit_stack
-                    .lock()
-                    .unwrap()
-                    .push(T::from(market_data.fwd()?));
+                self.digit_stack.lock().unwrap().push(market_data.fwd()?);
                 Ok(())
             }
             Node::Pays(children, index) => {
@@ -259,11 +250,11 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
                 self.digit_stack
                     .lock()
                     .unwrap()
-                    .push(current_value / market_data.numerarie());
+                    .push((current_value / market_data.numerarie()).into());
                 Ok(())
             }
             Node::Constant(value) => {
-                self.digit_stack.lock().unwrap().push(T::from(*value));
+                self.digit_stack.lock().unwrap().push(*value);
                 Ok(())
             }
             Node::String(value) => {
@@ -277,7 +268,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
 
                 let right = self.digit_stack.lock().unwrap().pop().unwrap();
                 let left = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(left + right);
+                self.digit_stack.lock().unwrap().push((left + right).into());
                 Ok(())
             }
             Node::Subtract(children) => {
@@ -287,7 +278,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
 
                 let right = self.digit_stack.lock().unwrap().pop().unwrap();
                 let left = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(left - right);
+                self.digit_stack.lock().unwrap().push((left - right).into());
                 Ok(())
             }
             Node::Multiply(children) => {
@@ -297,7 +288,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
 
                 let right = self.digit_stack.lock().unwrap().pop().unwrap();
                 let left = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(left * right);
+                self.digit_stack.lock().unwrap().push((left * right).into());
                 Ok(())
             }
             Node::Divide(children) => {
@@ -307,7 +298,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
 
                 let right = self.digit_stack.lock().unwrap().pop().unwrap();
                 let left = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(left / right);
+                self.digit_stack.lock().unwrap().push((left / right).into());
                 Ok(())
             }
             Node::Assign(children) => {
@@ -365,7 +356,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
                 self.boolean_stack
                     .lock()
                     .unwrap()
-                    .push((right - left).abs() >= T::from(f64::EPSILON));
+                    .push((right - left).abs() >= f64::EPSILON);
 
                 Ok(())
             }
@@ -466,7 +457,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
                 self.boolean_stack
                     .lock()
                     .unwrap()
-                    .push((right - left).abs() < T::from(f64::EPSILON));
+                    .push((right - left).abs() < f64::EPSILON);
 
                 Ok(())
             }
@@ -483,7 +474,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
                 let top = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(-top);
+                self.digit_stack.lock().unwrap().push((-top).into());
 
                 Ok(())
             }
@@ -494,7 +485,10 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
 
                 let right = self.digit_stack.lock().unwrap().pop().unwrap();
                 let left = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(left.min(right));
+                self.digit_stack
+                    .lock()
+                    .unwrap()
+                    .push(left.min(right).into());
 
                 Ok(())
             }
@@ -505,10 +499,15 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
 
                 let right = self.digit_stack.lock().unwrap().pop().unwrap();
                 let left = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(left.max(right));
+                self.digit_stack
+                    .lock()
+                    .unwrap()
+                    .push(left.max(right).into());
 
                 Ok(())
             }
+
+            #[cfg(feature = "adnumber")]
             Node::Pow(children) => {
                 children
                     .iter()
@@ -516,17 +515,36 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
 
                 let right = self.digit_stack.lock().unwrap().pop().unwrap();
                 let left = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(left.powf(right));
+                self.digit_stack
+                    .lock()
+                    .unwrap()
+                    .push(left.pow_expr(right).into());
 
                 Ok(())
             }
+            #[cfg(feature = "f64")]
+            Node::Pow(children) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+
+                let right = self.digit_stack.lock().unwrap().pop().unwrap();
+                let left = self.digit_stack.lock().unwrap().pop().unwrap();
+                self.digit_stack
+                    .lock()
+                    .unwrap()
+                    .push(left.pow_expr(right).into());
+
+                Ok(())
+            }
+
             Node::Ln(children) => {
                 children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
                 let top = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(top.ln());
+                self.digit_stack.lock().unwrap().push(top.ln().into());
 
                 Ok(())
             }
@@ -536,7 +554,7 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
                 let top = self.digit_stack.lock().unwrap().pop().unwrap();
-                self.digit_stack.lock().unwrap().push(top.exp());
+                self.digit_stack.lock().unwrap().push(top.exp().into());
                 Ok(())
             }
             Node::Cvg(children) => {
@@ -592,12 +610,12 @@ impl<'a, T: Real> NodeConstVisitor for ExprEvaluator<'a, T> {
 
 /// # EventStreamEvaluator
 /// Visitor that evaluates the event stream
-pub struct EventStreamEvaluator<'a, T: Real = f64> {
+pub struct EventStreamEvaluator<'a> {
     n_vars: usize,
-    scenarios: Option<&'a Vec<Scenario<T>>>,
+    scenarios: Option<&'a Vec<Scenario>>,
 }
 
-impl<'a, T: Real> EventStreamEvaluator<'a, T> {
+impl<'a> EventStreamEvaluator<'a> {
     pub fn new(n_vars: usize) -> Self {
         EventStreamEvaluator {
             n_vars,
@@ -605,7 +623,7 @@ impl<'a, T: Real> EventStreamEvaluator<'a, T> {
         }
     }
 
-    pub fn with_scenarios(mut self, scenarios: &'a Vec<Scenario<T>>) -> Self {
+    pub fn with_scenarios(mut self, scenarios: &'a Vec<Scenario>) -> Self {
         self.scenarios = Some(scenarios);
         self
     }
@@ -614,13 +632,13 @@ impl<'a, T: Real> EventStreamEvaluator<'a, T> {
         &self,
         event_stream: &EventStream,
         var_indexes: &HashMap<String, usize>,
-    ) -> Result<HashMap<String, Value<T>>> {
+    ) -> Result<HashMap<String, Value>> {
         let scenarios = self.scenarios.ok_or(ScriptingError::EvaluationError(
             "No scenarios set".to_string(),
         ))?;
 
         // Evaluate the events to get the variables using the first scenario
-        let mut evaluator = ExprEvaluator::<'_, T>::new_with_type().with_variables(self.n_vars);
+        let mut evaluator = ExprEvaluator::<'_>::new_with_type().with_variables(self.n_vars);
         if let Some(first) = scenarios.first() {
             evaluator = evaluator.with_scenario(first);
         }
@@ -632,11 +650,11 @@ impl<'a, T: Real> EventStreamEvaluator<'a, T> {
                 Ok(())
             })?;
 
-        let v: Vec<Value<T>> = evaluator
+        let v: Vec<Value> = evaluator
             .variables()
             .iter()
             .map(|v| match v {
-                Value::Number(_) => Value::Number(T::from(0.0)),
+                Value::Number(_) => Value::Number(NumericType::new(0.0)),
                 _ => v.clone(),
             })
             .collect();
@@ -644,7 +662,7 @@ impl<'a, T: Real> EventStreamEvaluator<'a, T> {
         let global_variables = Mutex::new(v);
 
         scenarios.iter().try_for_each(|scenario| -> Result<()> {
-            let evaluator = ExprEvaluator::<T>::new_with_type()
+            let evaluator = ExprEvaluator::new_with_type()
                 .with_variables(self.n_vars)
                 .with_scenario(scenario);
 
@@ -661,7 +679,7 @@ impl<'a, T: Real> EventStreamEvaluator<'a, T> {
             vars.iter_mut()
                 .zip(local_variables.iter())
                 .for_each(|(g, l)| match (g, l) {
-                    (Value::Number(g), Value::Number(l)) => *g = *g + *l,
+                    (Value::Number(g), Value::Number(l)) => *g = (*g + *l).into(),
                     _ => (),
                 });
 
@@ -670,10 +688,10 @@ impl<'a, T: Real> EventStreamEvaluator<'a, T> {
 
         //avg
         let mut vars = global_variables.lock().unwrap();
-        let len = T::from(scenarios.len() as f64);
+        let len = scenarios.len() as f64;
 
         vars.iter_mut().for_each(|v| match v {
-            Value::Number(v) => *v = *v / len,
+            Value::Number(v) => *v = (*v / len).into(),
             _ => (),
         });
 
@@ -690,6 +708,8 @@ impl<'a, T: Real> EventStreamEvaluator<'a, T> {
 
 #[cfg(test)]
 mod general_tests {
+    use num_traits::Num;
+
     use super::*;
 
     #[test]
@@ -697,8 +717,8 @@ mod general_tests {
         let mut base = Box::new(Node::new_base());
         let mut add = Box::new(Node::new_add());
 
-        let c1 = Box::new(Node::new_constant(1.0));
-        let c2 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
 
         add.add_child(c1);
         add.add_child(c2);
@@ -715,8 +735,8 @@ mod general_tests {
         let mut base = Box::new(Node::new_base());
         let mut subtract = Node::new_subtract();
 
-        let c1 = Node::new_constant(1.0);
-        let c2 = Node::new_constant(1.0);
+        let c1 = Node::new_constant(NumericType::new(1.0));
+        let c2 = Node::new_constant(NumericType::new(1.0));
 
         subtract.add_child(Box::new(c1));
         subtract.add_child(Box::new(c2));
@@ -733,8 +753,8 @@ mod general_tests {
         let mut base = Box::new(Node::new_base());
         let mut multiply = Node::new_multiply();
 
-        let c1 = Node::new_constant(2.0);
-        let c2 = Node::new_constant(2.0);
+        let c1 = Node::new_constant(NumericType::new(1.0));
+        let c2 = Node::new_constant(NumericType::new(2.0));
 
         multiply.add_child(Box::new(c1));
         multiply.add_child(Box::new(c2));
@@ -751,8 +771,8 @@ mod general_tests {
         let mut base = Box::new(Node::new_base());
         let mut divide = Node::new_divide();
 
-        let c1 = Node::new_constant(4.0);
-        let c2 = Node::new_constant(2.0);
+        let c1 = Node::new_constant(NumericType::new(4.0));
+        let c2 = Node::new_constant(NumericType::new(2.0));
 
         divide.add_child(Box::new(c1));
         divide.add_child(Box::new(c2));
@@ -768,7 +788,7 @@ mod general_tests {
     fn test_variable_assign_node() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
         let v1 = Box::new(Node::new_variable_with_id("x".to_string(), 0));
 
         let mut assign = Box::new(Node::new_assign());
@@ -779,7 +799,10 @@ mod general_tests {
 
         let evaluator = ExprEvaluator::new().with_variables(1);
         evaluator.const_visit(base).unwrap();
-        assert_eq!(evaluator.variables().pop().unwrap(), Value::Number(1.0));
+        assert_eq!(
+            evaluator.variables().pop().unwrap(),
+            Value::Number(NumericType::new(1.0))
+        );
     }
 
     #[test]
@@ -814,7 +837,7 @@ mod general_tests {
     fn test_variable_use_node() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
         let v1 = Box::new(Node::new_variable_with_id("x".to_string(), 0));
 
         let mut add = Box::new(Node::new_add());
@@ -831,8 +854,8 @@ mod general_tests {
     fn test_nested_expression() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(1.0));
-        let c2 = Box::new(Node::new_constant(2.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(2.0)));
         let x = Box::new(Node::new_variable_with_id("x".to_string(), 0));
         let y = Box::new(Node::new_variable_with_id("y".to_string(), 1));
         let z = Box::new(Node::new_variable_with_id("z".to_string(), 2));
@@ -859,15 +882,18 @@ mod general_tests {
 
         let evaluator = ExprEvaluator::new().with_variables(3);
         evaluator.const_visit(base).unwrap();
-        assert_eq!(evaluator.variables().pop().unwrap(), Value::Number(3.0));
+        assert_eq!(
+            evaluator.variables().pop().unwrap(),
+            Value::Number(NumericType::new(3.0))
+        );
     }
 
     #[test]
     fn test_equal() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(1.0));
-        let c2 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
 
         let mut equal = Box::new(Node::new_equal());
         equal.add_child(c1);
@@ -884,8 +910,8 @@ mod general_tests {
     fn test_superior() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(2.0));
-        let c2 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(2.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
 
         let mut and = Box::new(Node::new_superior());
         and.add_child(c1);
@@ -902,8 +928,8 @@ mod general_tests {
     fn test_inferior() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(1.0));
-        let c2 = Box::new(Node::new_constant(2.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(2.0)));
 
         let mut and = Box::new(Node::new_inferior());
         and.add_child(c1);
@@ -921,8 +947,8 @@ mod general_tests {
     fn test_superior_or_equal() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(2.0));
-        let c2 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(2.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
 
         let mut and = Box::new(Node::new_superior_or_equal());
         and.add_child(c1);
@@ -939,8 +965,8 @@ mod general_tests {
     fn test_inferior_or_equal() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(1.0));
-        let c2 = Box::new(Node::new_constant(2.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(2.0)));
 
         let mut and = Box::new(Node::new_inferior_or_equal());
         and.add_child(c1);
@@ -957,8 +983,8 @@ mod general_tests {
     fn test_and() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(1.0));
-        let c2 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
 
         let mut equal_1 = Box::new(Node::new_equal());
         equal_1.add_child(c1.clone());
@@ -985,8 +1011,8 @@ mod general_tests {
     fn test_or() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(1.0));
-        let c2 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
 
         let mut equal_1 = Box::new(Node::new_equal());
         equal_1.add_child(c1.clone());
@@ -1013,8 +1039,8 @@ mod general_tests {
     fn test_not() {
         let mut base = Box::new(Node::new_base());
 
-        let c1 = Box::new(Node::new_constant(1.0));
-        let c2 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
 
         let mut equal = Box::new(Node::new_equal());
         equal.add_child(c1.clone());
@@ -1036,7 +1062,7 @@ mod general_tests {
         let mut base = Box::new(Node::new_base());
 
         let x = Box::new(Node::new_variable_with_id("x".to_string(), 0));
-        let c1 = Box::new(Node::new_constant(1.0));
+        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
 
         let mut assing_x = Box::new(Node::new_assign());
         assing_x.add_child(x.clone());
@@ -1065,7 +1091,10 @@ mod general_tests {
 
         let evaluator = ExprEvaluator::new().with_variables(1);
         evaluator.const_visit(base).unwrap();
-        assert_eq!(evaluator.variables().pop().unwrap(), Value::Number(2.0));
+        assert_eq!(
+            evaluator.variables().pop().unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
     }
 
     #[test]
@@ -1073,21 +1102,21 @@ mod general_tests {
         let base = Box::new(Node::Base(vec![
             Box::new(Node::Assign(vec![
                 Box::new(Node::Variable(Vec::new(), "x".to_string(), 0.into())),
-                Box::new(Node::Constant(2.0)),
+                Box::new(Node::Constant(NumericType::new(2.0))),
             ])),
             Box::new(Node::If(
                 vec![
                     Box::new(Node::Equal(vec![
                         Box::new(Node::Variable(Vec::new(), "x".to_string(), 0.into())),
-                        Box::new(Node::Constant(1.0)),
+                        Box::new(Node::Constant(NumericType::new(1.0))),
                     ])),
                     Box::new(Node::Assign(vec![
                         Box::new(Node::Variable(Vec::new(), "z".to_string(), 1.into())),
-                        Box::new(Node::Constant(3.0)),
+                        Box::new(Node::Constant(NumericType::new(3.0))),
                     ])),
                     Box::new(Node::Assign(vec![
                         Box::new(Node::Variable(Vec::new(), "w".to_string(), 2.into())),
-                        Box::new(Node::Constant(4.0)),
+                        Box::new(Node::Constant(NumericType::new(4.0))),
                     ])),
                 ],
                 None,
@@ -1097,7 +1126,10 @@ mod general_tests {
         let evaluator = ExprEvaluator::new().with_variables(3);
         evaluator.const_visit(base).unwrap();
 
-        assert_eq!(evaluator.variables().get(0).unwrap(), &Value::Number(2.0));
+        assert_eq!(
+            evaluator.variables().get(0).unwrap(),
+            &Value::Number(NumericType::new(2.0))
+        );
         assert_eq!(evaluator.variables().get(1).unwrap(), &Value::Null);
         assert_eq!(evaluator.variables().get(2).unwrap(), &Value::Null);
     }
@@ -1105,16 +1137,9 @@ mod general_tests {
 
 #[cfg(test)]
 mod expr_evaluator_tests {
-    use crate::{
-        nodes::{
-            evaluator::Value,
-            indexer::EventIndexer,
-            traits::{NodeConstVisitor, NodeVisitor},
-        },
-        parsers::{lexer::Lexer, parser::Parser},
-    };
-
     use super::ExprEvaluator;
+    use super::*;
+    use rustatlas::prelude::*;
 
     #[test]
     fn test_simple_addition() {
@@ -1134,9 +1159,18 @@ mod expr_evaluator_tests {
         let evaluator = ExprEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(nodes).unwrap();
 
-        assert_eq!(*evaluator.variables().get(0).unwrap(), Value::Number(1.0));
-        assert_eq!(*evaluator.variables().get(1).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(2).unwrap(), Value::Number(3.0));
+        assert_eq!(
+            *evaluator.variables().get(0).unwrap(),
+            Value::Number(NumericType::new(1.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(1).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(2).unwrap(),
+            Value::Number(NumericType::new(3.0))
+        );
     }
 
     #[test]
@@ -1160,9 +1194,18 @@ mod expr_evaluator_tests {
         let evaluator = ExprEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(nodes).unwrap();
 
-        assert_eq!(*evaluator.variables().get(0).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(1).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(2).unwrap(), Value::Number(4.0));
+        assert_eq!(
+            *evaluator.variables().get(0).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(1).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(2).unwrap(),
+            Value::Number(NumericType::new(4.0))
+        );
     }
 
     #[test]
@@ -1188,9 +1231,18 @@ mod expr_evaluator_tests {
         let evaluator = ExprEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(nodes).unwrap();
 
-        assert_eq!(*evaluator.variables().get(0).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(1).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(2).unwrap(), Value::Number(4.0));
+        assert_eq!(
+            *evaluator.variables().get(0).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(1).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(2).unwrap(),
+            Value::Number(NumericType::new(4.0))
+        );
     }
 
     #[test]
@@ -1220,9 +1272,18 @@ mod expr_evaluator_tests {
         let evaluator = ExprEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(nodes).unwrap();
 
-        assert_eq!(*evaluator.variables().get(0).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(1).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(2).unwrap(), Value::Number(5.0));
+        assert_eq!(
+            *evaluator.variables().get(0).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(1).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(2).unwrap(),
+            Value::Number(NumericType::new(5.0))
+        );
     }
 
     #[test]
@@ -1247,9 +1308,18 @@ mod expr_evaluator_tests {
         let evaluator = ExprEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(nodes).unwrap();
 
-        assert_eq!(*evaluator.variables().get(0).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(1).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(2).unwrap(), Value::Number(4.0));
+        assert_eq!(
+            *evaluator.variables().get(0).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(1).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(2).unwrap(),
+            Value::Number(NumericType::new(4.0))
+        );
         assert_eq!(*evaluator.variables().get(3).unwrap(), Value::Null);
 
         let script = "
@@ -1272,10 +1342,22 @@ mod expr_evaluator_tests {
         let evaluator = ExprEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(nodes).unwrap();
 
-        assert_eq!(*evaluator.variables().get(0).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(1).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(2).unwrap(), Value::Number(3.0));
-        assert_eq!(*evaluator.variables().get(3).unwrap(), Value::Number(4.0));
+        assert_eq!(
+            *evaluator.variables().get(0).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(1).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(2).unwrap(),
+            Value::Number(NumericType::new(3.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(3).unwrap(),
+            Value::Number(NumericType::new(4.0))
+        );
     }
 
     #[test]
@@ -1304,9 +1386,18 @@ mod expr_evaluator_tests {
         let evaluator = ExprEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(nodes).unwrap();
 
-        assert_eq!(*evaluator.variables().get(0).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(1).unwrap(), Value::Number(2.0));
-        assert_eq!(*evaluator.variables().get(2).unwrap(), Value::Number(5.0));
+        assert_eq!(
+            *evaluator.variables().get(0).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(1).unwrap(),
+            Value::Number(NumericType::new(2.0))
+        );
+        assert_eq!(
+            *evaluator.variables().get(2).unwrap(),
+            Value::Number(NumericType::new(5.0))
+        );
     }
 
     #[test]
@@ -1400,9 +1491,18 @@ mod event_stream_evaluator_tests {
             EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
         let results = evaluator.visit_events(&events, &var_map).unwrap();
 
-        assert_eq!(results.get("x"), Some(&Value::Number(1.0)));
-        assert_eq!(results.get("y"), Some(&Value::Number(2.0)));
-        assert_eq!(results.get("z"), Some(&Value::Number(3.0)));
+        assert_eq!(
+            results.get("x"),
+            Some(&Value::Number(NumericType::new(1.0)))
+        );
+        assert_eq!(
+            results.get("y"),
+            Some(&Value::Number(NumericType::new(2.0)))
+        );
+        assert_eq!(
+            results.get("z"),
+            Some(&Value::Number(NumericType::new(3.0)))
+        );
     }
 
     #[test]
@@ -1428,14 +1528,25 @@ mod event_stream_evaluator_tests {
             EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
         let results = evaluator.visit_events(&events, &var_map).unwrap();
 
-        assert_eq!(results.get("x"), Some(&Value::Number(1.0)));
-        assert_eq!(results.get("y"), Some(&Value::Number(2.0)));
-        assert_eq!(results.get("z"), Some(&Value::Number(3.0)));
+        assert_eq!(
+            results.get("x"),
+            Some(&Value::Number(NumericType::new(1.0)))
+        );
+        assert_eq!(
+            results.get("y"),
+            Some(&Value::Number(NumericType::new(2.0)))
+        );
+        assert_eq!(
+            results.get("z"),
+            Some(&Value::Number(NumericType::new(3.0)))
+        );
     }
 }
 
 #[cfg(test)]
 mod ai_gen_tests {
+    use num_traits::Num;
+
     use super::*;
     #[test]
     fn test_unary_plus_node() {
@@ -1443,7 +1554,7 @@ mod ai_gen_tests {
         let mut base = Box::new(Node::new_base());
         let mut unary_plus = Box::new(Node::new_unary_plus());
 
-        let c1 = Node::new_constant(1.0);
+        let c1 = Node::new_constant(NumericType::new(1.0));
 
         unary_plus.add_child(Box::new(c1));
         base.add_child(unary_plus);
@@ -1460,7 +1571,7 @@ mod ai_gen_tests {
         let mut base = Box::new(Node::new_base());
         let mut unary_minus = Box::new(Node::new_unary_minus());
 
-        let c1 = Node::new_constant(1.0);
+        let c1 = Node::new_constant(NumericType::new(1.0));
 
         unary_minus.add_child(Box::new(c1));
         base.add_child(unary_minus);
@@ -1477,8 +1588,8 @@ mod ai_gen_tests {
         let mut base = Box::new(Node::new_base());
         let mut min = Box::new(Node::new_min());
 
-        let c1 = Node::new_constant(1.0);
-        let c2 = Node::new_constant(2.0);
+        let c1 = Node::new_constant(NumericType::new(1.0));
+        let c2 = Node::new_constant(NumericType::new(2.0));
 
         min.add_child(Box::new(c1));
         min.add_child(Box::new(c2));
@@ -1496,9 +1607,8 @@ mod ai_gen_tests {
         let mut base = Box::new(Node::new_base());
         let mut max = Box::new(Node::new_max());
 
-        let c1 = Node::new_constant(1.0);
-        let c2 = Node::new_constant(2.0);
-
+        let c1 = Node::new_constant(NumericType::new(1.0));
+        let c2 = Node::new_constant(NumericType::new(2.0));
         max.add_child(Box::new(c1));
         max.add_child(Box::new(c2));
         base.add_child(max);
@@ -1515,8 +1625,8 @@ mod ai_gen_tests {
         let mut base = Box::new(Node::new_base());
         let mut pow = Box::new(Node::new_pow());
 
-        let c1 = Node::new_constant(2.0);
-        let c2 = Node::new_constant(3.0);
+        let c1 = Node::new_constant(NumericType::new(2.0));
+        let c2 = Node::new_constant(NumericType::new(3.0));
 
         pow.add_child(Box::new(c1));
         pow.add_child(Box::new(c2));
@@ -1534,7 +1644,7 @@ mod ai_gen_tests {
         let mut base = Box::new(Node::new_base());
         let mut ln = Box::new(Node::new_ln());
 
-        let c1 = Node::new_constant(2.718281828459045);
+        let c1 = Node::new_constant(NumericType::new(2.718281828459045));
 
         ln.add_child(Box::new(c1));
         base.add_child(ln);
@@ -1551,7 +1661,7 @@ mod ai_gen_tests {
         let mut base = Box::new(Node::new_base());
         let mut exp = Box::new(Node::new_exp());
 
-        let c1 = Node::new_constant(1.0);
+        let c1 = Node::new_constant(NumericType::new(1.0));
 
         exp.add_child(Box::new(c1));
         base.add_child(exp);
@@ -1589,7 +1699,14 @@ mod ai_gen_tests {
         base.add_child(pays);
 
         let event_date = Date::from_str("2020-06-01", "%Y-%m-%d").unwrap();
-        let scenario = vec![MarketData::new(0, event_date, None, None, None, 2.0)];
+        let scenario = vec![MarketData::new(
+            0,
+            event_date,
+            None,
+            None,
+            None,
+            NumericType::new(2.0),
+        )];
 
         let indexer = EventIndexer::new();
         indexer.visit(&base).unwrap();
@@ -1607,11 +1724,18 @@ mod ai_gen_tests {
         // Pays should discount the evaluated value by the scenario numerarie
         let mut base = Box::new(Node::new_base());
         let mut pays = Box::new(Node::new_pays());
-        pays.add_child(Box::new(Node::new_constant(100.0)));
+        pays.add_child(Box::new(Node::new_constant(NumericType::new(100.0))));
         base.add_child(pays);
 
         let event_date = Date::new(2024, 1, 1);
-        let scenario = vec![MarketData::new(0, event_date, None, None, None, 2.0)];
+        let scenario = vec![MarketData::new(
+            0,
+            event_date,
+            None,
+            None,
+            None,
+            NumericType::new(2.0),
+        )];
 
         let indexer = EventIndexer::new();
         indexer.visit(&base).unwrap();
@@ -1636,9 +1760,9 @@ mod ai_gen_tests {
             0,
             Date::new(2024, 1, 1),
             None,
-            Some(0.05),
+            Some(NumericType::new(0.05)),
             None,
-            1.0,
+            NumericType::new(1.0),
         )];
 
         let indexer = EventIndexer::new();
@@ -1656,8 +1780,8 @@ mod ai_gen_tests {
         let mut base = Box::new(Node::new_base());
         let mut not_equal = Box::new(Node::new_not_equal());
 
-        let c1 = Node::new_constant(1.0);
-        let c2 = Node::new_constant(2.0);
+        let c1 = Node::new_constant(NumericType::new(1.0));
+        let c2 = Node::new_constant(NumericType::new(2.0));
 
         not_equal.add_child(Box::new(c1));
         not_equal.add_child(Box::new(c2));
@@ -1672,10 +1796,10 @@ mod ai_gen_tests {
     #[test]
     fn test_add_assign_number() {
         // Test the AddAssign trait for Value::Number to ensure it correctly adds two numbers.
-        let mut a = Value::Number(1.0);
-        let b = Value::Number(2.0);
+        let mut a = Value::Number(NumericType::new(3.0));
+        let b = Value::Number(NumericType::new(1.0));
         a += b;
-        assert_eq!(a, Value::Number(3.0));
+        assert_eq!(a, Value::Number(NumericType::new(3.0)));
     }
 
     #[test]
@@ -1690,16 +1814,16 @@ mod ai_gen_tests {
     #[test]
     fn test_sub_assign_number() {
         // Test the SubAssign trait for Value::Number to ensure it correctly subtracts two numbers.
-        let mut a = Value::Number(3.0);
-        let b = Value::Number(1.0);
+        let mut a = Value::Number(NumericType::new(3.0));
+        let b = Value::Number(NumericType::new(1.0));
         a -= b;
-        assert_eq!(a, Value::Number(2.0));
+        assert_eq!(a, Value::Number(NumericType::new(2.0)));
     }
 
     #[test]
     fn test_add_number_and_string() {
         // Test the Add trait for Value to ensure it returns Value::Null when adding a number and a string.
-        let a = Value::Number(1.0);
+        let a = Value::Number(NumericType::new(1.0));
         let b = Value::String("Hello".to_string());
         let result = a + b;
         assert_eq!(result, Value::Null);
@@ -1708,7 +1832,7 @@ mod ai_gen_tests {
     #[test]
     fn test_sub_number_and_string() {
         // Test the Sub trait for Value to ensure it returns Value::Null when subtracting a string from a number.
-        let a = Value::Number(1.0);
+        let a = Value::Number(NumericType::new(1.0));
         let b = Value::String("Hello".to_string());
         let result = a - b;
         assert_eq!(result, Value::Null);
@@ -1717,7 +1841,7 @@ mod ai_gen_tests {
     #[test]
     fn test_mul_number_and_string() {
         // Test the Mul trait for Value to ensure it returns Value::Null when multiplying a number and a string.
-        let a = Value::Number(1.0);
+        let a = Value::Number(NumericType::new(1.0));
         let b = Value::String("Hello".to_string());
         let result = a * b;
         assert_eq!(result, Value::Null);
@@ -1726,7 +1850,7 @@ mod ai_gen_tests {
     #[test]
     fn test_div_number_and_string() {
         // Test the Div trait for Value to ensure it returns Value::Null when dividing a number by a string.
-        let a = Value::Number(1.0);
+        let a = Value::Number(NumericType::new(1.0));
         let b = Value::String("Hello".to_string());
         let result = a / b;
         assert_eq!(result, Value::Null);
@@ -1736,7 +1860,7 @@ mod ai_gen_tests {
     fn test_add_bool_and_number() {
         // Test the Add trait for Value to ensure it returns Value::Null when adding a boolean and a number.
         let a = Value::Bool(true);
-        let b = Value::Number(1.0);
+        let b = Value::Number(NumericType::new(1.0));
         let result = a + b;
         assert_eq!(result, Value::Null);
     }
@@ -1745,7 +1869,7 @@ mod ai_gen_tests {
     fn test_sub_bool_and_number() {
         // Test the Sub trait for Value to ensure it returns Value::Null when subtracting a number from a boolean.
         let a = Value::Bool(true);
-        let b = Value::Number(1.0);
+        let b = Value::Number(NumericType::new(1.0));
         let result = a - b;
         assert_eq!(result, Value::Null);
     }
@@ -1754,7 +1878,7 @@ mod ai_gen_tests {
     fn test_mul_bool_and_number() {
         // Test the Mul trait for Value to ensure it returns Value::Null when multiplying a boolean and a number.
         let a = Value::Bool(true);
-        let b = Value::Number(1.0);
+        let b = Value::Number(NumericType::new(1.0));
         let result = a * b;
         assert_eq!(result, Value::Null);
     }
@@ -1763,7 +1887,7 @@ mod ai_gen_tests {
     fn test_div_bool_and_number() {
         // Test the Div trait for Value to ensure it returns Value::Null when dividing a boolean by a number.
         let a = Value::Bool(true);
-        let b = Value::Number(1.0);
+        let b = Value::Number(NumericType::new(1.0));
         let result = a / b;
         assert_eq!(result, Value::Null);
     }
@@ -1772,7 +1896,7 @@ mod ai_gen_tests {
     fn test_add_null_and_number() {
         // Test the Add trait for Value to ensure it returns Value::Null when adding a null and a number.
         let a = Value::Null;
-        let b = Value::Number(1.0);
+        let b = Value::Number(NumericType::new(1.0));
         let result = a + b;
         assert_eq!(result, Value::Null);
     }
@@ -1781,7 +1905,7 @@ mod ai_gen_tests {
     fn test_sub_null_and_number() {
         // Test the Sub trait for Value to ensure it returns Value::Null when subtracting a number from a null.
         let a = Value::Null;
-        let b = Value::Number(1.0);
+        let b = Value::Number(NumericType::new(1.0));
         let result = a - b;
         assert_eq!(result, Value::Null);
     }
@@ -1790,7 +1914,7 @@ mod ai_gen_tests {
     fn test_mul_null_and_number() {
         // Test the Mul trait for Value to ensure it returns Value::Null when multiplying a null and a number.
         let a = Value::Null;
-        let b = Value::Number(1.0);
+        let b = Value::Number(NumericType::new(1.0));
         let result = a * b;
         assert_eq!(result, Value::Null);
     }
@@ -1799,7 +1923,7 @@ mod ai_gen_tests {
     fn test_div_null_and_number() {
         // Test the Div trait for Value to ensure it returns Value::Null when dividing a null by a number.
         let a = Value::Null;
-        let b = Value::Number(1.0);
+        let b = Value::Number(NumericType::new(1.0));
         let result = a / b;
         assert_eq!(result, Value::Null);
     }
@@ -1807,7 +1931,7 @@ mod ai_gen_tests {
     #[test]
     fn test_event_stream_evaluator_no_scenarios() {
         // Test the EventStreamEvaluator to ensure it returns an error when no scenarios are set.
-        let evaluator: EventStreamEvaluator<'_, f64> = EventStreamEvaluator::new(1);
+        let evaluator: EventStreamEvaluator<'_> = EventStreamEvaluator::new(1);
         let event_stream = EventStream::new();
         let var_map: HashMap<String, usize> = HashMap::new();
         let result = evaluator.visit_events(&event_stream, &var_map);
@@ -1833,7 +1957,11 @@ mod ai_gen_tests {
     fn test_expr_evaluator_digit_stack() {
         // Test the ExprEvaluator to ensure it correctly returns the digit stack.
         let evaluator = ExprEvaluator::new();
-        evaluator.digit_stack.lock().unwrap().push(1.0);
+        evaluator
+            .digit_stack
+            .lock()
+            .unwrap()
+            .push(NumericType::new(1.0));
         assert_eq!(evaluator.digit_stack(), vec![1.0]);
     }
 
@@ -1857,7 +1985,7 @@ mod ai_gen_tests {
     fn test_expr_evaluator_lhs_variable() {
         // Test the ExprEvaluator to ensure it correctly sets and gets the lhs_variable.
         let evaluator = ExprEvaluator::new();
-        let node = Box::new(Node::new_constant(1.0));
+        let node = Box::new(Node::new_constant(NumericType::new(1.0)));
         *evaluator.lhs_variable.lock().unwrap() = Some(node.clone());
         assert_eq!(*evaluator.lhs_variable.lock().unwrap(), Some(node));
     }
@@ -1880,68 +2008,5 @@ mod ai_gen_tests {
         let result = evaluator.visit_events(&event_stream, &var_map);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
-    }
-}
-
-#[cfg(test)]
-mod autodiff_tests {
-    use super::*;
-    use rustatlas::math::ad::{backward, reset_tape, Var};
-
-    #[test]
-    fn test_autodiff_square() {
-        reset_tape();
-        let script = "y = x * x;".to_string();
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
-        let var_map = indexer.get_variable_indexes();
-        let x_idx = *var_map.get("x").unwrap();
-        let y_idx = *var_map.get("y").unwrap();
-
-        let x_var = Var::new(3.0);
-        let evaluator =
-            ExprEvaluator::<Var>::new_with_type().with_variables(indexer.get_variables_size());
-        evaluator.variables.lock().unwrap()[x_idx] = Value::Number(x_var);
-
-        evaluator.const_visit(nodes).unwrap();
-        let vars = evaluator.variables();
-        let y_var = match vars.get(y_idx).unwrap() {
-            Value::Number(v) => *v,
-            _ => panic!("y not number"),
-        };
-        let grad = backward(&y_var);
-        assert!((grad[x_var.id()] - 6.0).abs() < 1e-12);
-    }
-
-    #[test]
-    fn test_autodiff_exp() {
-        reset_tape();
-        let script = "y = exp(x);".to_string();
-        let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
-
-        let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
-        let var_map = indexer.get_variable_indexes();
-        let x_idx = *var_map.get("x").unwrap();
-        let y_idx = *var_map.get("y").unwrap();
-
-        let x_val = 0.7;
-        let x_var = Var::new(x_val);
-        let mut evaluator =
-            ExprEvaluator::<Var>::new_with_type().with_variables(indexer.get_variables_size());
-        evaluator.variables.lock().unwrap()[x_idx] = Value::Number(x_var);
-
-        evaluator.const_visit(nodes).unwrap();
-        let vars = evaluator.variables();
-        let y_var = match vars.get(y_idx).unwrap() {
-            Value::Number(v) => *v,
-            _ => panic!("y not number"),
-        };
-        let grad = backward(&y_var);
-        assert!((grad[x_var.id()] - x_val.exp()).abs() < 1e-12);
     }
 }

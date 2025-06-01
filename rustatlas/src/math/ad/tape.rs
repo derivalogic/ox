@@ -1,19 +1,19 @@
-use super::node::Node;
+use super::node::TapeNode;
 use std::cell::RefCell;
 
 #[derive(Default)]
 pub struct Tape {
-    pub nodes: Vec<Node>,
+    pub nodes: Vec<TapeNode>,
     pub mark: usize,
 }
 
 impl Tape {
-    pub fn record(&mut self, n: Node) -> usize {
+    pub fn record(&mut self, n: TapeNode) -> usize {
         self.nodes.push(n);
         self.nodes.len() - 1
     }
     pub fn new_leaf(&mut self) -> usize {
-        self.record(Node::default())
+        self.record(TapeNode::default())
     }
 }
 
