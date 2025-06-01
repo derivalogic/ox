@@ -1214,4 +1214,62 @@ mod tests {
         out.propagate_to_start();
         assert_eq!(out.adjoint(), 1.0); // should be 1.0 after propagation
     }
+
+    #[test]
+    fn check_add_derivative() {
+        let x = ADNumber::new(2.0);
+        let y = ADNumber::new(3.0);
+        let expr = x + y;
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(x.adjoint(), 1.0);
+        assert_eq!(y.adjoint(), 1.0);
+        assert_eq!(out.adjoint(), 1.0);
+    }
+
+    #[test]
+    fn check_sub_derivative() {
+        let x = ADNumber::new(5.0);
+        let y = ADNumber::new(2.0);
+        let expr = x - y;
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(x.adjoint(), 1.0);
+        assert_eq!(y.adjoint(), -1.0);
+        assert_eq!(out.adjoint(), 1.0);
+    }
+
+    #[test]
+    fn check_mul_derivative() {
+        let x = ADNumber::new(4.0);
+        let y = ADNumber::new(2.0);
+        let expr = x * y;
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(x.adjoint(), 2.0);
+        assert_eq!(y.adjoint(), 4.0);
+        assert_eq!(out.adjoint(), 1.0);
+    }
+
+    #[test]
+    fn check_div_derivative() {
+        let x = ADNumber::new(6.0);
+        let y = ADNumber::new(3.0);
+        let expr = x / y;
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert!((x.adjoint() - (1.0 / 3.0)).abs() < 1e-12);
+        assert!((y.adjoint() + (6.0 / 9.0)).abs() < 1e-12);
+        assert_eq!(out.adjoint(), 1.0);
+    }
+
+    #[test]
+    fn check_fabs_derivative() {
+        let x = ADNumber::new(-2.0);
+        let expr = fabs(x);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(x.adjoint(), -1.0);
+        assert_eq!(out.adjoint(), 1.0);
+    }
 }
