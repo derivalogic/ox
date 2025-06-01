@@ -43,14 +43,12 @@ fn create_market_store(s0: NumericType, r_usd: NumericType, r_clp: NumericType) 
 
 fn main() -> Result<()> {
     // Model parameters
-    let ref_date = Date::new(2024, 1, 1);
     let maturity = Date::new(2025, 1, 1);
-    let t = DayCounter::Actual365.year_fraction(ref_date, maturity);
+    let t = NumericType::new(0.0); // 1 day in years
     let s0 = NumericType::new(850.0);
 
     let r_usd = NumericType::new(0.03);
     let r_clp = NumericType::new(0.05);
-    let vol = NumericType::new(0.2);
 
     // Scripted payoff of a call option
     let script = "
@@ -64,13 +62,16 @@ fn main() -> Result<()> {
     let coded = CodedEvent::new(maturity, script.to_string());
     let events = EventStream::try_from(vec![coded])?;
     let indexer = EventIndexer::new().with_local_currency(Currency::USD);
+
     indexer.visit_events(&events)?;
     let requests = indexer.get_market_requests();
 
     // Monte Carlo scenarios with Black-Scholes dynamics using AD variables
 
     let store = create_market_store(s0, r_usd, r_clp);
-
+    let vol = store
+        .get_exchange_rate_volatility(Currency::CLP, Currency::USD)
+        .unwrap();
     let simple = SimpleModel::new(&store);
     let model = BlackScholesModel::new(simple);
 
@@ -90,21 +91,13 @@ fn main() -> Result<()> {
         _ => panic!("Option price not found in the evaluated variables"),
     };
 
-    // Compute the Greeks using automatic differentiation
-    // let result = backward(&price_mc);
-
-    // let delta_ad = result.get(s0.id()).unwrap().clone();
-    // let rho_clp = result.get(r_clp.id()).unwrap().clone();
-    // let rho_usd = result.get(r_usd.id()).unwrap().clone();
-    // let theta_ad = result.get(t.id()).unwrap().clone();
-    // let vega_ad = result.get(vol.id()).unwrap().clone();
+    price_mc.propagate_to_start();
 
     println!("Monte Carlo Price: {}", price_mc);
-    // println!("Monte Carlo Delta: {}", delta_ad);
-    // println!("Monte Carlo Rho CLP: {}", rho_clp);
-    // println!("Monte Carlo Rho USD: {}", rho_usd);
-    // println!("Monte Carlo Theta: {}", theta_ad);
-    // println!("Monte Carlo Vega: {}", vega_ad);
+    println!("Monte Carlo Delta: {}", s0.adjoint());
+    println!("Monte Carlo Rho CLP: {}", r_clp.adjoint() * 0.01 / 100.0);
+    println!("Monte Carlo Rho USD: {}", r_usd.adjoint() * 0.01 / 100.0);
+    println!("Monte Carlo Vega: {}", vol.adjoint() * 0.01 / 100.0);
 
     Ok(())
 }
