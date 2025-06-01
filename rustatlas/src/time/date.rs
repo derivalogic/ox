@@ -252,7 +252,7 @@ impl Date {
     /// # Example
     /// ```
     /// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::real::Var;
+    /// use rustatlas::math::ad::Var;
     /// let start = Date::new(2024, 1, 1);
     /// let end = Date::new(2024, 7, 1);
     /// let yf: Var = start.year_fraction(end, DayCounter::Actual365);

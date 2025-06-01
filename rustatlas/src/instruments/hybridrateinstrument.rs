@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::instrument::RateType;
 use super::traits::Structure;
-use crate::math::ad::num::Real;
+use crate::utils::num::Real;
 use crate::{
     cashflows::cashflow::{Cashflow, Side},
     core::traits::HasCurrency,

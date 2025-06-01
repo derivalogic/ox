@@ -30,7 +30,7 @@ use crate::{
 /// ## Example
 /// ```
 /// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::real::Var;
+/// use rustatlas::math::ad::Var;
 /// let start = Date::new(2024,1,1);
 /// let end = start + Period::new(1, TimeUnit::Years);
 /// let rate = InterestRate::new(Var::from(0.05), Compounding::Simple, Frequency::Annual, DayCounter::Actual365);

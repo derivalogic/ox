@@ -45,7 +45,7 @@ use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 /// Using the AD variable type:
 /// ```
 /// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::real::Var;
+/// use rustatlas::math::ad::Var;
 /// let ref_date = Date::new(2021, 1, 1);
 /// let dates = vec![ref_date, ref_date + Period::new(1, TimeUnit::Years)];
 /// let rates = vec![Var::from(0.0), Var::from(0.01)];
