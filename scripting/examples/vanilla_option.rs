@@ -2,7 +2,7 @@ use lefi::prelude::*;
 use lefi::utils::errors::Result;
 use rustatlas::core::marketstore::MarketStore;
 use rustatlas::currencies::enums::Currency;
-use rustatlas::math::ad::{backward, merge_thread_tape, reset_tape, Var};
+use rustatlas::math::ad::real::{backward, merge_thread_tape, reset_tape, Var};
 use rustatlas::models::blackscholes::BlackScholesModel;
 use rustatlas::models::montecarlomodel::MonteCarloModel;
 use rustatlas::models::simplemodel::SimpleModel;

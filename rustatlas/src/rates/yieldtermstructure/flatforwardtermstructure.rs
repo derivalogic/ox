@@ -27,7 +27,7 @@ use super::traits::{AdvanceTermStructureInTime, YieldTermStructureTrait};
 /// Using the AD variable type:
 /// ```
 /// use rustatlas::prelude::*;
-/// use rustatlas::math::ad::Var;
+/// use rustatlas::math::ad::real::Var;
 /// let reference_date = Date::new(2023, 8, 19);
 /// let ts = FlatForwardTermStructure::<Var>::new(
 ///     reference_date,

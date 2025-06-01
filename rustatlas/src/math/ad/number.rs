@@ -462,8 +462,84 @@ macro_rules! impl_bin_ops_local {
 }
 
 /* apply the macro to every local expression kind */
-impl_bin_ops_local!(Number);
 impl_bin_ops_local!(Const);
+
+/* Manual arithmetic implementations for Number that automatically flatten */
+impl<Rhs> Add<Rhs> for Number
+where
+    Rhs: Expr + Clone,
+{
+    type Output = Number;
+    fn add(self, rhs: Rhs) -> Self::Output {
+        let expr = BinExpr::<_, _, AddOp>::new(self, rhs);
+        flatten(&expr)
+    }
+}
+impl Add<f64> for Number {
+    type Output = Number;
+    fn add(self, rhs: f64) -> Self::Output {
+        let expr = BinExpr::<_, _, AddOp>::new(self, Const(rhs));
+        flatten(&expr)
+    }
+}
+impl<Rhs> Sub<Rhs> for Number
+where
+    Rhs: Expr + Clone,
+{
+    type Output = Number;
+    fn sub(self, rhs: Rhs) -> Self::Output {
+        let expr = BinExpr::<_, _, SubOp>::new(self, rhs);
+        flatten(&expr)
+    }
+}
+impl Sub<f64> for Number {
+    type Output = Number;
+    fn sub(self, rhs: f64) -> Self::Output {
+        let expr = BinExpr::<_, _, SubOp>::new(self, Const(rhs));
+        flatten(&expr)
+    }
+}
+impl<Rhs> Mul<Rhs> for Number
+where
+    Rhs: Expr + Clone,
+{
+    type Output = Number;
+    fn mul(self, rhs: Rhs) -> Self::Output {
+        let expr = BinExpr::<_, _, MulOp>::new(self, rhs);
+        flatten(&expr)
+    }
+}
+impl Mul<f64> for Number {
+    type Output = Number;
+    fn mul(self, rhs: f64) -> Self::Output {
+        let expr = BinExpr::<_, _, MulOp>::new(self, Const(rhs));
+        flatten(&expr)
+    }
+}
+impl<Rhs> Div<Rhs> for Number
+where
+    Rhs: Expr + Clone,
+{
+    type Output = Number;
+    fn div(self, rhs: Rhs) -> Self::Output {
+        let expr = BinExpr::<_, _, DivOp>::new(self, rhs);
+        flatten(&expr)
+    }
+}
+impl Div<f64> for Number {
+    type Output = Number;
+    fn div(self, rhs: f64) -> Self::Output {
+        let expr = BinExpr::<_, _, DivOp>::new(self, Const(rhs));
+        flatten(&expr)
+    }
+}
+impl Neg for Number {
+    type Output = Number;
+    fn neg(self) -> Self::Output {
+        let expr = BinExpr::<Const, Self, SubOp>::new(Const(0.0), self);
+        flatten(&expr)
+    }
+}
 
 /* Manual implementations for generic types to avoid macro expansion issues */
 impl<L, R, O, Rhs> Add<Rhs> for BinExpr<L, R, O>
@@ -647,12 +723,12 @@ macro_rules! impl_assign {
             E: Expr + Clone,
         {
             fn $func(&mut self, rhs: E) {
-                *self = flatten(&(self.clone() $sym rhs));
+                *self = self.clone() $sym rhs;
             }
         }
         impl $Trait<f64> for Number {
             fn $func(&mut self, rhs: f64) {
-                *self = flatten(&(self.clone() $sym Const(rhs)));
+                *self = self.clone() $sym Const(rhs);
             }
         }
     };
@@ -725,8 +801,7 @@ mod tests {
     fn test_flatten() {
         let a = Number::new(3.0);
         let b = Number::new(4.0);
-        let expr = a + b;
-        let result = flatten(&expr);
+        let result = a + b;
         assert_eq!(result.value(), 7.0);
         assert_eq!(result.adjoint(), 0.0); // adjoint should be zero before propagation
     }
@@ -735,8 +810,7 @@ mod tests {
     fn test_propagation() {
         let a = Number::new(3.0);
         let b = Number::new(4.0);
-        let expr = a + b;
-        let result = flatten(&expr);
+        let result = a + b;
         result.propagate_to_start();
         assert_eq!(result.adjoint(), 1.0); // adjoint should be 1 after propagation
     }
@@ -745,15 +819,14 @@ mod tests {
     fn test_aritmetics() {
         let a = Number::new(3.0);
         let b = Number::new(4.0);
-        let c = a * b;
-        let result = flatten(&c);
+        let result = a * b;
         assert_eq!(result.value(), 12.0);
         result.propagate_to_start();
         assert_eq!(result.adjoint(), 1.0); // adjoint should be 1 after propagation
         let tape = TAPE.with(|t| t.borrow().nodes.clone());
-        assert_eq!(tape.len(), 3); // should have 3 nodes: a, b, and c
-        assert_eq!(tape[0].adj, 1.0); // a's adjoint
-        assert_eq!(tape[1].adj, 1.0); // b's adjoint
-        assert_eq!(tape[2].adj, 1.0); // c's adjoint
+        assert_eq!(tape.len(), 3); // should have 3 nodes: a, b, and result
+        assert_eq!(tape[0].adj, 4.0); // a's adjoint
+        assert_eq!(tape[1].adj, 3.0); // b's adjoint
+        assert_eq!(tape[2].adj, 1.0); // result's adjoint
     }
 }

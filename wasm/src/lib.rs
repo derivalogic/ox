@@ -7,7 +7,7 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, RequestMode, Response};
 
 use lefi::prelude::*;
-use rustatlas::math::ad::{backward, reset_tape, Var};
+use rustatlas::math::ad::real::{backward, reset_tape, Var};
 use rustatlas::prelude::*;
 use rustatlas::models::deterministicmodel::DeterministicModel;
 use serde::{Deserialize, Serialize};
