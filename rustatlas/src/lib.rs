@@ -1,11 +1,10 @@
-pub mod alm;
 pub mod cashflows;
 pub mod core;
 pub mod currencies;
+pub mod equities;
 pub mod instruments;
 pub mod math;
 pub mod models;
-pub mod equities;
 pub mod prelude;
 pub mod rates;
 pub mod time;

@@ -43,14 +43,12 @@ fn create_market_store(s0: NumericType, r_usd: NumericType, r_clp: NumericType) 
 
 fn main() -> Result<()> {
     // Model parameters
-    let maturity = Date::new(2025, 1, 1);
-    let t = NumericType::new(0.0); // 1 day in years
     let s0 = NumericType::new(850.0);
-
     let r_usd = NumericType::new(0.03);
     let r_clp = NumericType::new(0.05);
 
     // Scripted payoff of a call option
+    let maturity = Date::new(2025, 1, 1);
     let script = "
     opt = 0;
     s = Spot(\"CLP\", \"USD\");
