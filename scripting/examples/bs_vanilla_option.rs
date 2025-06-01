@@ -3,7 +3,7 @@ use lefi::prelude::*;
 use lefi::utils::errors::Result;
 use rustatlas::core::marketstore::MarketStore;
 use rustatlas::currencies::enums::Currency;
-use rustatlas::math::ad::{backward, reset_tape, Var};
+use rustatlas::math::ad::real::{backward, reset_tape, Var};
 use rustatlas::models::blackscholes::{
     bs_delta, bs_gamma, bs_price, bs_price_delta_gamma_theta, bs_theta, BlackScholesModel,
 };
