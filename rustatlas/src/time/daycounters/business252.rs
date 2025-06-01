@@ -28,7 +28,7 @@ impl DayCountProvider for Business252 {
     }
 
     fn year_fraction(start: Date, end: Date) -> NumericType {
-        Self::day_count(start, end) as f64 / 252.0
+        NumericType::new(Self::day_count(start, end)) / NumericType::new(252.0)
     }
 }
 

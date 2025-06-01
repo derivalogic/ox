@@ -39,26 +39,28 @@ impl DayCountProvider for ActualActual {
         let y2 = end.year() as i32;
 
         if y1 == y2 {
-            return days as f64 / days_in_year(y1) as f64;
+            return NumericType::new(days) / NumericType::new(days_in_year(y1));
         } else {
             if y2 > y1 {
-                let mut sum = 0.0;
-                sum += (Date::new(y1 + 1 as i32, 1, 1) - start) as f64
-                    / days_in_year(y1 as i32) as f64;
+                let mut sum = NumericType::new(0.0);
+                sum += NumericType::new(Date::new(y1 + 1 as i32, 1, 1) - start)
+                    / NumericType::new(days_in_year(y1 as i32));
                 for _year in y1 + 1..y2 - 1 {
-                    sum += 1.0;
+                    sum += NumericType::new(1.0);
                 }
-                sum += (end - Date::new(y2 as i32, 1, 1)) as f64 / days_in_year(y2 as i32) as f64;
+                sum += NumericType::new(end - Date::new(y2 as i32, 1, 1))
+                    / NumericType::new(days_in_year(y2 as i32));
 
                 return sum;
             } else {
-                let mut sum = 0.0;
-                sum -=
-                    (Date::new(y2 + 1 as i32, 1, 1) - end) as f64 / days_in_year(y2 as i32) as f64;
+                let mut sum = NumericType::new(0.0);
+                sum -= NumericType::new(Date::new(y2 + 1 as i32, 1, 1) - end)
+                    / NumericType::new(days_in_year(y2 as i32));
                 for _year in y2 + 1..y1 - 1 {
-                    sum -= 1.0;
+                    sum -= NumericType::new(1.0);
                 }
-                sum -= (start - Date::new(y1 as i32, 1, 1)) as f64 / days_in_year(y1 as i32) as f64;
+                sum -= NumericType::new(start - Date::new(y1 as i32, 1, 1))
+                    / NumericType::new(days_in_year(y1 as i32));
                 return sum;
             }
         }

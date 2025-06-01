@@ -24,6 +24,6 @@ impl DayCountProvider for Actual365 {
     }
 
     fn year_fraction(start: Date, end: Date) -> NumericType {
-        Actual365::day_count(start, end) as f64 / 365.0
+        NumericType::new(Actual365::day_count(start, end)) / NumericType::new(365.0)
     }
 }
