@@ -1082,4 +1082,136 @@ mod tests {
         out.propagate_to_start();
         assert_eq!(out.adjoint(), 1.0);
     }
+
+    #[test]
+    fn backprop_with_const() {
+        let a = ADNumber::new(3.0);
+        let b = Const(4.0);
+        let expr = (a * b).sin();
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 1.0);
+    }
+
+    #[test]
+    fn tape_reset() {
+        let a = ADNumber::new(3.0);
+        let b = ADNumber::new(4.0);
+        let expr = (a * b).sin();
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 1.0);
+
+        ADNumber::reset_adjoints(); // reset adjoints
+        assert_eq!(out.adjoint(), 0.0); // should be zero now
+    }
+
+    #[test]
+    fn tape_propagate_mark() {
+        let a = ADNumber::new(3.0);
+        let b = ADNumber::new(4.0);
+        let expr = (a * b).sin();
+        let out: ADNumber = expr.into();
+        out.propagate_to_mark(); // propagate to the current mark
+        assert_eq!(out.adjoint(), 1.0); // should be 1.0
+    }
+
+    #[test]
+    fn tape_propagate_mark_to_start() {
+        let a = ADNumber::new(3.0);
+        let b = ADNumber::new(4.0);
+        let expr = (a * b).sin();
+        let out: ADNumber = expr.into();
+        out.propagate_to_mark(); // propagate to the current mark
+        assert_eq!(out.adjoint(), 1.0); // should be 1.0
+
+        ADNumber::propagate_mark_to_start(); // propagate from mark to start
+        assert_eq!(out.adjoint(), 1.0); // should still be 1.0
+    }
+
+    #[test]
+    fn check_exp_derivate() {
+        let x = ADNumber::new(2.0);
+        let expr = exp(x);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), f64::exp(2.0)); // derivative of exp(x) at x=2
+    }
+
+    #[test]
+    fn check_log_derivative() {
+        let x = ADNumber::new(2.0);
+        let expr = log(x);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 1.0 / 2.0); // derivative of log(x) at x=2
+    }
+    #[test]
+    fn check_sqrt_derivative() {
+        let x = ADNumber::new(4.0);
+        let expr = sqrt(x);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 0.5 / 2.0); // derivative of sqrt(x) at x=4
+    }
+    #[test]
+    fn check_sin_derivative() {
+        let x = ADNumber::new(0.0);
+        let expr = sin(x);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 1.0); // derivative of sin(x) at x=0
+    }
+    #[test]
+    fn check_cos_derivative() {
+        let x = ADNumber::new(0.0);
+        let expr = cos(x);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 0.0); // derivative of cos(x) at x=0
+    }
+    #[test]
+    fn check_abs_derivative() {
+        let x = ADNumber::new(-3.0);
+        let expr = abs(x);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), -1.0); // derivative of abs(x) at x=-3
+    }
+    #[test]
+    fn check_pow_derivative() {
+        let x = ADNumber::new(2.0);
+        let expr = pow(x, Const(3.0));
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 3.0 * 2.0f64.powf(2.0)); // derivative of x^3 at x=2
+    }
+    #[test]
+    fn check_max_derivative() {
+        let x = ADNumber::new(2.0);
+        let y = ADNumber::new(3.0);
+        let expr = max(x, y);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 0.0); // derivative of max(2, 3) is 0
+    }
+    #[test]
+    fn check_min_derivative() {
+        let x = ADNumber::new(2.0);
+        let y = ADNumber::new(3.0);
+        let expr = min(x, y);
+        let out: ADNumber = expr.into();
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 1.0); // derivative of min(2, 3) is 1
+    }
+    #[test]
+    fn check_flattening() {
+        let x = ADNumber::new(5.0);
+        let y = ADNumber::new(3.0);
+        let expr = (x + y) * 2.0;
+        let out: ADNumber = expr.into();
+        assert_eq!(out.value(), 16.0); // (5 + 3) * 2 = 16
+        out.propagate_to_start();
+        assert_eq!(out.adjoint(), 1.0); // should be 1.0 after propagation
+    }
 }
