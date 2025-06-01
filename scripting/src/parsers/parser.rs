@@ -377,8 +377,17 @@ impl Parser {
         Ok(args)
     }
 
-    /// Parse a variable, constant or function
+    /// Parse a variable, constant, parentheses or function
     fn parse_var_const_func(&self) -> Result<ExprTree> {
+        // Parenthesised expression
+        if self.current_token() == Token::OpenParen {
+            self.advance();
+            let expr = self.parse_expr()?;
+            self.expect_token(Token::CloseParen)?;
+            self.advance();
+            return Ok(expr);
+        }
+
         // Check if the current token is a constant
         let try_const = self.parse_constant();
         if try_const.is_ok() {
@@ -688,6 +697,27 @@ mod other_tests {
         assert_eq!(parser.current_token(), Token::Semicolon);
         parser.advance();
         assert_eq!(parser.current_token(), Token::EOF);
+    }
+
+    #[test]
+    fn test_parenthesised_expression() {
+        let script = "avg = (s1 + s2) / 2.0;".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "avg".to_string(), OnceLock::new())),
+            Box::new(Node::Divide(vec![
+                Box::new(Node::Add(vec![
+                    Box::new(Node::Variable(Vec::new(), "s1".to_string(), OnceLock::new())),
+                    Box::new(Node::Variable(Vec::new(), "s2".to_string(), OnceLock::new())),
+                ])),
+                Box::new(Node::Constant(NumericType::new(2.0))),
+            ])),
+        ]))]));
+
+        assert_eq!(ast, expected);
     }
 }
 
