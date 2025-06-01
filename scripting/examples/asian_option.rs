@@ -56,7 +56,7 @@ fn main() -> Result<()> {
     ";
     let script2 = "s2 = Spot(\"CLP\", \"USD\");";
     let script_payoff = "
-    avg = s1/ 2.0 + s2 / 2.0;
+    avg = (s1 + s2) / 2.0;
     opt pays max(avg - 900, 0);
     ";
 
