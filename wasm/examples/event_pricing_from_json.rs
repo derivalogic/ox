@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs, sync::{Arc, RwLock}};
 use lefi::prelude::*;
 use rustatlas::prelude::*;
 use rustatlas::models::blackscholes::BlackScholesModel;
-use rustatlas::models::montecarlomodel::MonteCarloModel;
+use rustatlas::models::stochasticmodel::MonteCarloModel;
 use serde::Deserialize;
 
 #[derive(Deserialize)]

@@ -1,20 +1,15 @@
+use crate::prelude::*;
 use std::cell::RefCell;
 
-use super::traits::{HasCashflows, Visit};
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    core::{meta::MarketRequest, traits::Registrable},
-    utils::errors::Result,
-};
 /// # IndexingVisitor
 /// IndexingVisitor is a visitor that registers the cashflows of an instrument
 /// and generates a vector of market requests.
-pub struct IndexingVisitor<T: Real> {
+pub struct IndexingVisitor<T: GenericNumber> {
     request: RefCell<Vec<MarketRequest>>,
     phatom: std::marker::PhantomData<T>,
 }
 
-impl<T: Real> IndexingVisitor<T> {
+impl<T: GenericNumber> IndexingVisitor<T> {
     pub fn new() -> Self {
         IndexingVisitor {
             request: RefCell::new(Vec::new()),
@@ -27,7 +22,7 @@ impl<T: Real> IndexingVisitor<T> {
     }
 }
 
-impl<R: Real, T: HasCashflows<R>> Visit<T> for IndexingVisitor<R> {
+impl<R: GenericNumber, T: HasCashflows<R>> Visit<T> for IndexingVisitor<R> {
     type Output = Result<()>;
     fn visit(&self, has_cashflows: &mut T) -> Self::Output {
         let mut requests = self.request.borrow_mut();

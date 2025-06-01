@@ -1,22 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    core::{
-        meta::{ForwardRateRequest, MarketRequest},
-        traits::{HasCurrency, HasDiscountCurveId, HasForecastCurveId, Registrable},
-    },
-    currencies::enums::Currency,
-    rates::interestrate::{InterestRate, RateDefinition},
-    time::date::Date,
-    utils::errors::{AtlasError, Result},
-};
-
-use super::{
-    cashflow::Side,
-    simplecashflow::SimpleCashflow,
-    traits::{Expires, InterestAccrual, Payable, RequiresFixingRate},
-};
+use crate::prelude::*;
 
 /// # FloatingRateCoupon
 /// A floating rate coupon is a cashflow that pays a floating rate of interest on a notional amount.
@@ -34,7 +18,7 @@ use super::{
 /// * `currency` - The currency of the coupon
 /// * `side` - The side of the coupon (Pay or Receive)
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct FloatingRateCoupon<T: Real> {
+pub struct FloatingRateCoupon<T: GenericNumber> {
     notional: f64,
     spread: T,
     accrual_start_date: Date,
@@ -46,7 +30,7 @@ pub struct FloatingRateCoupon<T: Real> {
     forecast_curve_id: Option<usize>,
 }
 
-impl<T: Real> FloatingRateCoupon<T> {
+impl<T: GenericNumber> FloatingRateCoupon<T> {
     pub fn new(
         notional: f64,
         spread: T,
@@ -128,7 +112,7 @@ impl<T: Real> FloatingRateCoupon<T> {
     }
 }
 
-impl<T: Real> InterestAccrual<T> for FloatingRateCoupon<T> {
+impl<T: GenericNumber> InterestAccrual<T> for FloatingRateCoupon<T> {
     fn accrual_start_date(&self) -> Result<Date> {
         return Ok(self.accrual_start_date);
     }
@@ -151,7 +135,7 @@ impl<T: Real> InterestAccrual<T> for FloatingRateCoupon<T> {
     }
 }
 
-impl<T: Real> RequiresFixingRate<T> for FloatingRateCoupon<T> {
+impl<T: GenericNumber> RequiresFixingRate<T> for FloatingRateCoupon<T> {
     fn set_fixing_rate(&mut self, fixing_rate: T) {
         self.fixing_rate = Some(fixing_rate);
         let accrual = self
@@ -161,7 +145,7 @@ impl<T: Real> RequiresFixingRate<T> for FloatingRateCoupon<T> {
     }
 }
 
-impl<T: Real> Payable<T> for FloatingRateCoupon<T> {
+impl<T: GenericNumber> Payable<T> for FloatingRateCoupon<T> {
     fn amount(&self) -> Result<T> {
         return self.cashflow.amount();
     }
@@ -173,26 +157,26 @@ impl<T: Real> Payable<T> for FloatingRateCoupon<T> {
     }
 }
 
-impl<T: Real> HasCurrency for FloatingRateCoupon<T> {
+impl<T: GenericNumber> HasCurrency for FloatingRateCoupon<T> {
     fn currency(&self) -> Result<Currency> {
         self.cashflow.currency()
     }
 }
 
-impl<T: Real> HasDiscountCurveId for FloatingRateCoupon<T> {
+impl<T: GenericNumber> HasDiscountCurveId for FloatingRateCoupon<T> {
     fn discount_curve_id(&self) -> Result<usize> {
         self.cashflow.discount_curve_id()
     }
 }
 
-impl<T: Real> HasForecastCurveId for FloatingRateCoupon<T> {
+impl<T: GenericNumber> HasForecastCurveId for FloatingRateCoupon<T> {
     fn forecast_curve_id(&self) -> Result<usize> {
         self.forecast_curve_id
             .ok_or(AtlasError::ValueNotSetErr("Forecast curve id".to_string()))
     }
 }
 
-impl<T: Real> Registrable for FloatingRateCoupon<T> {
+impl<T: GenericNumber> Registrable for FloatingRateCoupon<T> {
     fn id(&self) -> Result<usize> {
         self.cashflow.id()
     }
@@ -222,7 +206,7 @@ impl<T: Real> Registrable for FloatingRateCoupon<T> {
     }
 }
 
-impl<T: Real> Expires for FloatingRateCoupon<T> {
+impl<T: GenericNumber> Expires for FloatingRateCoupon<T> {
     fn is_expired(&self, date: Date) -> bool {
         self.cashflow.payment_date() < date
     }

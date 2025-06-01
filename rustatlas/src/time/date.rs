@@ -1,7 +1,4 @@
-use super::enums::*;
-use super::period::Period;
-use crate::math::ad::genericnumber::Real;
-use crate::{time::daycounter::DayCounter, utils::errors::Result};
+use crate::prelude::*;
 use chrono::{Datelike, Duration, Months, NaiveDate};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -258,7 +255,7 @@ impl Date {
     /// let yf: Var = start.year_fraction(end, DayCounter::Actual365);
     /// assert!((yf.value() - 182.0 / 365.0).abs() < 1e-12);
     /// ```
-    pub fn year_fraction<T: Real>(&self, end: Date, dc: DayCounter) -> T {
+    pub fn year_fraction<T: GenericNumber>(&self, end: Date, dc: DayCounter) -> T {
         dc.year_fraction::<T>(*self, end)
     }
 

@@ -1,20 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::traits::Structure;
-use crate::math::ad::genericnumber::Real;
-
-use crate::{
-    cashflows::{
-        cashflow::{Cashflow, Side},
-        traits::Payable,
-    },
-    core::traits::HasCurrency,
-    currencies::enums::Currency,
-    rates::interestrate::InterestRate,
-    time::{date::Date, enums::Frequency},
-    utils::errors::{AtlasError, Result},
-    visitors::traits::HasCashflows,
-};
+use crate::prelude::*;
 
 /// # FixedRateInstrument
 /// A fixed rate instrument.
@@ -52,7 +38,7 @@ use crate::{
 /// assert_eq!(instrument.notional(), 100.0);
 /// ```
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FixedRateInstrument<R: Real = f64> {
+pub struct FixedRateInstrument<R: GenericNumber = f64> {
     start_date: Date,
     end_date: Date,
     notional: f64,
@@ -68,7 +54,7 @@ pub struct FixedRateInstrument<R: Real = f64> {
     yield_rate: Option<InterestRate<R>>,
 }
 
-impl<R: Real> FixedRateInstrument<R> {
+impl<R: GenericNumber> FixedRateInstrument<R> {
     pub fn new(
         start_date: Date,
         end_date: Date,
@@ -172,7 +158,7 @@ impl HasCurrency for FixedRateInstrument {
 /// Implements fixed rate bond accrual using a yield rate.  
 /// The yield rate is used to discount the cashflows to between the start and
 /// end dates and calculate the accrued amount.
-pub trait BondAccrual<R: Real>: HasCashflows<R> {
+pub trait BondAccrual<R: GenericNumber>: HasCashflows<R> {
     fn yield_rate(&self) -> Option<InterestRate<R>>;
 
     fn bond_accrued_amount(&self, start_date: Date, end_date: Date) -> Result<R> {
@@ -225,13 +211,13 @@ pub trait BondAccrual<R: Real>: HasCashflows<R> {
     }
 }
 
-impl<R: Real> BondAccrual<R> for FixedRateInstrument<R> {
+impl<R: GenericNumber> BondAccrual<R> for FixedRateInstrument<R> {
     fn yield_rate(&self) -> Option<InterestRate<R>> {
         self.yield_rate
     }
 }
 
-impl<R: Real> HasCashflows<R> for FixedRateInstrument<R> {
+impl<R: GenericNumber> HasCashflows<R> for FixedRateInstrument<R> {
     fn cashflows(&self) -> &[Cashflow<R>] {
         &self.cashflows
     }

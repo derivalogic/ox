@@ -1,20 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    cashflows::cashflow::{Cashflow, Side},
-    core::traits::HasCurrency,
-    currencies::enums::Currency,
-    rates::interestrate::RateDefinition,
-    time::{date::Date, enums::Frequency},
-    utils::errors::{AtlasError, Result},
-    visitors::traits::HasCashflows,
-};
-
-use super::{
-    fixedrateinstrument::FixedRateInstrument, floatingrateinstrument::FloatingRateInstrument,
-    traits::Structure,
-};
-use crate::math::ad::genericnumber::Real;
+use crate::prelude::*;
 
 /// # RateType
 /// Represents the type of rate.
@@ -62,14 +48,14 @@ impl From<RateType> for String {
 /// # Instrument
 /// Represents an instrument. This is a wrapper around the FixedRateInstrument and FloatingRateInstrument.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Instrument<R: Real = f64> {
+pub enum Instrument<R: GenericNumber = f64> {
     FixedRateInstrument(FixedRateInstrument<R>),
     FloatingRateInstrument(FloatingRateInstrument<R>),
     // HybridRateInstrument(HybridRateInstrument<R>),
     // DoubleRateInstrument(DoubleRateInstrument<R>),
 }
 
-impl<R: Real> HasCashflows<R> for Instrument<R> {
+impl<R: GenericNumber> HasCashflows<R> for Instrument<R> {
     fn cashflows(&self) -> &[Cashflow<R>] {
         match self {
             Instrument::FixedRateInstrument(fri) => fri.cashflows(),
@@ -89,7 +75,7 @@ impl<R: Real> HasCashflows<R> for Instrument<R> {
     }
 }
 
-impl<R: Real> Instrument<R> {
+impl<R: GenericNumber> Instrument<R> {
     pub fn notional(&self) -> f64 {
         match self {
             Instrument::FixedRateInstrument(fri) => fri.notional(),

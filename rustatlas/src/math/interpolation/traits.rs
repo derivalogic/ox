@@ -1,5 +1,10 @@
 use crate::prelude::*;
 
-pub trait Interpolate<T: GenericNumber> {
-    fn interpolate(x: T, x_: &Vec<T>, y_: &Vec<T>, enable_extrapolation: bool) -> T;
+pub trait Interpolate {
+    fn interpolate(
+        x: ADNumber,
+        x_: &Vec<ADNumber>,
+        y_: &Vec<ADNumber>,
+        enable_extrapolation: bool,
+    ) -> ADNumber;
 }

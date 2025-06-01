@@ -1,5 +1,5 @@
 use super::traits::DayCountProvider;
-use crate::{math::ad::genericnumber::Real, time::date::Date};
+use crate::prelude::*;
 
 /// # Actual360
 /// Actual/360 day count convention.
@@ -24,7 +24,7 @@ impl DayCountProvider for Actual360 {
         return end - start;
     }
 
-    fn year_fraction<T: Real>(start: Date, end: Date) -> T {
+    fn year_fraction<T: GenericNumber>(start: Date, end: Date) -> T {
         T::from(Actual360::day_count(start, end) as f64) / T::from(360.0)
     }
 }

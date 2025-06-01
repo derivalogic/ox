@@ -1,11 +1,8 @@
-use crate::math::ad::genericnumber::Real;
-use crate::{time::date::Date, utils::errors::Result};
-
-use super::cashflow::Side;
+use crate::prelude::*;
 
 /// # InterestAccrual
 /// A trait that defines the accrual period of an instrument.
-pub trait InterestAccrual<T: Real> {
+pub trait InterestAccrual<T: GenericNumber> {
     fn accrual_start_date(&self) -> Result<Date>;
     fn accrual_end_date(&self) -> Result<Date>;
     fn accrued_amount(&self, start_date: Date, end_date: Date) -> Result<T>;
@@ -38,13 +35,13 @@ pub trait InterestAccrual<T: Real> {
 
 /// # RequiresFixingRate
 /// A trait that defines if an instrument requires a fixing rate.
-pub trait RequiresFixingRate<T: Real>: InterestAccrual<T> {
+pub trait RequiresFixingRate<T: GenericNumber>: InterestAccrual<T> {
     fn set_fixing_rate(&mut self, fixing_rate: T);
 }
 
 /// # Payable
 /// A trait that defines the payment of an instrument.
-pub trait Payable<T: Real> {
+pub trait Payable<T: GenericNumber> {
     fn amount(&self) -> Result<T>;
     fn side(&self) -> Side;
     fn payment_date(&self) -> Date;

@@ -1,19 +1,7 @@
 use core::fmt;
 use std::sync::{Arc, RwLock};
 
-use crate::{
-    currencies::{enums::Currency, exchangeratestore::ExchangeRateStore, traits::CurrencyDetails},
-    equities::equitystore::EquityStore,
-    rates::{
-        indexstore::{IndexStore, ReadIndex},
-        interestrateindex::traits::InterestRateIndexTrait,
-        traits::HasReferenceDate,
-    },
-    time::date::Date,
-    utils::{errors::Result, tools},
-};
-
-use crate::math::ad::genericnumber::Real;
+use crate::{prelude::*, utils::tools};
 
 /// # MarketStore
 /// A store for market data.
@@ -24,7 +12,7 @@ use crate::math::ad::genericnumber::Real;
 /// * `exchange_rate_store` - The exchange rate store
 /// * `index_store` - The index store
 #[derive(Clone)]
-pub struct MarketStore<T: Real> {
+pub struct MarketStore<T: GenericNumber> {
     reference_date: Date,
     local_currency: Currency,
     exchange_rate_store: ExchangeRateStore<T>,
@@ -32,7 +20,7 @@ pub struct MarketStore<T: Real> {
     equity_store: EquityStore<T>,
 }
 
-impl<T: Real> MarketStore<T> {
+impl<T: GenericNumber> MarketStore<T> {
     pub fn new(reference_date: Date, local_currency: Currency) -> MarketStore<T> {
         MarketStore {
             reference_date,
@@ -134,14 +122,14 @@ impl<T: Real> MarketStore<T> {
     // }
 }
 
-impl<T: Real> HasReferenceDate for MarketStore<T> {
+impl<T: GenericNumber> HasReferenceDate for MarketStore<T> {
     fn reference_date(&self) -> Date {
         self.reference_date
     }
 }
 
 // fecha, moneda, qué curvas tiene cargadas, paridades
-impl<T: Real + fmt::Display> fmt::Display for MarketStore<T> {
+impl<T: GenericNumber + fmt::Display> fmt::Display for MarketStore<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut msg = "=====================================\n".to_string();
         msg.push_str("======= MarketStore features! =======\n");

@@ -1,6 +1,5 @@
-use super::traits::DayCountProvider;
-use crate::math::ad::genericnumber::Real;
-use crate::time::date::Date;
+use crate::prelude::*;
+
 /// # Thirty360 (ISMA)
 /// Convention: if the starting date is the 31st of a
 /// month, it becomes equal to the 30th of the same month.
@@ -32,7 +31,7 @@ impl DayCountProvider for Thirty360 {
         return 360 * (y2 - y1) + 30 * (m2 - m1) + (dd2 - dd1);
     }
 
-    fn year_fraction<T: Real>(start: Date, end: Date) -> T {
+    fn year_fraction<T: GenericNumber>(start: Date, end: Date) -> T {
         T::from(Thirty360::day_count(start, end) as f64) / T::from(360.0)
     }
 }
@@ -90,7 +89,7 @@ impl DayCountProvider for Thirty360US {
         return 360 * ((y2 as i64) - (y1 as i64)) + 30 * (m2 - m1) + (dd2 - dd1);
     }
 
-    fn year_fraction<T: Real>(start: Date, end: Date) -> T {
+    fn year_fraction<T: GenericNumber>(start: Date, end: Date) -> T {
         T::from(Thirty360US::day_count(start, end) as f64) / T::from(360.0)
     }
 }

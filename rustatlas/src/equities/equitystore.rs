@@ -1,17 +1,15 @@
 use std::collections::HashMap;
 
-use crate::math::ad::genericnumber::Real;
-use crate::time::date::Date;
-use crate::utils::errors::{AtlasError, Result};
+use crate::prelude::*;
 
 /// Store for asset volatilities. Currently maps currency pairs to constant volatilities.
 #[derive(Clone)]
-pub struct EquityStore<T: Real> {
+pub struct EquityStore<T: GenericNumber> {
     reference_date: Date,
     volatility_map: HashMap<String, T>,
 }
 
-impl<T: Real> EquityStore<T> {
+impl<T: GenericNumber> EquityStore<T> {
     pub fn new(reference_date: Date) -> Self {
         Self {
             reference_date,

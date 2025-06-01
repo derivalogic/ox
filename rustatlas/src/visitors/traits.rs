@@ -1,11 +1,5 @@
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    cashflows::{
-        cashflow::{Cashflow, CashflowType},
-        traits::Payable,
-    },
-    time::date::Date,
-};
+use crate::prelude::*;
+
 pub trait Visit<T> {
     type Output;
     fn visit(&self, visitable: &mut T) -> Self::Output;
@@ -16,7 +10,7 @@ pub trait ConstVisit<T> {
     fn visit(&self, visitable: &T) -> Self::Output;
 }
 
-pub trait HasCashflows<T: Real> {
+pub trait HasCashflows<T: GenericNumber> {
     fn cashflows(&self) -> &[Cashflow<T>];
 
     fn mut_cashflows(&mut self) -> &mut [Cashflow<T>];

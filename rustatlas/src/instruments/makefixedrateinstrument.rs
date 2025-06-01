@@ -5,33 +5,7 @@ use argmin::{
 
 use std::collections::{HashMap, HashSet};
 
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    cashflows::{
-        cashflow::{Cashflow, CashflowType, Side},
-        fixedratecoupon::FixedRateCoupon,
-        simplecashflow::SimpleCashflow,
-        traits::{InterestAccrual, Payable},
-    },
-    core::traits::HasCurrency,
-    currencies::enums::Currency,
-    rates::interestrate::{InterestRate, RateDefinition},
-    time::{
-        calendar::Calendar,
-        calendars::nullcalendar::NullCalendar,
-        date::Date,
-        enums::{BusinessDayConvention, DateGenerationRule, Frequency},
-        period::Period,
-        schedule::MakeSchedule,
-    },
-    utils::errors::{AtlasError, Result},
-    visitors::traits::HasCashflows,
-};
-
-use super::{
-    fixedrateinstrument::FixedRateInstrument,
-    traits::{add_cashflows_to_vec, calculate_outstanding, notionals_vector, Structure},
-};
+use crate::prelude::*;
 
 /// # MakeFixedRateInstrument
 /// MakeFixedRateInstrument is a builder for FixedRateInstrument. Uses the builder pattern.
@@ -868,7 +842,7 @@ impl MakeFixedRateInstrument {
     }
 }
 
-fn build_coupons_from_notionals<R: Real>(
+fn build_coupons_from_notionals<R: GenericNumber>(
     cashflows: &mut Vec<Cashflow<R>>,
     dates: &Vec<Date>,
     notionals: &Vec<f64>,

@@ -1,15 +1,8 @@
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    cashflows::{
-        cashflow::{Cashflow, CashflowType, Side},
-        simplecashflow::SimpleCashflow,
-    },
-    currencies::enums::Currency,
-    time::date::Date,
-    utils::errors::{AtlasError, Result},
-};
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+
+use serde::{Deserialize, Serialize};
+
+use crate::prelude::*;
 
 /// # Structure
 /// A struct that contains the information needed to define a structure.
@@ -81,7 +74,7 @@ impl From<CashflowType> for String {
 }
 
 // Infer cashflows from amounts to handle negative amounts and sides.
-pub fn infer_cashflows_from_amounts<R: Real>(
+pub fn infer_cashflows_from_amounts<R: GenericNumber>(
     dates: &[Date],
     amounts: &[R],
     side: Side,
@@ -108,7 +101,7 @@ pub fn infer_cashflows_from_amounts<R: Real>(
 }
 
 /// This function add cashflows of the given type and side to a vector.
-pub fn add_cashflows_to_vec<R: Real>(
+pub fn add_cashflows_to_vec<R: GenericNumber>(
     cashflows: &mut Vec<Cashflow<R>>,
     dates: &[Date],
     amounts: &[R],

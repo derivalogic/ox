@@ -1,10 +1,4 @@
-use super::traits::{ConstVisit, HasCashflows};
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    cashflows::traits::Payable,
-    core::{meta::MarketData, traits::Registrable},
-    utils::errors::{AtlasError, Result},
-};
+use crate::prelude::*;
 
 /// # NPVConstVisitor
 /// NPVConstVisitor is a visitor that calculates the NPV of an instrument.
@@ -13,12 +7,12 @@ use crate::{
 /// ## Parameters
 /// * `market_data` - The market data to use for NPV calculation
 /// * `include_today_cashflows` - Flag to include cashflows with payment date equal to the reference date
-pub struct NPVConstVisitor<'a, R: Real = f64> {
+pub struct NPVConstVisitor<'a, R: GenericNumber = f64> {
     market_data: &'a [MarketData<R>],
     include_today_cashflows: bool,
 }
 
-impl<'a, R: Real> NPVConstVisitor<'a, R> {
+impl<'a, R: GenericNumber> NPVConstVisitor<'a, R> {
     pub fn new(market_data: &'a [MarketData<R>], include_today_cashflows: bool) -> Self {
         NPVConstVisitor {
             market_data: market_data,
@@ -30,10 +24,10 @@ impl<'a, R: Real> NPVConstVisitor<'a, R> {
     }
 }
 
-impl<'a, V, R: Real> ConstVisit<V> for NPVConstVisitor<'a, R>
+impl<'a, V, R: GenericNumber> ConstVisit<V> for NPVConstVisitor<'a, R>
 where
     V: HasCashflows<R>,
-    R: Real,
+    R: GenericNumber,
 {
     type Output = Result<R>;
     fn visit(&self, visitable: &V) -> Self::Output {

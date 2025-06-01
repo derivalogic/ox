@@ -1,20 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    cashflows::{
-        cashflow::{Cashflow, Side},
-        traits::InterestAccrual,
-    },
-    core::traits::HasCurrency,
-    currencies::enums::Currency,
-    rates::interestrate::RateDefinition,
-    time::{date::Date, enums::Frequency},
-    visitors::traits::HasCashflows,
-};
-
-use super::traits::Structure;
-use crate::math::ad::genericnumber::Real;
-use crate::utils::errors::Result;
+use crate::prelude::*;
 
 /// # FloatingRateInstrument
 /// A floating rate instrument.
@@ -30,7 +16,7 @@ use crate::utils::errors::Result;
 /// * `rate_definition` - The rate definition.
 /// * `structure` - The structure.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FloatingRateInstrument<R: Real = f64> {
+pub struct FloatingRateInstrument<R: GenericNumber = f64> {
     start_date: Date,
     end_date: Date,
     notional: f64,
@@ -47,7 +33,7 @@ pub struct FloatingRateInstrument<R: Real = f64> {
     issue_date: Option<Date>,
 }
 
-impl<R: Real> FloatingRateInstrument<R> {
+impl<R: GenericNumber> FloatingRateInstrument<R> {
     pub fn new(
         start_date: Date,
         end_date: Date,
@@ -158,13 +144,13 @@ impl<R: Real> FloatingRateInstrument<R> {
     }
 }
 
-impl<R: Real> HasCurrency for FloatingRateInstrument<R> {
+impl<R: GenericNumber> HasCurrency for FloatingRateInstrument<R> {
     fn currency(&self) -> Result<Currency> {
         Ok(self.currency)
     }
 }
 
-impl<R: Real> InterestAccrual<R> for FloatingRateInstrument<R> {
+impl<R: GenericNumber> InterestAccrual<R> for FloatingRateInstrument<R> {
     fn accrual_start_date(&self) -> Result<Date> {
         Ok(self.start_date)
     }
@@ -181,7 +167,7 @@ impl<R: Real> InterestAccrual<R> for FloatingRateInstrument<R> {
     }
 }
 
-impl<R: Real> HasCashflows<R> for FloatingRateInstrument<R> {
+impl<R: GenericNumber> HasCashflows<R> for FloatingRateInstrument<R> {
     fn cashflows(&self) -> &[Cashflow<R>] {
         &self.cashflows
     }

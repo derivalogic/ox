@@ -7,7 +7,7 @@ use rustatlas::math::ad::{backward, reset_tape, Var};
 use rustatlas::models::blackscholes::{
     bs_delta, bs_gamma, bs_price, bs_price_delta_gamma_theta, bs_theta, BlackScholesModel,
 };
-use rustatlas::models::montecarlomodel::MonteCarloModel;
+use rustatlas::models::stochasticmodel::MonteCarloModel;
 use rustatlas::models::simplemodel::SimpleModel;
 use rustatlas::prelude::{FlatForwardTermStructure, OvernightIndex, RateDefinition};
 use rustatlas::time::{date::Date, daycounter::DayCounter};

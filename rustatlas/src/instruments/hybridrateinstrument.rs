@@ -1,19 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use super::instrument::RateType;
-use super::traits::Structure;
-use crate::utils::num::Real;
-use crate::{
-    cashflows::cashflow::{Cashflow, Side},
-    core::traits::HasCurrency,
-    currencies::enums::Currency,
-    rates::interestrate::RateDefinition,
-    time::{date::Date, enums::Frequency},
-    utils::errors::{AtlasError, Result},
-    visitors::traits::HasCashflows,
-};
+use crate::prelude::*;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HybridRateInstrument<R: Real = f64> {
+pub struct HybridRateInstrument<R: GenericNumber = f64> {
     start_date: Date,
     end_date: Date,
     notional: R,
@@ -33,7 +23,7 @@ pub struct HybridRateInstrument<R: Real = f64> {
     cashflows: Vec<Cashflow>,
 }
 
-impl<R: Real> HybridRateInstrument<R> {
+impl<R: GenericNumber> HybridRateInstrument<R> {
     pub fn new(
         start_date: Date,
         end_date: Date,
@@ -145,7 +135,7 @@ impl<R: Real> HybridRateInstrument<R> {
     }
 }
 
-impl<R: Real> HasCurrency for HybridRateInstrument<R> {
+impl<R: GenericNumber> HasCurrency for HybridRateInstrument<R> {
     fn currency(&self) -> Result<Currency> {
         match self.currency {
             Some(currency) => Ok(currency),
@@ -154,7 +144,7 @@ impl<R: Real> HasCurrency for HybridRateInstrument<R> {
     }
 }
 
-impl<R: Real> HasCashflows for HybridRateInstrument<R> {
+impl<R: GenericNumber> HasCashflows for HybridRateInstrument<R> {
     fn cashflows(&self) -> &[Cashflow] {
         &self.cashflows
     }

@@ -1,18 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use super::instrument::RateType;
-use crate::{
-    cashflows::{
-        cashflow::{Cashflow, Side},
-        traits::{InterestAccrual, Payable},
-    },
-    core::traits::HasCurrency,
-    currencies::enums::Currency,
-    rates::interestrate::RateDefinition,
-    time::{date::Date, enums::Frequency},
-    utils::{errors::Result, num::Real},
-    visitors::traits::HasCashflows,
-};
+use crate::prelude::*;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DoubleRateInstrument<R: Real = f64> {
     start_date: Date,

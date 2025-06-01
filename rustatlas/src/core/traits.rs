@@ -1,6 +1,4 @@
-use super::meta::MarketRequest;
-use crate::{currencies::enums::Currency, utils::errors::Result};
-
+use crate::prelude::*;
 pub trait HasCurrency {
     fn currency(&self) -> Result<Currency>;
 }

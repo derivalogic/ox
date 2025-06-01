@@ -1,10 +1,4 @@
-use crate::{
-    currencies::enums::Currency,
-    rates::enums::Compounding,
-    time::{date::Date, enums::Frequency},
-    utils::errors::{AtlasError, Result},
-};
-
+use crate::prelude::*;
 /// # ExchangeRateRequest
 /// Meta data for an exchange rate. Holds the first currency, the second currency and the reference
 /// date required to fetch the exchange rate.

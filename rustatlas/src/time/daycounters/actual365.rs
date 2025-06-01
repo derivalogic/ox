@@ -1,6 +1,5 @@
-use super::traits::DayCountProvider;
-use crate::time::date::Date;
-use crate::math::ad::genericnumber::Real;
+use crate::prelude::*;
+
 /// # Actual365 (Fixed)
 /// Actual/365 day count convention.
 /// Calculates the day count fraction according to the formula:
@@ -24,7 +23,7 @@ impl DayCountProvider for Actual365 {
         return end - start;
     }
 
-    fn year_fraction<T: Real>(start: Date, end: Date) -> T {
+    fn year_fraction<T: GenericNumber>(start: Date, end: Date) -> T {
         T::from(Actual365::day_count(start, end) as f64) / T::from(365.0)
     }
 }

@@ -1,21 +1,15 @@
-use super::traits::{HasCashflows, Visit};
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    cashflows::{cashflow::Cashflow, traits::RequiresFixingRate},
-    core::{meta::MarketData, traits::Registrable},
-    utils::errors::{AtlasError, Result},
-};
+use crate::prelude::*;
 
 /// # FixingVisitor
 /// FixingVisitor is a visitor that fixes the rate of a floating rate cashflow.
 ///
 /// ## Parameters
 /// * `market_data` - The market data to use for fixing
-pub struct FixingVisitor<'a, T: Real> {
+pub struct FixingVisitor<'a, T: GenericNumber> {
     market_data: &'a [MarketData<T>],
 }
 
-impl<'a, T: Real> FixingVisitor<'a, T> {
+impl<'a, T: GenericNumber> FixingVisitor<'a, T> {
     pub fn new(market_data: &'a [MarketData<T>]) -> Self {
         FixingVisitor {
             market_data: market_data,
@@ -23,7 +17,7 @@ impl<'a, T: Real> FixingVisitor<'a, T> {
     }
 }
 
-impl<'a, R: Real, T: HasCashflows<R>> Visit<T> for FixingVisitor<'a, R> {
+impl<'a, R: GenericNumber, T: HasCashflows<R>> Visit<T> for FixingVisitor<'a, R> {
     type Output = Result<()>;
     fn visit(&self, has_cashflows: &mut T) -> Self::Output {
         has_cashflows

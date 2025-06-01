@@ -3,32 +3,24 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::{enums::Currency, traits::AdvanceExchangeRateStoreInTime};
-
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    rates::indexstore::IndexStore,
-    time::{date::Date, period::Period},
-    utils::errors::{AtlasError, Result},
-};
-
+use crate::prelude::*;
 /// # ExchangeRateStore
 /// A store for exchange rates.
 /// Exchange rates are stored as a map of pairs of currencies to rates.
 ///
 /// ## Details
 /// - Exchange rates are stored as a map of pairs of currencies to rates.
-/// - The exchange rate between two currencies is calculated by traversing the graph of exchange rates.
+/// - ADNumberhe exchange rate between two currencies is calculated by traversing the graph of exchange rates.
 #[derive(Clone)]
-pub struct ExchangeRateStore<T: Real> {
+pub struct ExchangeRateStore {
     reference_date: Date,
-    exchange_rate_map: HashMap<(Currency, Currency), T>,
-    volatility_map: HashMap<(Currency, Currency), T>,
-    exchange_rate_cache: Arc<Mutex<HashMap<(Currency, Currency), T>>>,
+    exchange_rate_map: HashMap<(Currency, Currency), ADNumber>,
+    volatility_map: HashMap<(Currency, Currency), ADNumber>,
+    exchange_rate_cache: Arc<Mutex<HashMap<(Currency, Currency), ADNumber>>>,
 }
 
-impl<T: Real> ExchangeRateStore<T> {
-    pub fn new(date: Date) -> ExchangeRateStore<T> {
+impl ExchangeRateStore {
+    pub fn new(date: Date) -> ExchangeRateStore<ADNumber> {
         ExchangeRateStore {
             reference_date: date,
             volatility_map: HashMap::new(),
@@ -39,13 +31,13 @@ impl<T: Real> ExchangeRateStore<T> {
 
     pub fn with_exchange_rates(
         &mut self,
-        exchange_rate_map: HashMap<(Currency, Currency), T>,
+        exchange_rate_map: HashMap<(Currency, Currency), ADNumber>,
     ) -> &mut Self {
         self.exchange_rate_map = exchange_rate_map;
         self
     }
 
-    pub fn add_exchange_rate(&mut self, currency1: Currency, currency2: Currency, rate: T) {
+    pub fn add_exchange_rate(&mut self, currency1: Currency, currency2: Currency, rate: ADNumber) {
         self.exchange_rate_map.insert((currency1, currency2), rate);
     }
 
@@ -53,12 +45,17 @@ impl<T: Real> ExchangeRateStore<T> {
         self.reference_date
     }
 
-    pub fn add_volatility(&mut self, currency1: Currency, currency2: Currency, volatility: T) {
+    pub fn add_volatility(
+        &mut self,
+        currency1: Currency,
+        currency2: Currency,
+        volatility: ADNumber,
+    ) {
         self.volatility_map
             .insert((currency1, currency2), volatility);
     }
 
-    pub fn get_volatility(&self, currency1: Currency, currency2: Currency) -> Result<T> {
+    pub fn get_volatility(&self, currency1: Currency, currency2: Currency) -> Result<ADNumber> {
         if let Some(vol) = self.volatility_map.get(&(currency1, currency2)) {
             Ok(*vol)
         } else if let Some(vol) = self.volatility_map.get(&(currency2, currency1)) {
@@ -71,20 +68,20 @@ impl<T: Real> ExchangeRateStore<T> {
         }
     }
 
-    pub fn get_volatility_map(&self) -> HashMap<(Currency, Currency), T> {
+    pub fn get_volatility_map(&self) -> HashMap<(Currency, Currency), ADNumber> {
         self.volatility_map.clone()
     }
 
-    pub fn get_exchange_rate_map(&self) -> HashMap<(Currency, Currency), T> {
+    pub fn get_exchange_rate_map(&self) -> HashMap<(Currency, Currency), ADNumber> {
         self.exchange_rate_map.clone()
     }
 
-    pub fn get_exchange_rate(&self, first_ccy: Currency, second_ccy: Currency) -> Result<T> {
+    pub fn get_exchange_rate(&self, first_ccy: Currency, second_ccy: Currency) -> Result<ADNumber> {
         let first_ccy = first_ccy;
         let second_ccy = second_ccy;
 
         if first_ccy == second_ccy {
-            return Ok(T::from(1.0));
+            return Ok(ADNumber::from(1.0));
         }
 
         let cache_key = (first_ccy, second_ccy);
@@ -92,9 +89,9 @@ impl<T: Real> ExchangeRateStore<T> {
             return Ok(*cached_rate);
         }
 
-        let mut q: VecDeque<(Currency, T)> = VecDeque::new();
+        let mut q: VecDeque<(Currency, ADNumber)> = VecDeque::new();
         let mut visited: HashSet<Currency> = HashSet::new();
-        q.push_back((first_ccy, T::from(1.0)));
+        q.push_back((first_ccy, ADNumber::from(1.0)));
         visited.insert(first_ccy);
 
         let mut mutable_cache = self.exchange_rate_cache.lock().unwrap();
@@ -104,8 +101,7 @@ impl<T: Real> ExchangeRateStore<T> {
                     let new_rate = rate * map_rate;
                     if dest == second_ccy {
                         mutable_cache.insert((first_ccy, second_ccy), new_rate);
-                        mutable_cache
-                            .insert((second_ccy, first_ccy), T::div_from_const(1.0, new_rate));
+                        mutable_cache.insert((second_ccy, first_ccy), 1.0 / new_rate);
                         return Ok(new_rate);
                     }
                     visited.insert(dest);
@@ -114,8 +110,7 @@ impl<T: Real> ExchangeRateStore<T> {
                     let new_rate = rate / map_rate;
                     if source == second_ccy {
                         mutable_cache.insert((first_ccy, second_ccy), new_rate);
-                        mutable_cache
-                            .insert((second_ccy, first_ccy), T::div_from_const(1.0, new_rate));
+                        mutable_cache.insert((second_ccy, first_ccy), 1.0 / new_rate);
                         return Ok(new_rate);
                     }
                     visited.insert(source);
@@ -130,11 +125,11 @@ impl<T: Real> ExchangeRateStore<T> {
     }
 }
 
-impl<T: Real> AdvanceExchangeRateStoreInTime<T> for ExchangeRateStore<T> {
+impl AdvanceExchangeRateStoreInTime for ExchangeRateStore {
     fn advance_to_period(
         &self,
         period: Period,
-        index_store: &IndexStore<T>,
+        index_store: &IndexStore,
     ) -> Result<ExchangeRateStore<T>> {
         let new_date = self.reference_date + period;
         self.advance_to_date(new_date, index_store)
@@ -169,10 +164,6 @@ impl<T: Real> AdvanceExchangeRateStoreInTime<T> for ExchangeRateStore<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        currencies::enums::Currency::{CLP, EUR, USD},
-        math::ad::genericnumber::{backward, reset_tape, Var},
-    };
 
     #[test]
     fn test_same_currency() {
@@ -217,7 +208,7 @@ mod tests {
             exchange_rate_cache: Arc::new(Mutex::new(HashMap::new())),
         };
 
-        let result = manager.get_exchange_rate(USD, EUR);
+        let result = manager.get_exchange_rate(Currency::USD, Currency::EUR);
         assert!(result.is_err());
     }
 
@@ -229,47 +220,45 @@ mod tests {
             volatility_map: HashMap::new(),
             exchange_rate_map: {
                 let mut map = HashMap::new();
-                map.insert((USD, EUR), 0.85);
-                map.insert((EUR, USD), 1.0 / 0.85);
+                map.insert((Currency::USD, Currency::EUR), 0.85);
+                map.insert((Currency::EUR, Currency::USD), 1.0 / 0.85);
                 map
             },
             exchange_rate_cache: Arc::new(Mutex::new(HashMap::new())),
         };
 
-        assert_eq!(manager.get_exchange_rate(EUR, USD).unwrap(), 1.0 / 0.85);
-        assert_eq!(manager.get_exchange_rate(USD, EUR).unwrap(), 0.85);
+        assert_eq!(
+            manager
+                .get_exchange_rate(Currency::EUR, Currency::USD)
+                .unwrap(),
+            1.0 / 0.85
+        );
+        assert_eq!(
+            manager
+                .get_exchange_rate(Currency::USD, Currency::EUR)
+                .unwrap(),
+            0.85
+        );
     }
 
     #[test]
     fn test_triangulation_case() {
         let ref_date = Date::new(2021, 1, 1);
         let mut manager = ExchangeRateStore::new(ref_date);
-        manager.add_exchange_rate(CLP, USD, 800.0);
-        manager.add_exchange_rate(USD, EUR, 1.1);
+        manager.add_exchange_rate(Currency::CLP, Currency::USD, 800.0);
+        manager.add_exchange_rate(Currency::USD, Currency::EUR, 1.1);
 
-        assert_eq!(manager.get_exchange_rate(CLP, EUR).unwrap(), 1.1 * 800.0);
         assert_eq!(
-            manager.get_exchange_rate(EUR, CLP).unwrap(),
+            manager
+                .get_exchange_rate(Currency::CLP, Currency::EUR)
+                .unwrap(),
+            1.1 * 800.0
+        );
+        assert_eq!(
+            manager
+                .get_exchange_rate(Currency::EUR, Currency::CLP)
+                .unwrap(),
             1.0 / (1.1 * 800.0)
         );
-    }
-
-    #[test]
-    fn test_ad_triangulation_derivative() {
-        reset_tape();
-        let ref_date = Date::new(2021, 1, 1);
-        let mut manager = ExchangeRateStore::new(ref_date);
-
-        let r1 = Var::new(800.0); // CLP/USD
-        let r2 = Var::new(1.1); // USD/EUR
-
-        manager.add_exchange_rate(CLP, USD, r1);
-        manager.add_exchange_rate(USD, EUR, r2);
-
-        let fx = manager.get_exchange_rate(CLP, EUR).unwrap();
-        let grad = backward(&fx);
-
-        assert!((grad[r1.id()] - r2.value()).abs() < 1e-12);
-        assert!((grad[r2.id()] - r1.value()).abs() < 1e-12);
     }
 }

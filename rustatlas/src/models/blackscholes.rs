@@ -1,31 +1,21 @@
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rand_distr::StandardNormal;
 
-use crate::core::meta::{MarketData, MarketRequest};
-use crate::math::ad::genericnumber::Real;
-use crate::prelude::{
-    Actual360, DayCountProvider, DiscountFactorRequest, ExchangeRateRequest, ForwardRateRequest,
-    HasReferenceDate, SimpleModel,
-};
-use crate::time::date::Date;
-use crate::utils::errors::Result;
-
-use super::deterministicmodel::DeterministicModel;
-use super::stochasticmodel::{Scenario, StochasticModel};
+use crate::prelude::*;
 
 /// Simple Black-Scholes Monte Carlo generator
 #[derive(Clone)]
-pub struct BlackScholesModel<'a, T: Real> {
+pub struct BlackScholesModel<'a, T: GenericNumber> {
     pub simple: SimpleModel<'a, T>,
 }
 
-impl<'a, T: Real> BlackScholesModel<'a, T> {
+impl<'a, T: GenericNumber> BlackScholesModel<'a, T> {
     pub fn new(simple: SimpleModel<'a, T>) -> Self {
         Self { simple }
     }
 }
 
-impl<T: Real> DeterministicModel<T> for BlackScholesModel<'_, T> {
+impl<T: GenericNumber> DeterministicModel<T> for BlackScholesModel<'_, T> {
     fn reference_date(&self) -> Date {
         self.simple.reference_date()
     }
@@ -47,7 +37,7 @@ impl<T: Real> DeterministicModel<T> for BlackScholesModel<'_, T> {
     }
 }
 
-impl<'a, T: Real> StochasticModel<T> for BlackScholesModel<'a, T> {
+impl<'a, T: GenericNumber> StochasticModel<T> for BlackScholesModel<'a, T> {
     fn gen_scenario(&self, market_requests: &[MarketRequest]) -> Result<Scenario<T>> {
         let store = self.simple.market_store();
         let ref_date = store.reference_date();
@@ -178,12 +168,12 @@ impl<'a, T: Real> StochasticModel<T> for BlackScholesModel<'a, T> {
     }
 }
 
-fn norm_pdf<T: Real>(x: T) -> T {
+fn norm_pdf<T: GenericNumber>(x: T) -> T {
     let inv_sqrt_2pi = T::from(1.0 / (2.0_f64 * std::f64::consts::PI).sqrt());
     inv_sqrt_2pi * (-(x * x) * T::from(0.5)).exp()
 }
 
-fn norm_cdf<T: Real>(x: T) -> T {
+fn norm_cdf<T: GenericNumber>(x: T) -> T {
     let one = T::from(1.0);
     let k = one / (one + T::from(0.2316419) * x.abs());
     let k_sum = k
@@ -199,26 +189,26 @@ fn norm_cdf<T: Real>(x: T) -> T {
     }
 }
 
-pub fn bs_price<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> T {
+pub fn bs_price<T: GenericNumber>(s: T, k: T, r: T, vol: T, t: T) -> T {
     let sqt = t.sqrt();
     let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
     let d2 = d1 - vol * sqt;
     s * norm_cdf(d1) - k * (-r * t).exp() * norm_cdf(d2)
 }
 
-pub fn bs_delta<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> T {
+pub fn bs_delta<T: GenericNumber>(s: T, k: T, r: T, vol: T, t: T) -> T {
     let sqt = t.sqrt();
     let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
     norm_cdf(d1)
 }
 
-pub fn bs_gamma<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> T {
+pub fn bs_gamma<T: GenericNumber>(s: T, k: T, r: T, vol: T, t: T) -> T {
     let sqt = t.sqrt();
     let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
     norm_pdf(d1) / (s * vol * sqt)
 }
 
-pub fn bs_theta<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> T {
+pub fn bs_theta<T: GenericNumber>(s: T, k: T, r: T, vol: T, t: T) -> T {
     let sqt = t.sqrt();
     let d1 = ((s / k).ln() + (r + vol * vol * 0.5) * t) / (vol * sqt);
     let d2 = d1 - vol * sqt;
@@ -226,7 +216,13 @@ pub fn bs_theta<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> T {
 }
 
 /// Return price and Greeks for convenience
-pub fn bs_price_delta_gamma_theta<T: Real>(s: T, k: T, r: T, vol: T, t: T) -> (T, T, T, T) {
+pub fn bs_price_delta_gamma_theta<T: GenericNumber>(
+    s: T,
+    k: T,
+    r: T,
+    vol: T,
+    t: T,
+) -> (T, T, T, T) {
     (
         bs_price(s, k, r, vol, t),
         bs_delta(s, k, r, vol, t),

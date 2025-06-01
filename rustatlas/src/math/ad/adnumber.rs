@@ -88,16 +88,66 @@ impl Expr for ADNumber {
 #[derive(Clone, Copy)]
 pub struct Const(pub f64);
 
+/* ── primitive → Const ────────────────────────────────────────────── */
+
 impl From<f64> for Const {
+    #[inline]
     fn from(v: f64) -> Self {
         Const(v)
     }
 }
 
+impl From<f32> for Const {
+    #[inline]
+    fn from(v: f32) -> Self {
+        Const(v as f64)
+    }
+}
+
+impl From<i32> for Const {
+    #[inline]
+    fn from(v: i32) -> Self {
+        Const(v as f64)
+    }
+}
+
+/* (optional but convenient) further primitives */
+impl From<u32> for Const {
+    #[inline]
+    fn from(v: u32) -> Self {
+        Const(v as f64)
+    }
+}
+impl From<i64> for Const {
+    #[inline]
+    fn from(v: i64) -> Self {
+        Const(v as f64)
+    }
+}
+impl From<u64> for Const {
+    #[inline]
+    fn from(v: u64) -> Self {
+        Const(v as f64)
+    }
+}
+
+/* ── Const → primitive ────────────────────────────────────────────── */
+
+impl From<Const> for f64 {
+    #[inline]
+    fn from(c: Const) -> Self {
+        c.0
+    }
+}
+
+/* ── AD expression integration (unchanged) ────────────────────────── */
+
 impl Expr for Const {
+    #[inline]
     fn value(&self) -> f64 {
         self.0
     }
+    #[inline]
     fn push_adj(&self, _parent: &mut Node, _adj: f64) {}
 }
 
@@ -316,7 +366,7 @@ un_op!(LogOp, f64::ln, |x, _v| 1.0 / x);
 un_op!(SqrtOp, f64::sqrt, |_x, v| 0.5 / v);
 un_op!(FabsOp, f64::abs, |x, _v| if x >= 0.0 { 1.0 } else { -1.0 });
 un_op!(SinOp, f64::sin, |x, v| v * f64::cos(x));
-un_op!(CosOp, f64::cos, |x, v| -v * f64::sin(x));
+un_op!(CosOp, f64::cos, |x: f64, v: f64| -v * f64::sin(x));
 
 #[derive(Clone)]
 pub struct UnExpr<A, O> {
@@ -741,8 +791,10 @@ mod tests {
     fn test_propagation() {
         let a = ADNumber::new(3.0);
         let b = ADNumber::new(4.0);
-        let expr = a + b;
-        let result = flatten(&expr);
+        let z = ADNumber::new(2.0);
+        let y = a * b + z.clone();
+        let x = y / z;
+        let result = flatten(&x);
         result.propagate_to_start();
         assert_eq!(result.adjoint(), 1.0); // adjoint should be 1 after propagation
     }

@@ -22,13 +22,13 @@ pub enum Interpolator {
 }
 
 impl Interpolator {
-    pub fn interpolate<T: GenericNumber>(
+    pub fn interpolate(
         &self,
-        x: T,
-        x_: &Vec<T>,
-        y_: &Vec<T>,
+        x: ADNumber,
+        x_: &Vec<ADNumber>,
+        y_: &Vec<ADNumber>,
         enable_extrapolation: bool,
-    ) -> T {
+    ) -> ADNumber {
         match self {
             Interpolator::Linear => {
                 LinearInterpolator::interpolate(x, x_, y_, enable_extrapolation)

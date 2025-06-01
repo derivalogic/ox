@@ -1,18 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    core::{
-        meta::{DiscountFactorRequest, ExchangeRateRequest, MarketRequest},
-        traits::{HasCurrency, HasDiscountCurveId, HasForecastCurveId, Registrable},
-    },
-    currencies::enums::Currency,
-    time::date::Date,
-    utils::errors::{AtlasError, Result},
-};
-
-use super::cashflow::Side;
-use super::traits::{Expires, Payable};
+use crate::prelude::*;
 
 /// # SimpleCashflow
 /// A simple cashflow that is payable at a given date.
@@ -33,7 +21,7 @@ use super::traits::{Expires, Payable};
 /// assert_eq!(cashflow.amount().unwrap().value(), 100.0);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SimpleCashflow<T: Real> {
+pub struct SimpleCashflow<T: GenericNumber> {
     payment_date: Date,
     currency: Currency,
     side: Side,
@@ -42,7 +30,7 @@ pub struct SimpleCashflow<T: Real> {
     id: Option<usize>,
 }
 
-impl<T: Real> SimpleCashflow<T> {
+impl<T: GenericNumber> SimpleCashflow<T> {
     pub fn new(payment_date: Date, currency: Currency, side: Side) -> SimpleCashflow<T> {
         SimpleCashflow {
             payment_date,
@@ -78,13 +66,13 @@ impl<T: Real> SimpleCashflow<T> {
     }
 }
 
-impl<T: Real> HasCurrency for SimpleCashflow<T> {
+impl<T: GenericNumber> HasCurrency for SimpleCashflow<T> {
     fn currency(&self) -> Result<Currency> {
         return Ok(self.currency);
     }
 }
 
-impl<T: Real> HasDiscountCurveId for SimpleCashflow<T> {
+impl<T: GenericNumber> HasDiscountCurveId for SimpleCashflow<T> {
     fn discount_curve_id(&self) -> Result<usize> {
         return self
             .discount_curve_id
@@ -92,7 +80,7 @@ impl<T: Real> HasDiscountCurveId for SimpleCashflow<T> {
     }
 }
 
-impl<T: Real> HasForecastCurveId for SimpleCashflow<T> {
+impl<T: GenericNumber> HasForecastCurveId for SimpleCashflow<T> {
     fn forecast_curve_id(&self) -> Result<usize> {
         return Err(AtlasError::InvalidValueErr(
             "No forecast curve id for simple cashflow".to_string(),
@@ -100,10 +88,10 @@ impl<T: Real> HasForecastCurveId for SimpleCashflow<T> {
     }
 }
 
-impl<T: Real> Registrable for SimpleCashflow<T> {
+impl<T: GenericNumber> Registrable for SimpleCashflow<T> {
     fn id(&self) -> Result<usize> {
         return self.id.ok_or(AtlasError::ValueNotSetErr("Id".to_string()));
-    }
+    }w
 
     fn set_id(&mut self, id: usize) {
         self.id = Some(id);
@@ -124,7 +112,7 @@ impl<T: Real> Registrable for SimpleCashflow<T> {
     }
 }
 
-impl<T: Real> Payable<T> for SimpleCashflow<T> {
+impl<T: GenericNumber> Payable<T> for SimpleCashflow<T> {
     fn amount(&self) -> Result<T> {
         return self.amount.ok_or(AtlasError::ValueNotSetErr(
             "Amount not set for simple cashflow".to_string(),
@@ -139,7 +127,7 @@ impl<T: Real> Payable<T> for SimpleCashflow<T> {
     }
 }
 
-impl<T: Real> Expires for SimpleCashflow<T> {
+impl<T: GenericNumber> Expires for SimpleCashflow<T> {
     fn is_expired(&self, date: Date) -> bool {
         return self.payment_date < date;
     }

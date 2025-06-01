@@ -1,15 +1,8 @@
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    prelude::{
-        Date, DiscountFactorRequest, ExchangeRateRequest, ForwardRateRequest, MarketData,
-        MarketRequest,
-    },
-    utils::errors::Result,
-};
+use crate::prelude::*;
 
 /// # Deterministic Model
 /// A model that provides market data based in the current market state.
-pub trait DeterministicModel<T: Real> {
+pub trait DeterministicModel<T: GenericNumber> {
     fn reference_date(&self) -> Date;
     fn gen_df_data(&self, df: DiscountFactorRequest) -> Result<T>;
     fn gen_fx_data(&self, fx: ExchangeRateRequest) -> Result<T>;

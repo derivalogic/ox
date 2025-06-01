@@ -1,6 +1,4 @@
-use super::traits::DayCountProvider;
-use crate::math::ad::genericnumber::Real;
-use crate::time::date::Date;
+use crate::prelude::*;
 /// # ActualActual
 /// Actual/Actual day count convention.
 /// Calculates the day count fraction according to the formula:
@@ -34,7 +32,7 @@ impl DayCountProvider for ActualActual {
         return end - start;
     }
 
-    fn year_fraction<T: Real>(start: Date, end: Date) -> T {
+    fn year_fraction<T: GenericNumber>(start: Date, end: Date) -> T {
         let days = ActualActual::day_count(start, end);
 
         let y1 = start.year() as i32;

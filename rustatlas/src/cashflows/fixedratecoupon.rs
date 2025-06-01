@@ -1,18 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::cashflow::Side;
-use super::simplecashflow::SimpleCashflow;
-use super::traits::{Expires, InterestAccrual, Payable};
-use crate::core::traits::{HasCurrency, HasDiscountCurveId, HasForecastCurveId};
-use crate::math::ad::genericnumber::Real;
-use crate::utils::errors::AtlasError;
-use crate::{
-    core::{meta::MarketRequest, traits::Registrable},
-    currencies::enums::Currency,
-    rates::interestrate::InterestRate,
-    time::date::Date,
-    utils::errors::Result,
-};
+use crate::prelude::*;
 
 /// # FixedRateCoupon
 /// A fixed rate coupon is a cashflow that pays a fixed rate of interest on a notional amount.
@@ -26,17 +14,17 @@ use crate::{
 /// * `currency` - The currency of the coupon
 /// * `side` - The side of the coupon (Pay or Receive)
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct FixedRateCoupon<T: Real> {
-    notional: f64,
+pub struct FixedRateCoupon<T: GenericNumber> {
+    notional: T,
     rate: InterestRate<T>,
     accrual_start_date: Date,
     accrual_end_date: Date,
     cashflow: SimpleCashflow<T>,
 }
 
-impl<T: Real> FixedRateCoupon<T> {
+impl<T: GenericNumber> FixedRateCoupon<T> {
     pub fn new(
-        notional: f64,
+        notional: T,
         rate: InterestRate<T>,
         accrual_start_date: Date,
         accrual_end_date: Date,
@@ -44,7 +32,9 @@ impl<T: Real> FixedRateCoupon<T> {
         currency: Currency,
         side: Side,
     ) -> FixedRateCoupon<T> {
-        let amount = (rate.compound_factor(accrual_start_date, accrual_end_date) - 1.0) * notional;
+        let delta = rate.compound_factor(accrual_start_date, accrual_end_date) - 1.0;
+        let amount = (delta * T::from(notional)).into(); // one final flatten
+
         let cashflow = SimpleCashflow::new(payment_date, currency, side).with_amount(amount);
         FixedRateCoupon {
             notional,
@@ -98,19 +88,19 @@ impl<T: Real> FixedRateCoupon<T> {
     }
 }
 
-impl<T: Real> HasCurrency for FixedRateCoupon<T> {
+impl<T: GenericNumber> HasCurrency for FixedRateCoupon<T> {
     fn currency(&self) -> Result<Currency> {
         self.cashflow.currency()
     }
 }
 
-impl<T: Real> HasDiscountCurveId for FixedRateCoupon<T> {
+impl<T: GenericNumber> HasDiscountCurveId for FixedRateCoupon<T> {
     fn discount_curve_id(&self) -> Result<usize> {
         self.cashflow.discount_curve_id()
     }
 }
 
-impl<T: Real> HasForecastCurveId for FixedRateCoupon<T> {
+impl<T: GenericNumber> HasForecastCurveId for FixedRateCoupon<T> {
     fn forecast_curve_id(&self) -> Result<usize> {
         return Err(AtlasError::InvalidValueErr(
             "No forecast curve id for fixed rate cashflow".to_string(),
@@ -118,7 +108,7 @@ impl<T: Real> HasForecastCurveId for FixedRateCoupon<T> {
     }
 }
 
-impl<T: Real> Registrable for FixedRateCoupon<T> {
+impl<T: GenericNumber> Registrable for FixedRateCoupon<T> {
     fn id(&self) -> Result<usize> {
         return self.cashflow.id();
     }
@@ -132,7 +122,7 @@ impl<T: Real> Registrable for FixedRateCoupon<T> {
     }
 }
 
-impl<T: Real> InterestAccrual<T> for FixedRateCoupon<T> {
+impl<T: GenericNumber> InterestAccrual<T> for FixedRateCoupon<T> {
     fn accrual_start_date(&self) -> Result<Date> {
         return Ok(self.accrual_start_date);
     }
@@ -152,7 +142,7 @@ impl<T: Real> InterestAccrual<T> for FixedRateCoupon<T> {
     }
 }
 
-impl<T: Real> Payable<T> for FixedRateCoupon<T> {
+impl<T: GenericNumber> Payable<T> for FixedRateCoupon<T> {
     fn amount(&self) -> Result<T> {
         return self.cashflow.amount();
     }
@@ -166,7 +156,7 @@ impl<T: Real> Payable<T> for FixedRateCoupon<T> {
     }
 }
 
-impl<T: Real> Expires for FixedRateCoupon<T> {
+impl<T: GenericNumber> Expires for FixedRateCoupon<T> {
     fn is_expired(&self, date: Date) -> bool {
         return self.cashflow.is_expired(date);
     }

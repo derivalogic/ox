@@ -2,24 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use serde::{Deserialize, Serialize};
 
-use crate::math::ad::genericnumber::Real;
-use crate::{
-    core::{
-        meta::MarketRequest,
-        traits::{HasCurrency, HasDiscountCurveId, HasForecastCurveId, Registrable},
-    },
-    currencies::enums::Currency,
-    time::date::Date,
-    utils::errors::{AtlasError, Result},
-};
-
-use super::{
-    fixedratecoupon::FixedRateCoupon,
-    floatingratecoupon::FloatingRateCoupon,
-    simplecashflow::SimpleCashflow,
-    traits::{InterestAccrual, Payable, RequiresFixingRate},
-};
-
+use crate::prelude::*;
 /// # Side
 /// Enum that represents the side of a cashflow.
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -68,14 +51,14 @@ impl From<Side> for String {
 /// # Cashflow
 /// Enum that represents a cashflow.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-pub enum Cashflow<T: Real> {
+pub enum Cashflow<T: GenericNumber> {
     Redemption(SimpleCashflow<T>),
     Disbursement(SimpleCashflow<T>),
     FixedRateCoupon(FixedRateCoupon<T>),
     FloatingRateCoupon(FloatingRateCoupon<T>),
 }
 
-impl<T: Real> Cashflow<T> {
+impl<T: GenericNumber> Cashflow<T> {
     pub fn set_discount_curve_id(&mut self, id: usize) {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.set_discount_curve_id(id),
@@ -93,7 +76,7 @@ impl<T: Real> Cashflow<T> {
     }
 }
 
-impl<T: Real> Payable<T> for Cashflow<T> {
+impl<T: GenericNumber> Payable<T> for Cashflow<T> {
     fn amount(&self) -> Result<T> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.amount(),
@@ -122,7 +105,7 @@ impl<T: Real> Payable<T> for Cashflow<T> {
     }
 }
 
-impl<T: Real> HasCurrency for Cashflow<T> {
+impl<T: GenericNumber> HasCurrency for Cashflow<T> {
     fn currency(&self) -> Result<Currency> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.currency(),
@@ -133,7 +116,7 @@ impl<T: Real> HasCurrency for Cashflow<T> {
     }
 }
 
-impl<T: Real> HasDiscountCurveId for Cashflow<T> {
+impl<T: GenericNumber> HasDiscountCurveId for Cashflow<T> {
     fn discount_curve_id(&self) -> Result<usize> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.discount_curve_id(),
@@ -144,7 +127,7 @@ impl<T: Real> HasDiscountCurveId for Cashflow<T> {
     }
 }
 
-impl<T: Real> HasForecastCurveId for Cashflow<T> {
+impl<T: GenericNumber> HasForecastCurveId for Cashflow<T> {
     fn forecast_curve_id(&self) -> Result<usize> {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.forecast_curve_id(),
@@ -155,7 +138,7 @@ impl<T: Real> HasForecastCurveId for Cashflow<T> {
     }
 }
 
-impl<T: Real> Registrable for Cashflow<T> {
+impl<T: GenericNumber> Registrable for Cashflow<T> {
     fn set_id(&mut self, id: usize) {
         match self {
             Cashflow::Redemption(cashflow) => cashflow.set_id(id),
@@ -184,7 +167,7 @@ impl<T: Real> Registrable for Cashflow<T> {
     }
 }
 
-impl<T: Real> InterestAccrual<T> for Cashflow<T> {
+impl<T: GenericNumber> InterestAccrual<T> for Cashflow<T> {
     fn accrual_end_date(&self) -> Result<Date> {
         match self {
             Cashflow::FixedRateCoupon(coupon) => coupon.accrual_end_date(),
@@ -220,7 +203,7 @@ impl<T: Real> InterestAccrual<T> for Cashflow<T> {
     }
 }
 
-impl<T: Real> RequiresFixingRate<T> for Cashflow<T> {
+impl<T: GenericNumber> RequiresFixingRate<T> for Cashflow<T> {
     fn set_fixing_rate(&mut self, fixing_rate: T) {
         match self {
             Cashflow::FloatingRateCoupon(coupon) => coupon.set_fixing_rate(fixing_rate),
@@ -229,7 +212,7 @@ impl<T: Real> RequiresFixingRate<T> for Cashflow<T> {
     }
 }
 
-impl<T: Real> Display for Cashflow<T> {
+impl<T: GenericNumber> Display for Cashflow<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let amount = self.amount().unwrap_or(T::from(0.0));
         match self {

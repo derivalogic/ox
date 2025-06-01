@@ -1,4 +1,4 @@
-use rustatlas::{math::ad::num::Real, prelude::*};
+use rustatlas::{math::ad::genericnumber::Real, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use std::{

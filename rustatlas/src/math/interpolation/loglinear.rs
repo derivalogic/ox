@@ -7,8 +7,13 @@ use crate::prelude::*;
 #[derive(Clone)]
 pub struct LogLinearInterpolator {}
 
-impl<T: GenericNumber> Interpolate<T> for LogLinearInterpolator {
-    fn interpolate(x: T, x_: &Vec<T>, y_: &Vec<T>, enable_extrapolation: bool) -> T {
+impl Interpolate for LogLinearInterpolator {
+    fn interpolate(
+        x: ADNumber,
+        x_: &Vec<ADNumber>,
+        y_: &Vec<ADNumber>,
+        enable_extrapolation: bool,
+    ) -> ADNumber {
         let index =
             match x_.binary_search_by(|&probe| probe.partial_cmp(&x).unwrap_or(Ordering::Less)) {
                 Ok(index) => index,

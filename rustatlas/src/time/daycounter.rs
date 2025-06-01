@@ -1,15 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::daycounters::{
-    actual360::Actual360, actual365::Actual365, actualactual::ActualActual,
-    business252::Business252, thirty360::*, traits::DayCountProvider,
-};
-use crate::{
-    time::date::Date,
-    utils::errors::{AtlasError, Result},
-};
-
-use crate::math::ad::genericnumber::Real;
+use crate::prelude::*;
 /// # DayCounter
 /// Day count convention enum.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -34,7 +25,7 @@ impl DayCounter {
         }
     }
 
-    pub fn year_fraction<T: Real>(&self, start: Date, end: Date) -> T {
+    pub fn year_fraction<T: GenericNumber>(&self, start: Date, end: Date) -> T {
         match self {
             DayCounter::Actual360 => Actual360::year_fraction::<T>(start, end),
             DayCounter::Actual365 => Actual365::year_fraction::<T>(start, end),
