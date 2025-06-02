@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    hash::Hash,
     sync::{Arc, RwLock},
 };
 
@@ -9,14 +8,14 @@ use scripting::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
-struct Curve {
+pub struct Curve {
     pub name: String,
     pub currency: Currency,
     pub rate: NumericType,
 }
 
 #[derive(Debug, Deserialize)]
-struct CurrencyParity {
+pub struct CurrencyParity {
     pub weak: Currency,
     pub strong: Currency,
     pub value: NumericType,
@@ -24,7 +23,7 @@ struct CurrencyParity {
 }
 
 #[derive(Debug, Deserialize)]
-struct MarketData {
+pub struct MarketData {
     pub reference_date: Date,
     pub local_currency: Currency,
     pub curves: Vec<Curve>,
@@ -32,19 +31,19 @@ struct MarketData {
 }
 
 #[derive(Debug, Deserialize)]
-struct ScriptData {
+pub struct ScriptData {
     pub target_name: String,
     pub events: Vec<CodedEvent>,
 }
 
 #[derive(Debug, Deserialize)]
-struct SimulationData {
+pub struct SimulationData {
     pub market_data: MarketData,
     pub script_data: ScriptData,
 }
 
 #[derive(Debug, Serialize)]
-struct SimulationResults {
+pub struct SimulationResults {
     pub target_value: f64,
     pub theta: f64,
     pub deltas: Vec<HashMap<String, f64>>, // sensitivies to fx as "c1/cc2" from the exchange rate store
