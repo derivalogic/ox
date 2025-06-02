@@ -1,8 +1,12 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    sync::{Arc, RwLock},
+};
 
 use rustatlas::prelude::*;
 use scripting::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 struct Curve {
@@ -28,9 +32,23 @@ struct MarketData {
 }
 
 #[derive(Debug, Deserialize)]
+struct ScriptData {
+    pub target_name: String,
+    pub events: Vec<CodedEvent>,
+}
+
+#[derive(Debug, Deserialize)]
 struct SimulationData {
     pub market_data: MarketData,
-    pub script_data: Vec<CodedEvent>,
+    pub script_data: ScriptData,
+}
+
+#[derive(Debug, Serialize)]
+struct SimulationResults {
+    pub target_value: f64,
+    pub theta: f64,
+    pub deltas: Vec<HashMap<String, f64>>, // sensitivies to fx as "c1/cc2" from the exchange rate store
+    pub rhos: Vec<HashMap<String, f64>>,   // sensitivies to rates as "c1/c2" from the index store
 }
 
 pub fn create_market_store(data: &MarketData) -> MarketStore {
