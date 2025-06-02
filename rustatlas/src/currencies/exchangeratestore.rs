@@ -65,6 +65,8 @@ impl ExchangeRateStore {
             Ok(*vol)
         } else if let Some(vol) = self.volatility_map.get(&(currency2, currency1)) {
             Ok(*vol)
+        } else if currency1 == currency2 {
+            Ok(NumericType::new(0.0)) // Volatility for the same currency is 0
         } else {
             Err(AtlasError::NotFoundErr(format!(
                 "No volatility for pair {:?}/{:?}",

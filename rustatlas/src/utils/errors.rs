@@ -27,6 +27,12 @@ pub enum AtlasError {
     SolverErr(#[from] argmin::core::Error),
     #[error("{0}")]
     NotImplementedErr(String),
+    #[error("Inactive Tape")]
+    InactiveTapeErr,
+    #[error("Node not in tape: {0}")]
+    NodeNotInTapeErr(usize),
+    #[error("Node not indexed in tape")]
+    NodeNotIndexedInTapeErr,
 }
 
 pub type Result<T> = std::result::Result<T, AtlasError>;

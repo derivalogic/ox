@@ -1,7 +1,7 @@
 use core::panic;
-use lefi::prelude::*;
-use lefi::utils::errors::Result;
 use rustatlas::prelude::*;
+use scripting::prelude::*;
+use scripting::utils::errors::Result;
 use std::sync::{Arc, RwLock};
 
 fn create_market_store(s0: NumericType, r_usd: NumericType, r_clp: NumericType) -> MarketStore {
@@ -89,13 +89,22 @@ fn main() -> Result<()> {
         _ => panic!("Option price not found in the evaluated variables"),
     };
 
-    price_mc.propagate_to_start();
+    price_mc.propagate_to_start().unwrap();
 
     println!("Monte Carlo Price: {}", price_mc);
-    println!("Monte Carlo Delta: {}", s0.adjoint());
-    println!("Monte Carlo Rho CLP: {}", r_clp.adjoint() * 0.01 / 100.0);
-    println!("Monte Carlo Rho USD: {}", r_usd.adjoint() * 0.01 / 100.0);
-    println!("Monte Carlo Vega: {}", vol.adjoint() * 0.01 / 100.0);
+    println!("Monte Carlo Delta: {}", s0.adjoint().unwrap());
+    println!(
+        "Monte Carlo Rho CLP: {}",
+        r_clp.adjoint().unwrap() * 0.01 / 100.0
+    );
+    println!(
+        "Monte Carlo Rho USD: {}",
+        r_usd.adjoint().unwrap() * 0.01 / 100.0
+    );
+    println!(
+        "Monte Carlo Vega: {}",
+        vol.adjoint().unwrap() * 0.01 / 100.0
+    );
 
     Ok(())
 }

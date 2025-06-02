@@ -93,10 +93,10 @@ pub trait Expr: Clone {
 
 /* ════════════════════════  LEAF: ADNumber  ═════════════════════════ */
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ADNumber {
     val: f64,
-    idx: usize, // position on the tape
+    idx: Option<usize>, // position on the tape
 }
 
 /* ---- constructors & tape helpers --------------------------------- */
@@ -112,35 +112,58 @@ impl ADNumber {
         self.val
     }
     #[inline]
-    pub fn adjoint(&self) -> f64 {
-        TAPE.with(|t| t.borrow().nodes[self.idx].adj)
+    pub fn adjoint(&self) -> Result<f64> {
+        match self.idx {
+            Some(idx) => TAPE.with(|t| {
+                if let Ok(node) = t.borrow().node(idx) {
+                    Ok(node.adj)
+                } else {
+                    Err(AtlasError::NodeNotInTapeErr(idx))
+                }
+            }),
+            None => Err(AtlasError::NodeNotIndexedInTapeErr),
+        }
     }
 
-    pub fn reset_adjoints() {
-        TAPE.with(|t| {
-            for n in &mut t.borrow_mut().nodes {
-                n.adj = 0.0;
-            }
-        });
-    }
     pub fn put_on_tape(&mut self) {
         self.idx = TAPE.with(|t| t.borrow_mut().new_leaf());
     }
-    pub fn propagate_to_start(&self) {
-        TAPE.with(|t| t.borrow_mut().nodes[self.idx].adj = 1.0);
-        propagate_range(self.idx, 0);
+
+    pub fn propagate_to_start(&self) -> Result<()> {
+        match self.idx {
+            Some(idx) => {
+                TAPE.with(|t| {
+                    if let Ok(node) = t.borrow_mut().mut_node(idx) {
+                        node.adj = 1.0;
+                    }
+                });
+                Tape::propagate_range(idx, 0);
+                Ok(())
+            }
+            None => Err(AtlasError::NodeNotIndexedInTapeErr),
+        }
     }
-    pub fn propagate_to_mark(&self) {
-        let stop = TAPE.with(|t| t.borrow().mark);
-        TAPE.with(|t| t.borrow_mut().nodes[self.idx].adj = 1.0);
-        propagate_range(self.idx, stop);
+    pub fn propagate_to_mark(&self) -> Result<()> {
+        let stop = TAPE.with(|t| t.borrow().mark());
+        match self.idx {
+            Some(idx) => {
+                TAPE.with(|t| {
+                    if let Ok(node) = t.borrow_mut().mut_node(idx) {
+                        node.adj = 1.0;
+                    }
+                });
+                Tape::propagate_range(idx, stop);
+                Ok(())
+            }
+            None => Err(AtlasError::NodeNotIndexedInTapeErr),
+        }
     }
     pub fn propagate_mark_to_start() {
         let (from, to) = TAPE.with(|t| {
             let t = t.borrow();
-            (t.mark.saturating_sub(1), 0usize)
+            (t.mark().saturating_sub(1), 0usize)
         });
-        propagate_range(from, to);
+        Tape::propagate_range(from, to);
     }
 }
 
@@ -152,8 +175,13 @@ impl Expr for ADNumber {
         self.val
     }
     fn push_adj(&self, parent: &mut TapeNode, adj: f64) {
-        parent.childs.push(self.idx);
-        parent.derivs.push(adj);
+        match self.idx {
+            Some(idx) => {
+                parent.childs.push(idx);
+                parent.derivs.push(adj);
+            }
+            None => {}
+        }
     }
 }
 
@@ -169,8 +197,6 @@ impl PartialOrd for ADNumber {
         self.val.partial_cmp(&o.val)
     }
 }
-
-impl Copy for ADNumber {}
 
 impl Serialize for ADNumber {
     fn serialize<S>(&self, s: S) -> std::result::Result<S::Ok, S::Error>
@@ -1075,12 +1101,26 @@ mod tests {
 
     #[test]
     fn backprop_basic() {
+        Tape::start_recording();
         let a = ADNumber::new(3.0);
         let b = ADNumber::new(4.0);
         let expr = (a * b).sin();
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(out.adjoint().unwrap(), 1.0);
+    }
+
+    #[test]
+    fn test_late_tape_recording() {
+        let mut a = ADNumber::new(3.0);
+        let mut b = ADNumber::new(4.0);
+        Tape::start_recording(); // start recording
+        a.put_on_tape();
+        b.put_on_tape();
+        let expr = (a * b).sin();
+        let out: ADNumber = expr.into();
+        out.propagate_to_start().unwrap();
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1089,8 +1129,8 @@ mod tests {
         let b = Const(4.0);
         let expr = (a * b).sin();
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1099,11 +1139,11 @@ mod tests {
         let b = ADNumber::new(4.0);
         let expr = (a * b).sin();
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(out.adjoint().unwrap(), 1.0);
 
-        ADNumber::reset_adjoints(); // reset adjoints
-        assert_eq!(out.adjoint(), 0.0); // should be zero now
+        Tape::reset_adjoints(); // reset adjoints
+        assert_eq!(out.adjoint().unwrap(), 0.0); // should be zero now
     }
 
     #[test]
@@ -1112,8 +1152,8 @@ mod tests {
         let b = ADNumber::new(4.0);
         let expr = (a * b).sin();
         let out: ADNumber = expr.into();
-        out.propagate_to_mark(); // propagate to the current mark
-        assert_eq!(out.adjoint(), 1.0); // should be 1.0
+        out.propagate_to_mark().unwrap(); // propagate to the current mark
+        assert_eq!(out.adjoint().unwrap(), 1.0); // should be 1.0
     }
 
     #[test]
@@ -1122,11 +1162,11 @@ mod tests {
         let b = ADNumber::new(4.0);
         let expr = (a * b).sin();
         let out: ADNumber = expr.into();
-        out.propagate_to_mark(); // propagate to the current mark
-        assert_eq!(out.adjoint(), 1.0); // should be 1.0
+        out.propagate_to_mark().unwrap(); // propagate to the current mark
+        assert_eq!(out.adjoint().unwrap(), 1.0); // should be 1.0
 
         ADNumber::propagate_mark_to_start(); // propagate from mark to start
-        assert_eq!(out.adjoint(), 1.0); // should still be 1.0
+        assert_eq!(out.adjoint().unwrap(), 1.0); // should still be 1.0
     }
 
     #[test]
@@ -1134,9 +1174,9 @@ mod tests {
         let x = ADNumber::new(2.0);
         let expr = exp(x);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), f64::exp(2.0)); // derivative of exp(x) wrt x
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), f64::exp(2.0)); // derivative of exp(x) wrt x
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1144,54 +1184,54 @@ mod tests {
         let x = ADNumber::new(2.0);
         let expr = log(x);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 1.0 / 2.0); // derivative of log(x) wrt x
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 1.0 / 2.0); // derivative of log(x) wrt x
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
     #[test]
     fn check_sqrt_derivative() {
         let x = ADNumber::new(4.0);
         let expr = sqrt(x);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 0.5 / 2.0); // derivative of sqrt(x) wrt x
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 0.5 / 2.0); // derivative of sqrt(x) wrt x
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
     #[test]
     fn check_sin_derivative() {
         let x = ADNumber::new(0.0);
         let expr = sin(x);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 1.0); // derivative of sin(x) wrt x
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 1.0); // derivative of sin(x) wrt x
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
     #[test]
     fn check_cos_derivative() {
         let x = ADNumber::new(0.0);
         let expr = cos(x);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 0.0); // derivative of cos(x) wrt x
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 0.0); // derivative of cos(x) wrt x
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
     #[test]
     fn check_abs_derivative() {
         let x = ADNumber::new(-3.0);
         let expr = abs(x);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), -1.0); // derivative of abs(x) wrt x
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), -1.0); // derivative of abs(x) wrt x
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
     #[test]
     fn check_pow_derivative() {
         let x = ADNumber::new(2.0);
         let expr = pow(x, Const(3.0));
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 3.0 * 2.0f64.powf(2.0)); // derivative of x^3 wrt x at x=2
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 3.0 * 2.0f64.powf(2.0)); // derivative of x^3 wrt x at x=2
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
     #[test]
     fn check_max_derivative() {
@@ -1199,10 +1239,10 @@ mod tests {
         let y = ADNumber::new(3.0);
         let expr = max(x, y);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 0.0); // derivative wrt x
-        assert_eq!(y.adjoint(), 1.0); // derivative wrt y
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 0.0); // derivative wrt x
+        assert_eq!(y.adjoint().unwrap(), 1.0); // derivative wrt y
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
     #[test]
     fn check_min_derivative() {
@@ -1210,10 +1250,10 @@ mod tests {
         let y = ADNumber::new(3.0);
         let expr = min(x, y);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 1.0); // derivative wrt x
-        assert_eq!(y.adjoint(), 0.0); // derivative wrt y
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 1.0); // derivative wrt x
+        assert_eq!(y.adjoint().unwrap(), 0.0); // derivative wrt y
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
     #[test]
     fn check_flattening() {
@@ -1222,8 +1262,8 @@ mod tests {
         let expr = (x + y) * 2.0;
         let out: ADNumber = expr.into();
         assert_eq!(out.value(), 16.0); // (5 + 3) * 2 = 16
-        out.propagate_to_start();
-        assert_eq!(out.adjoint(), 1.0); // should be 1.0 after propagation
+        out.propagate_to_start().unwrap();
+        assert_eq!(out.adjoint().unwrap(), 1.0); // should be 1.0 after propagation
     }
 
     #[test]
@@ -1232,10 +1272,10 @@ mod tests {
         let y = ADNumber::new(3.0);
         let expr = x + y;
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 1.0);
-        assert_eq!(y.adjoint(), 1.0);
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 1.0);
+        assert_eq!(y.adjoint().unwrap(), 1.0);
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1244,10 +1284,10 @@ mod tests {
         let y = ADNumber::new(2.0);
         let expr = x - y;
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 1.0);
-        assert_eq!(y.adjoint(), -1.0);
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 1.0);
+        assert_eq!(y.adjoint().unwrap(), -1.0);
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1256,10 +1296,10 @@ mod tests {
         let y = ADNumber::new(2.0);
         let expr = x * y;
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 2.0);
-        assert_eq!(y.adjoint(), 4.0);
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 2.0);
+        assert_eq!(y.adjoint().unwrap(), 4.0);
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1268,10 +1308,10 @@ mod tests {
         let y = ADNumber::new(3.0);
         let expr = x / y;
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert!((x.adjoint() - (1.0 / 3.0)).abs() < 1e-12);
-        assert!((y.adjoint() + (6.0 / 9.0)).abs() < 1e-12);
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert!((x.adjoint().unwrap() - (1.0 / 3.0)).abs() < 1e-12);
+        assert!((y.adjoint().unwrap() + (6.0 / 9.0)).abs() < 1e-12);
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1279,9 +1319,9 @@ mod tests {
         let x = ADNumber::new(-2.0);
         let expr = fabs(x);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), -1.0);
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), -1.0);
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1290,10 +1330,10 @@ mod tests {
         let y = ADNumber::new(3.0);
         let expr = pow(x, y);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 3.0 * 2.0f64.powf(2.0));
-        assert!((y.adjoint() - (8.0 * 2.0f64.ln())).abs() < 1e-12);
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 3.0 * 2.0f64.powf(2.0));
+        assert!((y.adjoint().unwrap() - (8.0 * 2.0f64.ln())).abs() < 1e-12);
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1302,10 +1342,10 @@ mod tests {
         let y = ADNumber::new(3.0);
         let expr = max(x, y);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 1.0);
-        assert_eq!(y.adjoint(), 0.0);
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 1.0);
+        assert_eq!(y.adjoint().unwrap(), 0.0);
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1314,10 +1354,10 @@ mod tests {
         let y = ADNumber::new(3.0);
         let expr = min(x, y);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 0.0);
-        assert_eq!(y.adjoint(), 1.0);
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 0.0);
+        assert_eq!(y.adjoint().unwrap(), 1.0);
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 
     #[test]
@@ -1325,8 +1365,8 @@ mod tests {
         let x = ADNumber::new(3.0);
         let expr = abs(x);
         let out: ADNumber = expr.into();
-        out.propagate_to_start();
-        assert_eq!(x.adjoint(), 1.0);
-        assert_eq!(out.adjoint(), 1.0);
+        out.propagate_to_start().unwrap();
+        assert_eq!(x.adjoint().unwrap(), 1.0);
+        assert_eq!(out.adjoint().unwrap(), 1.0);
     }
 }

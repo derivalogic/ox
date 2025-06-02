@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
-use lefi::prelude::*;
-use lefi::utils::errors::Result;
+use scripting::prelude::*;
+use scripting::utils::errors::Result;
 use rustatlas::prelude::*;
 
 fn create_market_store(s0: NumericType, r_usd: NumericType, r_clp: NumericType) -> MarketStore {

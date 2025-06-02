@@ -708,7 +708,6 @@ impl<'a> EventStreamEvaluator<'a> {
 
 #[cfg(test)]
 mod general_tests {
-    use num_traits::Num;
 
     use super::*;
 
@@ -1139,7 +1138,6 @@ mod general_tests {
 mod expr_evaluator_tests {
     use super::ExprEvaluator;
     use super::*;
-    use rustatlas::prelude::*;
 
     #[test]
     fn test_simple_addition() {
@@ -1545,7 +1543,6 @@ mod event_stream_evaluator_tests {
 
 #[cfg(test)]
 mod ai_gen_tests {
-    use num_traits::Num;
 
     use super::*;
     #[test]

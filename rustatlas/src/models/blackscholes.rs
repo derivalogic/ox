@@ -1,23 +1,82 @@
+//! Black-Scholes Monte-Carlo model that **always prices in the store’s
+//! `local_currency()`**.  
+//!
+//! * Every foreign currency *f* is simulated directly against the local
+//!   currency *L* with drift **r<sub>f</sub> - r<sub>L</sub>**.  
+//! * Any cross–pair *a/b* is obtained on the fly by triangulation  
+//!   **S<sub>a,b</sub>(T) = FX<sub>a→L</sub>(T) / FX<sub>b→L</sub>(T)**.  
+//! * The numeraire is the deterministic money-market account  
+//!   **N<sub>T</sub> = 1 / P<sub>L</sub>(0,T)** for every node.
+
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rand_distr::StandardNormal;
+use rayon::iter::IntoParallelIterator;
 
 use crate::prelude::*;
 
-/// Simple Black-Scholes Monte Carlo generator
+/// Simple Black-Scholes Monte-Carlo generator
 #[derive(Clone)]
 pub struct BlackScholesModel<'a> {
     pub simple: SimpleModel<'a>,
     pub seed: Option<u64>,
+    pub time_handle: NumericType,
 }
 
 impl<'a> BlackScholesModel<'a> {
     pub fn new(simple: SimpleModel<'a>) -> Self {
-        BlackScholesModel { simple, seed: None }
+        Self {
+            simple,
+            seed: None,
+            time_handle: NumericType::zero(),
+        }
     }
 
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = Some(seed);
         self
+    }
+
+    pub fn get_time_handle(&self) -> NumericType {
+        self.time_handle
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* helper: simulate FX_{foreign→local}(T) and store in a cache         */
+    /* ------------------------------------------------------------------ */
+    fn simulate_fx_to_local(
+        &self,
+        foreign: Currency,
+        mat: Date,
+        t: NumericType,
+        store: &MarketStore,
+        rng: &mut StdRng,
+    ) -> Result<NumericType> {
+        /* spot FX_{f→L}(0) via triangulation supplied by the store */
+        let spot = store
+            .exchange_rate_store()
+            .get_exchange_rate(foreign, store.local_currency())?;
+
+        /* discount factors */
+        let idx = store.index_store();
+        let f_curve = idx.get_currency_curve(foreign)?;
+        let l_curve = idx.get_currency_curve(store.local_currency())?;
+        let p_f = self
+            .simple
+            .gen_df_data(DiscountFactorRequest::new(f_curve, mat))?;
+        let p_l = self
+            .simple
+            .gen_df_data(DiscountFactorRequest::new(l_curve, mat))?;
+        let r_f = -p_f.ln() / t;
+        let r_l = -p_l.ln() / t;
+
+        /* volatility for pair f/L */
+        let sigma = store.get_exchange_rate_volatility(foreign, store.local_currency())?;
+        let z = rng.sample::<f64, _>(StandardNormal);
+
+        let drift = (r_f - r_l) - sigma * sigma * 0.5;
+        let s_t: NumericType = (spot * (drift * t + sigma * t.sqrt() * z).exp()).into();
+
+        Ok(s_t)
     }
 }
 
@@ -29,17 +88,14 @@ impl DeterministicModel for BlackScholesModel<'_> {
     fn gen_df_data(&self, df: DiscountFactorRequest) -> Result<NumericType> {
         self.simple.gen_df_data(df)
     }
-
     fn gen_fx_data(&self, fx: ExchangeRateRequest) -> Result<NumericType> {
         self.simple.gen_fx_data(fx)
     }
-
     fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<NumericType> {
         self.simple.gen_fwd_data(fwd)
     }
-
-    fn gen_numerarie(&self, market_request: &MarketRequest) -> Result<NumericType> {
-        self.simple.gen_numerarie(market_request)
+    fn gen_numerarie(&self, m: &MarketRequest) -> Result<NumericType> {
+        self.simple.gen_numerarie(m)
     }
 }
 
@@ -50,129 +106,209 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
         let local_ccy = store.local_currency();
         let idx = store.index_store();
 
-        /* --- parallel over all paths ------------------------------------ */
-        let scenario = {
-            /* each path gets its own reproducible RNG */
-            let mut rng = match self.seed {
-                Some(seed) => StdRng::seed_from_u64(seed),
-                None => StdRng::from_entropy(),
-            };
-
-            /* collect the nodes of this scenario */
-            let mut nodes = Vec::with_capacity(market_requests.len());
-
-            for req in market_requests {
-                /* ======================================================
-                 *  FX NODE  (Monte-Carlo path)
-                 * ====================================================*/
-                if let Some(fx_req) = req.fx() {
-                    /* maturity ....................................... */
-                    let mat = fx_req.reference_date().unwrap_or(ref_date);
-                    let t = Actual360::year_fraction(ref_date, mat);
-
-                    /* spot ........................................... */
-                    let spot_req = ExchangeRateRequest::new(
-                        fx_req.first_currency(),  // base  (a)
-                        fx_req.second_currency(), // quote (b)
-                        Some(ref_date),
-                    );
-                    let s0 = self.simple.gen_fx_data(spot_req).unwrap();
-
-                    /* discount factors at maturity .................. */
-                    let second_ccy = match fx_req.second_currency() {
-                        Some(ccy) => ccy,
-                        None => local_ccy, // if no second currency is given, use local currency
-                    };
-                    let base_curve = idx.get_currency_curve(fx_req.first_currency()).unwrap();
-                    let quote_curve = idx.get_currency_curve(second_ccy).unwrap();
-                    let local_curve = idx.get_currency_curve(local_ccy).unwrap();
-
-                    let p_base = self
-                        .simple
-                        .gen_df_data(DiscountFactorRequest::new(base_curve, mat))
-                        .unwrap();
-                    let p_quote = self
-                        .simple
-                        .gen_df_data(DiscountFactorRequest::new(quote_curve, mat))
-                        .unwrap();
-                    let p_local = self
-                        .simple
-                        .gen_df_data(DiscountFactorRequest::new(local_curve, mat))
-                        .unwrap();
-
-                    /* continuous short-rates ........................ */
-                    let r_base = -p_base.ln() / t;
-                    let r_quote = -p_quote.ln() / t;
-                    let r_local = -p_local.ln() / t;
-
-                    /* one-step GBM .................................. */
-                    let sigma =
-                        store.get_exchange_rate_volatility(fx_req.first_currency(), second_ccy)?;
-                    let z = rng.sample::<f64, _>(StandardNormal);
-
-                    let drift = (r_quote.clone() - r_base) - sigma * sigma * 0.5;
-                    let s_t: NumericType = (s0 * (drift * t + sigma * t.sqrt() * z).exp()).into();
-
-                    /* ---------------- numerarie (local-currency) -----------
-                     *
-                     *  For a payoff settled in the **quote** currency *b* :
-                     *      N_T =  FX_{b→L}(T) / P_L(0,T)
-                     *
-                     *  FX_{b→L}(T) is handled case-by-case:
-                     *    1. L == b  → FX = 1
-                     *    2. L == a  → FX = 1 / S_{a,b}(T)
-                     *    3. else     → use interest-parity forward
-                     * ----------------------------------------------------*/
-
-                    let fx_b_to_l: NumericType = if local_ccy == second_ccy {
-                        1.0.into() // case (1)
-                    } else if local_ccy == fx_req.first_currency() {
-                        (NumericType::one() / s_t).into() // case (2)
-                    } else {
-                        /* case (3) – build forward B/L using interest parity */
-                        let spot_b_l = self
-                            .simple
-                            .gen_fx_data(ExchangeRateRequest::new(
-                                second_ccy,
-                                Some(local_ccy),
-                                Some(ref_date),
-                            ))
-                            .unwrap();
-
-                        let fwd = (spot_b_l * ((r_quote - r_local) * t).exp()).into();
-                        fwd
-                    };
-                    let numerarie = fx_b_to_l / p_local;
-
-                    // other values
-                    let fwd = match req.fwd() {
-                        Some(fwd_req) => Some(self.simple.gen_fwd_data(fwd_req).unwrap()),
-                        None => None,
-                    };
-                    let df = match req.df() {
-                        Some(df_req) => Some(self.simple.gen_df_data(df_req).unwrap()),
-                        None => None,
-                    };
-
-                    nodes.push(MarketData::new(
-                        req.id(),
-                        mat,
-                        /* df  */ df,
-                        /* fwd */ fwd,
-                        /* fx  */ Some(s_t),
-                        /* num */ numerarie.into(),
-                    ));
-                }
-                /* ======================================================
-                 *  ALL OTHER NODES – deterministic
-                 * ====================================================*/
-                else {
-                    nodes.push(self.simple.gen_node(req).unwrap());
-                }
-            } // loop over requests
-            nodes
+        /* RNG for this path */
+        let mut rng = match self.seed {
+            Some(seed) => StdRng::seed_from_u64(seed),
+            None => StdRng::from_entropy(),
         };
 
-        Ok(scenario)
+        /* collect nodes */
+        let mut nodes = Vec::with_capacity(market_requests.len());
+
+        for req in market_requests {
+            /* ============================================================
+             *  FX node (stochastic)
+             * ========================================================== */
+            if let Some(fx_req) = req.fx() {
+                let mat = fx_req.reference_date().unwrap_or(ref_date);
+                let t = (Actual360::year_fraction(ref_date, mat) - self.time_handle).into();
+
+                /* leg currencies */
+                let ccy_a = fx_req.first_currency(); // base
+                let ccy_b = fx_req.second_currency().unwrap_or(local_ccy); // quote (fallback L)
+
+                /* simulate FX_{a→L}(T) and FX_{b→L}(T) once per currency */
+                let fx_a_l = self.simulate_fx_to_local(ccy_a, mat, t, store, &mut rng)?;
+                let fx_b_l = self.simulate_fx_to_local(ccy_b, mat, t, store, &mut rng)?;
+
+                /* cross-pair value at T */
+                let s_t = fx_a_l / fx_b_l;
+
+                /* deterministic money-market numeraire */
+                let p_local = self.simple.gen_df_data(DiscountFactorRequest::new(
+                    idx.get_currency_curve(local_ccy)?,
+                    mat,
+                ))?;
+                let numerarie: NumericType = (NumericType::one() / p_local).into();
+
+                /* optional deterministic data */
+                let fwd = req.fwd().map(|f| self.simple.gen_fwd_data(f).unwrap());
+                let df = req.df().map(|d| self.simple.gen_df_data(d).unwrap());
+
+                nodes.push(MarketData::new(
+                    req.id(),
+                    mat,
+                    df,  // discount factor (optional)
+                    fwd, // forward rate    (optional)
+                    Some(s_t.into()),
+                    numerarie,
+                ));
+            }
+            /* ============================================================
+             *  all other requests – deterministic
+             * ========================================================== */
+            else {
+                nodes.push(self.simple.gen_node(req)?);
+            }
+        }
+
+        Ok(nodes)
+    }
+}
+
+// impl ParallelSimulation for BlackScholesModel<'_> {
+//     fn gen_parallel_scenario(
+//         &self,
+//         market_requests: &[MarketRequest],
+//         num_scenarios: usize,
+//     ) -> Result<Vec<Scenario>> {
+//         let mut scenarios = Vec::with_capacity(num_scenarios);
+//         set_mark();
+//         (0..num_scenarios).into_par_iter().map(|_| {
+
+//             scenarios.push(self.gen_scenario(market_requests)?);
+//         }
+//         Ok(scenarios)
+//     }
+// }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, RwLock};
+
+    use super::*;
+    fn create_market_store(
+        local_ccy: Currency,
+        s0_clpusd: NumericType,
+        s0_useeur: NumericType,
+        r_usd: NumericType,
+        r_clp: NumericType,
+        r_eur: NumericType,
+    ) -> MarketStore {
+        let ref_date = Date::new(2024, 1, 1);
+        let mut store = MarketStore::new(ref_date, local_ccy);
+        store
+            .mut_exchange_rate_store()
+            .add_exchange_rate(Currency::CLP, Currency::USD, s0_clpusd);
+
+        store
+            .mut_exchange_rate_store()
+            .add_exchange_rate(Currency::USD, Currency::EUR, s0_useeur);
+        let usd_curve = Arc::new(FlatForwardTermStructure::new(
+            ref_date,
+            r_usd,
+            RateDefinition::default(),
+        ));
+        let index = Arc::new(RwLock::new(
+            OvernightIndex::new(ref_date).with_term_structure(usd_curve),
+        ));
+        let _ = store.mut_index_store().add_index(0, index);
+        store.mut_index_store().add_currency_curve(Currency::USD, 0);
+
+        let clp_curve = Arc::new(FlatForwardTermStructure::new(
+            ref_date,
+            r_clp,
+            RateDefinition::default(),
+        ));
+        let index_clp = Arc::new(RwLock::new(
+            OvernightIndex::new(ref_date).with_term_structure(clp_curve),
+        ));
+        let _ = store.mut_index_store().add_index(1, index_clp);
+        store.mut_index_store().add_currency_curve(Currency::CLP, 1);
+
+        let eur_curve = Arc::new(FlatForwardTermStructure::new(
+            ref_date,
+            r_eur,
+            RateDefinition::default(),
+        ));
+        let index_eur = Arc::new(RwLock::new(
+            OvernightIndex::new(ref_date).with_term_structure(eur_curve),
+        ));
+        let _ = store.mut_index_store().add_index(2, index_eur);
+        store.mut_index_store().add_currency_curve(Currency::EUR, 2);
+
+        // add volatility
+        store.mut_exchange_rate_store().add_volatility(
+            Currency::CLP,
+            Currency::USD,
+            NumericType::new(0.2),
+        );
+        // add volatility
+        store.mut_exchange_rate_store().add_volatility(
+            Currency::EUR,
+            Currency::USD,
+            NumericType::new(0.2),
+        );
+
+        store.mut_exchange_rate_store().add_volatility(
+            Currency::EUR,
+            Currency::CLP,
+            NumericType::new(0.2),
+        );
+        store
+    }
+
+    #[test]
+    fn test_black_scholes_model() -> Result<()> {
+        let store = create_market_store(
+            Currency::USD,
+            NumericType::new(1.0),
+            NumericType::new(1.0),
+            NumericType::new(0.05),
+            NumericType::new(0.03),
+            NumericType::new(0.02),
+        );
+        let model = BlackScholesModel::new(SimpleModel::new(&store));
+        let date = Date::new(2024, 6, 1);
+        let market_requests = vec![MarketRequest::new(
+            0,
+            Some(DiscountFactorRequest::new(0, date)),
+            None,
+            Some(ExchangeRateRequest::new(
+                Currency::CLP,
+                Some(Currency::USD),
+                Some(date),
+            )),
+        )];
+        let scenario = model.gen_scenario(&market_requests)?;
+        assert!(!scenario.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_parallel_model() -> Result<()> {
+        let store = create_market_store(
+            Currency::USD,
+            NumericType::new(1.0),
+            NumericType::new(1.0),
+            NumericType::new(0.05),
+            NumericType::new(0.03),
+            NumericType::new(0.02),
+        );
+        let model = BlackScholesModel::new(SimpleModel::new(&store));
+        let date = Date::new(2024, 6, 1);
+        let market_requests = vec![MarketRequest::new(
+            0,
+            Some(DiscountFactorRequest::new(0, date)),
+            None,
+            Some(ExchangeRateRequest::new(
+                Currency::CLP,
+                Some(Currency::USD),
+                Some(date),
+            )),
+        )];
+        let scenario = model.gen_scenario(&market_requests)?;
+        assert!(!scenario.is_empty());
+        Ok(())
     }
 }

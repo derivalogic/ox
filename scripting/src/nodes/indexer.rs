@@ -11,7 +11,6 @@ use crate::utils::errors::{Result, ScriptingError};
 /// # CodedEvent
 /// A coded event is a combination of a reference date and a coded expression. Its a precompiled version of an event.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CodedEvent {
     event_date: Date,
     script: String,
