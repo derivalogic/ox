@@ -73,7 +73,7 @@ impl<'a> DeterministicModel for SimpleModel<'a> {
         )?)
     }
 
-    fn gen_numerarie(&self, _: &MarketRequest) -> Result<NumericType> {
+    fn gen_numerarie(&self, _: NumerarieRequest) -> Result<NumericType> {
         Ok(NumericType::from(1.0))
     }
 

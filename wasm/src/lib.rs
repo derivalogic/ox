@@ -1,29 +1,24 @@
 mod parsing;
 mod utils;
+use parsing::{create_market_store, SimulationData, SimulationResults};
+use rustatlas::prelude::*;
+use scripting::prelude::*;
+use serde_json;
 use std::collections::HashMap;
 use std::result::Result as StdResult;
-use serde_json;
 use wasm_bindgen::prelude::*;
-use parsing::{create_market_store, SimulationData, SimulationResults};
-use scripting::prelude::*;
-use rustatlas::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
-    fn alert(s: &str);
-}
-
-#[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, {{project-name}}!");
+    pub fn alert(s: &str);
 }
 
 #[wasm_bindgen]
 pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     utils::set_panic_hook();
-
-    let data: SimulationData = serde_json::from_str(json)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    Tape::start_recording();
+    let data: SimulationData =
+        serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     let store = create_market_store(&data.market_data);
 
@@ -51,9 +46,14 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
         .visit_events(&events, &indexer.get_variable_indexes())
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    let target = match vars.get(&data.script_data.target_name) {
+    let target = match vars.get("opt") {
         Some(Value::Number(v)) => *v,
-        _ => return Err(JsValue::from_str("target value not found")),
+        _ => {
+            return Err(JsValue::from_str(
+                "Variable 'opt' not found in events. Ensure the script contains an 'opt' which 
+        accumulates the price of the derivative.",
+            ))
+        }
     };
 
     target
@@ -78,7 +78,12 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
         .market_data
         .curves
         .iter()
-        .map(|c| (c.name.clone(), c.rate.adjoint().unwrap_or(0.0) * 0.01 / 100.0))
+        .map(|c| {
+            (
+                c.name.clone(),
+                c.rate.adjoint().unwrap_or(0.0) * 0.01 / 100.0,
+            )
+        })
         .collect::<HashMap<_, _>>();
 
     let result = SimulationResults {

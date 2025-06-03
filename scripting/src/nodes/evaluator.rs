@@ -99,7 +99,7 @@ pub struct ExprEvaluator<'a> {
 }
 
 impl<'a> ExprEvaluator<'a> {
-    pub fn new_with_type() -> Self {
+    pub fn new() -> Self {
         ExprEvaluator {
             variables: Mutex::new(Vec::new()),
             digit_stack: Mutex::new(Vec::new()),
@@ -139,12 +139,6 @@ impl<'a> ExprEvaluator<'a> {
 
     pub fn boolean_stack(&self) -> Vec<bool> {
         self.boolean_stack.lock().unwrap().clone()
-    }
-}
-
-impl<'a> ExprEvaluator<'a> {
-    pub fn new() -> Self {
-        ExprEvaluator::<'a>::new_with_type()
     }
 }
 
@@ -247,10 +241,11 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                     .clone();
 
                 let current_value = self.digit_stack.lock().unwrap().pop().unwrap();
+                let numerarie = market_data.numerarie();
                 self.digit_stack
                     .lock()
                     .unwrap()
-                    .push((current_value / market_data.numerarie()).into());
+                    .push((current_value / numerarie).into());
                 Ok(())
             }
             Node::Constant(value) => {
@@ -533,7 +528,7 @@ impl<'a> NodeConstVisitor for ExprEvaluator<'a> {
                 self.digit_stack
                     .lock()
                     .unwrap()
-                    .push(left.pow_expr(right).into());
+                    .push(left.powf(right).into());
 
                 Ok(())
             }
@@ -638,7 +633,7 @@ impl<'a> EventStreamEvaluator<'a> {
         ))?;
 
         // Evaluate the events to get the variables using the first scenario
-        let mut evaluator = ExprEvaluator::<'_>::new_with_type().with_variables(self.n_vars);
+        let mut evaluator = ExprEvaluator::new().with_variables(self.n_vars);
         if let Some(first) = scenarios.first() {
             evaluator = evaluator.with_scenario(first);
         }
@@ -662,7 +657,7 @@ impl<'a> EventStreamEvaluator<'a> {
         let global_variables = Mutex::new(v);
 
         scenarios.iter().try_for_each(|scenario| -> Result<()> {
-            let evaluator = ExprEvaluator::new_with_type()
+            let evaluator = ExprEvaluator::new()
                 .with_variables(self.n_vars)
                 .with_scenario(scenario);
 

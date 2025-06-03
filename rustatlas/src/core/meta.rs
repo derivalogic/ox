@@ -1,3 +1,4 @@
+
 use crate::prelude::*;
 /// # ExchangeRateRequest
 /// Meta data for an exchange rate. Holds the first currency, the second currency and the reference
@@ -127,6 +128,26 @@ impl ForwardRateRequest {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NumerarieRequest {
+    pub id: usize,
+    pub reference_date: Date,
+}
+
+impl NumerarieRequest {
+    pub fn new(id: usize, reference_date: Date) -> NumerarieRequest {
+        NumerarieRequest { id, reference_date }
+    }
+
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
+    pub fn reference_date(&self) -> Date {
+        self.reference_date
+    }
+}
+
 /// # MarketRequest
 /// Meta data for market data. Holds all the meta data required to fetch the market data.
 ///
@@ -141,6 +162,7 @@ pub struct MarketRequest {
     df: Option<DiscountFactorRequest>,
     fwd: Option<ForwardRateRequest>,
     fx: Option<ExchangeRateRequest>,
+    numerarie: Option<NumerarieRequest>,
 }
 
 impl MarketRequest {
@@ -149,8 +171,15 @@ impl MarketRequest {
         df: Option<DiscountFactorRequest>,
         fwd: Option<ForwardRateRequest>,
         fx: Option<ExchangeRateRequest>,
+        numerarie: Option<NumerarieRequest>,
     ) -> MarketRequest {
-        MarketRequest { id, df, fwd, fx }
+        MarketRequest {
+            id,
+            df,
+            fwd,
+            fx,
+            numerarie,
+        }
     }
 
     pub fn id(&self) -> usize {
@@ -167,6 +196,10 @@ impl MarketRequest {
 
     pub fn fx(&self) -> Option<ExchangeRateRequest> {
         self.fx
+    }
+
+    pub fn numerarie(&self) -> Option<NumerarieRequest> {
+        self.numerarie
     }
 }
 

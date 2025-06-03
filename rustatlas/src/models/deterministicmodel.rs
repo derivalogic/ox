@@ -7,7 +7,7 @@ pub trait DeterministicModel {
     fn gen_df_data(&self, df: DiscountFactorRequest) -> Result<NumericType>;
     fn gen_fx_data(&self, fx: ExchangeRateRequest) -> Result<NumericType>;
     fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<NumericType>;
-    fn gen_numerarie(&self, market_request: &MarketRequest) -> Result<NumericType>;
+    fn gen_numerarie(&self, market_request: NumerarieRequest) -> Result<NumericType>;
     fn gen_node(&self, market_request: &MarketRequest) -> Result<MarketData> {
         let id = market_request.id();
         let df = match market_request.df() {
@@ -25,7 +25,10 @@ pub trait DeterministicModel {
             None => None,
         };
 
-        let numerarie = self.gen_numerarie(market_request)?;
+        let numerarie = match market_request.numerarie() {
+            Some(num) => self.gen_numerarie(num)?,
+            None => NumericType::new(1.0),
+        };
 
         return Ok(MarketData::new(
             id,

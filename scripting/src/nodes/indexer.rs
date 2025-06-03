@@ -194,7 +194,8 @@ impl NodeVisitor for EventIndexer {
                             second.or(self.local_currency),
                             self.event_date.borrow().clone(),
                         );
-                        let request = MarketRequest::new(size, None, None, Some(exchange_request));
+                        let request =
+                            MarketRequest::new(size, None, None, Some(exchange_request), None);
                         self.market_requests.borrow_mut().push(request.clone());
                         opt_idx.set(size).unwrap();
                     }
@@ -207,9 +208,7 @@ impl NodeVisitor for EventIndexer {
                     None => {
                         let size = self.market_requests.borrow_mut().len();
                         let provider_id = name.parse::<usize>().map_err(|_| {
-                            ScriptingError::InvalidSyntax(
-                                "Invalid rate index name".to_string(),
-                            )
+                            ScriptingError::InvalidSyntax("Invalid rate index name".to_string())
                         })?;
                         let fwd_request = ForwardRateRequest::new(
                             provider_id,
@@ -219,8 +218,7 @@ impl NodeVisitor for EventIndexer {
                             Compounding::Simple,
                             Frequency::Annual,
                         );
-                        let request =
-                            MarketRequest::new(size, None, Some(fwd_request), None);
+                        let request = MarketRequest::new(size, None, Some(fwd_request), None, None);
                         self.market_requests.borrow_mut().push(request.clone());
                         opt_idx.set(size).unwrap();
                     }
@@ -233,7 +231,17 @@ impl NodeVisitor for EventIndexer {
                     Some(_) => Ok(()),
                     None => {
                         let size = self.market_requests.borrow_mut().len();
-                        let request = MarketRequest::new(size, None, None, None);
+                        let event_date = match self.event_date.borrow().clone() {
+                            Some(date) => date,
+                            None => {
+                                return Err(ScriptingError::InvalidSyntax(
+                                    "Event date is not set".to_string(),
+                                ));
+                            }
+                        };
+                        let numerarie_request = NumerarieRequest::new(size, event_date);
+                        let request =
+                            MarketRequest::new(size, None, None, None, Some(numerarie_request));
                         self.market_requests.borrow_mut().push(request.clone());
                         opt_idx.set(size).unwrap();
                         Ok(())

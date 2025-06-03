@@ -11,7 +11,7 @@ fn create_market_store(
     r_clp: NumericType,
     r_eur: NumericType,
 ) -> MarketStore {
-    let ref_date = Date::new(2024, 1, 1);
+    let ref_date = Date::new(2025, 6, 2);
     let mut store = MarketStore::new(ref_date, local_ccy);
     store
         .mut_exchange_rate_store()
@@ -75,25 +75,25 @@ fn create_market_store(
 }
 
 fn main() -> scripting::utils::errors::Result<()> {
+    Tape::start_recording();
     let s0_clpusd = NumericType::new(850.0);
     let s0_useeur = NumericType::new(1.1);
     let r_usd = NumericType::new(0.03);
-    let r_clp = NumericType::new(0.05);
+    let r_clp = NumericType::new(0.01);
     let r_eur = NumericType::new(0.02);
 
-    let obs1 = Date::new(2024, 6, 1);
-    let obs2 = Date::new(2024, 12, 1);
-    let maturity = Date::new(2025, 1, 1);
+    let obs1 = Date::new(2025, 6, 2);
+    let obs2 = Date::new(2025, 6, 30);
+    let maturity = Date::new(2025, 7, 31);
 
     let script1 = "
         opt = 0;
-        s1 = Spot(\"EUR\", \"USD\");
-        local = Spot(\"USD\", \"CLP\");
+        spot_1 = Spot(\"CLP\",\"USD\");
     ";
-    let script2 = "s2 = Spot(\"EUR\", \"USD\");";
+    let script2 = "spot_2 = Spot(\"CLP\",\"USD\");";
     let script_payoff = "
-        avg = (s1 + s2) / 2.0;
-        opt pays max(avg - 1, 0)/local;
+        final_spot = (spot_1+spot_2)/2;
+        opt pays max(final_spot - 900, 0);
     ";
 
     let events = EventStream::try_from(vec![

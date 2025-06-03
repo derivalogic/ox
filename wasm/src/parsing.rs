@@ -32,7 +32,6 @@ pub struct MarketData {
 
 #[derive(Debug, Deserialize)]
 pub struct ScriptData {
-    pub target_name: String,
     pub events: Vec<CodedEvent>,
 }
 

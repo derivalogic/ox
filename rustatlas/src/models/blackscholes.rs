@@ -10,7 +10,6 @@
 
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rand_distr::StandardNormal;
-use rayon::iter::IntoParallelIterator;
 
 use crate::prelude::*;
 
@@ -55,19 +54,38 @@ impl<'a> BlackScholesModel<'a> {
         let spot = store
             .exchange_rate_store()
             .get_exchange_rate(foreign, store.local_currency())?;
-
+        if mat == store.reference_date() {
+            return Ok(spot.into());
+        }
         /* discount factors */
         let idx = store.index_store();
         let f_curve = idx.get_currency_curve(foreign)?;
         let l_curve = idx.get_currency_curve(store.local_currency())?;
-        let p_f = self
-            .simple
-            .gen_df_data(DiscountFactorRequest::new(f_curve, mat))?;
-        let p_l = self
-            .simple
-            .gen_df_data(DiscountFactorRequest::new(l_curve, mat))?;
-        let r_f = -p_f.ln() / t;
-        let r_l = -p_l.ln() / t;
+        let r_f = idx
+            .get_index(f_curve)?
+            .try_read()
+            .unwrap()
+            .term_structure()
+            .unwrap()
+            .forward_rate(
+                store.reference_date(),
+                mat,
+                Compounding::Continuous,
+                Frequency::Annual,
+            )?;
+
+        let r_l = idx
+            .get_index(l_curve)?
+            .try_read()
+            .unwrap()
+            .term_structure()
+            .unwrap()
+            .forward_rate(
+                store.reference_date(),
+                mat,
+                Compounding::Continuous,
+                Frequency::Annual,
+            )?;
 
         /* volatility for pair f/L */
         let sigma = store.get_exchange_rate_volatility(foreign, store.local_currency())?;
@@ -94,8 +112,17 @@ impl DeterministicModel for BlackScholesModel<'_> {
     fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<NumericType> {
         self.simple.gen_fwd_data(fwd)
     }
-    fn gen_numerarie(&self, m: &MarketRequest) -> Result<NumericType> {
-        self.simple.gen_numerarie(m)
+    fn gen_numerarie(&self, m: NumerarieRequest) -> Result<NumericType> {
+        let store = self.simple.market_store();
+        let local_ccy = store.local_currency();
+        let idx = store.index_store();
+        let mat = m.reference_date();
+        let p_local = self.simple.gen_df_data(DiscountFactorRequest::new(
+            idx.get_currency_curve(local_ccy)?,
+            mat,
+        ))?;
+        let result = (NumericType::one() / p_local).into();
+        Ok(result)
     }
 }
 
@@ -158,29 +185,13 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
              *  all other requests – deterministic
              * ========================================================== */
             else {
-                nodes.push(self.simple.gen_node(req)?);
+                nodes.push(self.gen_node(req)?);
             }
         }
 
         Ok(nodes)
     }
 }
-
-// impl ParallelSimulation for BlackScholesModel<'_> {
-//     fn gen_parallel_scenario(
-//         &self,
-//         market_requests: &[MarketRequest],
-//         num_scenarios: usize,
-//     ) -> Result<Vec<Scenario>> {
-//         let mut scenarios = Vec::with_capacity(num_scenarios);
-//         set_mark();
-//         (0..num_scenarios).into_par_iter().map(|_| {
-
-//             scenarios.push(self.gen_scenario(market_requests)?);
-//         }
-//         Ok(scenarios)
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
@@ -279,6 +290,7 @@ mod tests {
                 Some(Currency::USD),
                 Some(date),
             )),
+            None,
         )];
         let scenario = model.gen_scenario(&market_requests)?;
         assert!(!scenario.is_empty());
@@ -306,6 +318,7 @@ mod tests {
                 Some(Currency::USD),
                 Some(date),
             )),
+            None,
         )];
         let scenario = model.gen_scenario(&market_requests)?;
         assert!(!scenario.is_empty());

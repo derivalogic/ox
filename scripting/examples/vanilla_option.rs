@@ -13,7 +13,11 @@ fn create_market_store(s0: NumericType, r_usd: NumericType, r_clp: NumericType) 
     let usd_curve = Arc::new(FlatForwardTermStructure::new(
         ref_date,
         r_usd,
-        RateDefinition::default(),
+        RateDefinition::new(
+            DayCounter::Actual360,
+            Compounding::Continuous,
+            Frequency::Annual,
+        ),
     ));
     let index = Arc::new(RwLock::new(
         OvernightIndex::new(ref_date).with_term_structure(usd_curve),
@@ -24,7 +28,11 @@ fn create_market_store(s0: NumericType, r_usd: NumericType, r_clp: NumericType) 
     let clp_curve = Arc::new(FlatForwardTermStructure::new(
         ref_date,
         r_clp,
-        RateDefinition::default(),
+        RateDefinition::new(
+            DayCounter::Actual360,
+            Compounding::Continuous,
+            Frequency::Annual,
+        ),
     ));
     let index_clp = Arc::new(RwLock::new(
         OvernightIndex::new(ref_date).with_term_structure(clp_curve),
@@ -42,17 +50,18 @@ fn create_market_store(s0: NumericType, r_usd: NumericType, r_clp: NumericType) 
 }
 
 fn main() -> Result<()> {
+    Tape::start_recording();
     // Model parameters
-    let s0 = NumericType::new(850.0);
+    let s0 = NumericType::new(800.0);
     let r_usd = NumericType::new(0.03);
-    let r_clp = NumericType::new(0.05);
+    let r_clp = NumericType::new(0.02);
 
     // Scripted payoff of a call option
     let maturity = Date::new(2025, 1, 1);
     let script = "
     opt = 0;
     s = Spot(\"CLP\", \"USD\");
-    call = max(s - 900.0, 0);
+    call = max(s-800, 0);
     opt pays call;
     ";
 
@@ -73,7 +82,7 @@ fn main() -> Result<()> {
     let simple = SimpleModel::new(&store);
     let model = BlackScholesModel::new(simple);
 
-    let sims = 10_000;
+    let sims = 100_000;
     let scenarios = (0..sims)
         .into_iter()
         .map(|_| model.gen_scenario(&requests).map_err(|e| e.into()))
@@ -93,18 +102,9 @@ fn main() -> Result<()> {
 
     println!("Monte Carlo Price: {}", price_mc);
     println!("Monte Carlo Delta: {}", s0.adjoint().unwrap());
-    println!(
-        "Monte Carlo Rho CLP: {}",
-        r_clp.adjoint().unwrap() * 0.01 / 100.0
-    );
-    println!(
-        "Monte Carlo Rho USD: {}",
-        r_usd.adjoint().unwrap() * 0.01 / 100.0
-    );
-    println!(
-        "Monte Carlo Vega: {}",
-        vol.adjoint().unwrap() * 0.01 / 100.0
-    );
+    println!("Monte Carlo Rho CLP: {}", r_clp.adjoint().unwrap());
+    println!("Monte Carlo Rho USD: {}", r_usd.adjoint().unwrap());
+    println!("Monte Carlo Vega: {}", vol.adjoint().unwrap());
 
     Ok(())
 }
