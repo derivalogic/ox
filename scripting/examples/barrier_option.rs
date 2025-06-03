@@ -57,7 +57,7 @@ fn main() -> Result<()> {
     let script_payoff = "
     s = Spot(\"CLP\", \"USD\");
     payoff = max(s - 900.0, 0);
-    if hit == True {
+    if hit {
         opt pays 0;
     } else {
         opt pays payoff;

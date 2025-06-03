@@ -309,25 +309,26 @@ impl Parser {
             | Token::SuperiorOrEqual
             | Token::InferiorOrEqual => {
                 self.advance();
+
+                let rhs = self.parse_expr_l2()?;
+
+                let comparison_node = match comparator {
+                    Token::Equal => Box::new(Node::Equal(vec![lhs, rhs])),
+                    Token::NotEqual => Box::new(Node::NotEqual(vec![lhs, rhs])),
+                    Token::Superior => Box::new(Node::Superior(vec![lhs, rhs])),
+                    Token::Inferior => Box::new(Node::Inferior(vec![lhs, rhs])),
+                    Token::SuperiorOrEqual => Box::new(Node::SuperiorOrEqual(vec![lhs, rhs])),
+                    Token::InferiorOrEqual => Box::new(Node::InferiorOrEqual(vec![lhs, rhs])),
+                    _ => return Err(self.invalid_syntax_err("Invalid comparison operator")),
+                };
+
+                Ok(comparison_node)
             }
             _ => {
-                return Err(self.invalid_syntax_err("Expected comparison operator"));
+                // The condition is a boolean expression by itself
+                Ok(lhs)
             }
         }
-
-        let rhs = self.parse_expr_l2()?;
-
-        let comparison_node = match comparator {
-            Token::Equal => Box::new(Node::Equal(vec![lhs, rhs])),
-            Token::NotEqual => Box::new(Node::NotEqual(vec![lhs, rhs])),
-            Token::Superior => Box::new(Node::Superior(vec![lhs, rhs])),
-            Token::Inferior => Box::new(Node::Inferior(vec![lhs, rhs])),
-            Token::SuperiorOrEqual => Box::new(Node::SuperiorOrEqual(vec![lhs, rhs])),
-            Token::InferiorOrEqual => Box::new(Node::InferiorOrEqual(vec![lhs, rhs])),
-            _ => return Err(self.invalid_syntax_err("Invalid comparison operator")),
-        };
-
-        Ok(comparison_node)
     }
 
     /// Parse a comparison expression used outside of conditions
