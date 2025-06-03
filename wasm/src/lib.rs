@@ -9,11 +9,6 @@ use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-extern "C" {
-    pub fn alert(s: &str);
-}
-
-#[wasm_bindgen]
 pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     utils::set_panic_hook();
     Tape::start_recording();
@@ -35,7 +30,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     let model = BlackScholesModel::new(simple);
     let t_handle = model.get_time_handle();
 
-    let scenarios: Vec<Scenario> = (0..10_000)
+    let scenarios: Vec<Scenario> = (0..50_000)
         .map(|_| model.gen_scenario(&requests))
         .collect::<StdResult<_, _>>()
         .map_err(|e| JsValue::from_str(&e.to_string()))?;

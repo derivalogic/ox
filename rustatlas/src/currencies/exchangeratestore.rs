@@ -60,19 +60,52 @@ impl ExchangeRateStore {
             .insert((currency1, currency2), volatility);
     }
 
-    pub fn get_volatility(&self, currency1: Currency, currency2: Currency) -> Result<NumericType> {
-        if let Some(vol) = self.volatility_map.get(&(currency1, currency2)) {
-            Ok(*vol)
-        } else if let Some(vol) = self.volatility_map.get(&(currency2, currency1)) {
-            Ok(*vol)
-        } else if currency1 == currency2 {
-            Ok(NumericType::new(0.0)) // Volatility for the same currency is 0
-        } else {
-            Err(AtlasError::NotFoundErr(format!(
-                "No volatility for pair {:?}/{:?}",
-                currency1, currency2
-            )))
+    pub fn get_volatility(&self, ccy_a: Currency, ccy_b: Currency) -> Result<NumericType> {
+        // Same currency → zero vol
+        if ccy_a == ccy_b {
+            return Ok(NumericType::from(0.0));
         }
+
+        // Fast path: direct quote?
+        if let Ok(sig) = self.get_volatility(ccy_a, ccy_b) {
+            return Ok(sig);
+        }
+
+        // Breadth-first search, just like get_exchange_rate,
+        // but accumulate *variance* (σ²) instead of multiplying FX levels
+        use std::collections::{HashSet, VecDeque};
+        let mut q: VecDeque<(Currency, NumericType /*variance so far*/)> = VecDeque::new();
+        let mut visited: HashSet<Currency> = HashSet::new();
+
+        q.push_back((ccy_a, NumericType::zero()));
+        visited.insert(ccy_a);
+
+        while let Some((current, var_acc)) = q.pop_front() {
+            for (&(src, dst), &sigma) in &self.volatility_map {
+                let sigma2: NumericType = sigma.powf(2.0).into();
+
+                if src == current && !visited.contains(&dst) {
+                    let new_var: NumericType = (sigma2 + var_acc).into();
+                    if dst == ccy_b {
+                        return Ok(new_var.sqrt().into());
+                    }
+                    visited.insert(dst);
+                    q.push_back((dst, new_var.into()));
+                // Reverse edge
+                } else if dst == current && !visited.contains(&src) {
+                    let new_var = sigma2 + var_acc;
+                    if src == ccy_b {
+                        return Ok(NumericType::from(new_var.sqrt()));
+                    }
+                    visited.insert(src);
+                    q.push_back((src, new_var.into()));
+                }
+            }
+        }
+        Err(AtlasError::NotFoundErr(format!(
+            "No volatility path between {:?} and {:?}",
+            ccy_a, ccy_b
+        )))
     }
 
     pub fn get_volatility_map(&self) -> HashMap<(Currency, Currency), NumericType> {
