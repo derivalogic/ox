@@ -1,4 +1,8 @@
 pub use crate::{
-    nodes::{evaluator::*, indexer::*, node::*, traits::*},
-    parsers::{lexer::*, parser::*},
+    data::{marketdata::*, simulationdata::*, simulationdatarequest::*},
+    models::*,
+    nodes::{event::*, node::*, traits::*},
+    parsing::{lexer::*, parser::*},
+    utils::errors::*,
+    visitors::indexer::*,
 };

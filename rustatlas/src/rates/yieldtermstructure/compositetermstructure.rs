@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::prelude::*;
+use crate::utils::errors::Result;
 
 /// # CompositeTermStructure
 /// Struct that defines a term structure made with a combination of two curves. It's defined as:

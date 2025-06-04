@@ -1,4 +1,11 @@
-use crate::prelude::*;
+use crate::utils::errors::Result;
+use crate::{
+    core::meta::{
+        DiscountFactorRequest, ExchangeRateRequest, ForwardRateRequest, MarketData, MarketRequest,
+        NumerarieRequest,
+    },
+    prelude::*,
+};
 
 /// # Deterministic Model
 /// A model that provides market data based in the current market state.

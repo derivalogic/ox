@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use super::enums::Compounding;
 use crate::prelude::*;
-
+use crate::utils::errors::Result;
 /// # HasReferenceDate
 /// Implement this trait for a struct that has a reference date.
 pub trait HasReferenceDate {

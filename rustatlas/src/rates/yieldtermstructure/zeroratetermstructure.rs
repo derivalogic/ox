@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::prelude::*;
-
+use crate::utils::errors::{AtlasError, Result};
 /// # ZeroRateTermStructure
 /// Struct that defines a zero rate term structure.
 ///

@@ -1,7 +1,7 @@
+use crate::utils::errors::Result;
+use crate::{prelude::*, utils::tools};
 use core::fmt;
 use std::sync::{Arc, RwLock};
-
-use crate::{prelude::*, utils::tools};
 
 /// # MarketStore
 /// A store for market data.
@@ -71,15 +71,6 @@ impl MarketStore {
         return self
             .exchange_rate_store
             .get_exchange_rate(first_currency, second_currency);
-    }
-
-    pub fn get_exchange_rate_volatility(
-        &self,
-        first_currency: Currency,
-        second_currency: Currency,
-    ) -> Result<NumericType> {
-        self.exchange_rate_store
-            .get_volatility(first_currency, second_currency)
     }
 
     pub fn get_index(&self, id: usize) -> Result<Arc<RwLock<dyn InterestRateIndexTrait>>> {

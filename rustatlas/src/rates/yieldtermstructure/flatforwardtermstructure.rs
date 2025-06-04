@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use std::sync::Arc;
+use crate::utils::errors::{AtlasError, Result};
 
 /// # FlatForwardTermStructure
 /// Struct that defines a flat forward term structure.

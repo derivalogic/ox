@@ -1,4 +1,6 @@
 use crate::prelude::*;
+use crate::utils::errors::Result;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// # TenorBasedZeroRateTermStructure

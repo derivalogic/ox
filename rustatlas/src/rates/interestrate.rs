@@ -1,6 +1,7 @@
 use crate::prelude::*;
-use serde::{Deserialize, Serialize};
+use crate::utils::errors::{AtlasError, Result};
 
+use serde::{Deserialize, Serialize};
 // use crate::math::ad::num::GenericNumber;
 // use crate::{
 //     time::{date::Date, daycounter::DayCounter, enums::Frequency},

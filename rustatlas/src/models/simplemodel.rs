@@ -1,4 +1,10 @@
-use crate::prelude::*;
+use crate::utils::errors::Result;
+use crate::{
+    core::meta::{
+        DiscountFactorRequest, ExchangeRateRequest, ForwardRateRequest, NumerarieRequest,
+    },
+    prelude::*,
+};
 
 /// # SimpleModel
 /// A simple model that provides market data based on the current market state. Uses the
@@ -48,14 +54,14 @@ impl<'a> DeterministicModel for SimpleModel<'a> {
             return Ok(1.0.into());
         }
 
-        let id = df.provider_id();
+        let id = df.curve_id();
         let index = self.market_store.get_index(id)?;
         let curve = index.read_index()?.term_structure()?;
         Ok(curve.discount_factor(date)?)
     }
 
     fn gen_fwd_data(&self, fwd: ForwardRateRequest) -> Result<NumericType> {
-        let id = fwd.provider_id();
+        let id = fwd.curve_id();
         let end_date = fwd.end_date();
         let ref_date = self.market_store.reference_date();
         if end_date <= ref_date {

@@ -505,17 +505,17 @@ impl Parser {
             }
             _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
         };
-        let mut second = None;
-        if self.current_token() == Token::Comma {
+        let second: Currency = if self.current_token() == Token::Comma {
             self.advance();
-            second = match *self.parse_string()? {
-                Node::String(s) => Some(
-                    Currency::try_from(s)
-                        .map_err(|_| self.invalid_syntax_err("Invalid currency"))?,
-                ),
+            match *self.parse_string()? {
+                Node::String(s) => Currency::try_from(s)
+                    .map_err(|_| self.invalid_syntax_err("Invalid currency"))?,
                 _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
-            };
-        }
+            }
+        } else {
+            // Default to USD if no second currency is provided
+            Currency::USD
+        };
         self.expect_token(Token::CloseParen)?;
         self.advance();
         Ok(Box::new(Node::Spot(first, second, OnceLock::new())))
@@ -667,7 +667,7 @@ impl TryFrom<&str> for ExprTree {
 #[cfg(test)]
 mod other_tests {
     use super::*;
-    use crate::parsers::lexer::Lexer;
+    use crate::parsing::lexer::Lexer;
 
     #[test]
     fn test_advance_token() {
@@ -708,11 +708,23 @@ mod other_tests {
         let ast = parser.parse().unwrap();
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "avg".to_string(), OnceLock::new())),
+            Box::new(Node::Variable(
+                Vec::new(),
+                "avg".to_string(),
+                OnceLock::new(),
+            )),
             Box::new(Node::Divide(vec![
                 Box::new(Node::Add(vec![
-                    Box::new(Node::Variable(Vec::new(), "s1".to_string(), OnceLock::new())),
-                    Box::new(Node::Variable(Vec::new(), "s2".to_string(), OnceLock::new())),
+                    Box::new(Node::Variable(
+                        Vec::new(),
+                        "s1".to_string(),
+                        OnceLock::new(),
+                    )),
+                    Box::new(Node::Variable(
+                        Vec::new(),
+                        "s2".to_string(),
+                        OnceLock::new(),
+                    )),
                 ])),
                 Box::new(Node::Constant(NumericType::new(2.0))),
             ])),

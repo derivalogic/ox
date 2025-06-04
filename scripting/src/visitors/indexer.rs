@@ -1,134 +1,14 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-
-use rustatlas::prelude::*;
-use serde::{Deserialize, Serialize};
-
-use super::{node::Node, traits::NodeVisitor};
 use crate::prelude::*;
 use crate::utils::errors::{Result, ScriptingError};
-
-/// # CodedEvent
-/// A coded event is a combination of a reference date and a coded expression. Its a precompiled version of an event.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CodedEvent {
-    event_date: Date,
-    script: String,
-}
-
-impl CodedEvent {
-    pub fn new(event_date: Date, script: String) -> CodedEvent {
-        CodedEvent { event_date, script }
-    }
-
-    pub fn event_date(&self) -> Date {
-        self.event_date
-    }
-
-    pub fn script(&self) -> &String {
-        &self.script
-    }
-}
-
-/// # Event
-/// An event is a combination of a reference date and an expression tree. Represents a future action that will happen at a specific date.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Event {
-    event_date: Date,
-    expr: ExprTree,
-}
-
-impl Event {
-    pub fn new(event_date: Date, expr: ExprTree) -> Event {
-        Event { event_date, expr }
-    }
-
-    pub fn event_date(&self) -> Date {
-        self.event_date
-    }
-
-    pub fn expr(&self) -> &ExprTree {
-        &self.expr
-    }
-}
-
-impl TryFrom<CodedEvent> for Event {
-    type Error = ScriptingError;
-
-    fn try_from(event: CodedEvent) -> Result<Event> {
-        let expr = match ExprTree::try_from(event.script().clone()) {
-            Ok(expr) => expr,
-            Err(e) => {
-                return Err(ScriptingError::InvalidSyntax(format!(
-                    "{} (event date: {})",
-                    e,
-                    event.event_date()
-                )));
-            }
-        };
-        Ok(Event::new(event.event_date(), expr))
-    }
-}
-
-/// # EventStream
-/// An event stream is a collection of events that will happen in the future. An event stream could represent a series of cash flows, for example.
-pub struct EventStream {
-    id: Option<usize>,
-    events: Vec<Event>,
-}
-
-impl EventStream {
-    pub fn new() -> EventStream {
-        EventStream {
-            events: Vec::new(),
-            id: None,
-        }
-    }
-
-    pub fn with_id(mut self, id: usize) -> Self {
-        self.id = Some(id);
-        self
-    }
-
-    pub fn with_events(mut self, events: Vec<Event>) -> Self {
-        self.events = events;
-        self
-    }
-
-    pub fn add_event(&mut self, event: Event) {
-        self.events.push(event);
-    }
-
-    pub fn events(&self) -> &Vec<Event> {
-        &self.events
-    }
-
-    pub fn event_dates(&self) -> Vec<Date> {
-        self.events.iter().map(|e| e.event_date).collect()
-    }
-}
-
-impl TryFrom<Vec<CodedEvent>> for EventStream {
-    type Error = ScriptingError;
-
-    fn try_from(events: Vec<CodedEvent>) -> Result<EventStream> {
-        let mut event_stream = EventStream::new();
-        events.iter().try_for_each(|event| -> Result<()> {
-            let event = Event::try_from(event.clone())?;
-            event_stream.add_event(event);
-            Ok(())
-        })?;
-        Ok(event_stream)
-    }
-}
-
+use rustatlas::prelude::*;
+use std::cell::RefCell;
+use std::collections::HashMap;
 /// # EventIndexer
 /// The EventIndexer is a visitor that traverses the expression tree and indexes all the variables, market requests and numerarie requests.
 pub struct EventIndexer {
     variables: RefCell<HashMap<String, usize>>,
-    market_requests: RefCell<Vec<MarketRequest>>,
+    market_requests: RefCell<Vec<SimulationDataRequest>>,
     event_date: RefCell<Option<Date>>,
-    local_currency: Option<Currency>,
 }
 
 impl NodeVisitor for EventIndexer {
@@ -157,6 +37,7 @@ impl NodeVisitor for EventIndexer {
             | Node::Inferior(children)
             | Node::SuperiorOrEqual(children)
             | Node::InferiorOrEqual(children)
+            | Node::Pays(children, _)
             | Node::If(children, _) => {
                 children.iter().try_for_each(|child| self.visit(child))?;
                 Ok(())
@@ -188,15 +69,28 @@ impl NodeVisitor for EventIndexer {
                 match opt_idx.get() {
                     Some(_) => {}
                     None => {
-                        let size = self.market_requests.borrow_mut().len();
-                        let exchange_request = ExchangeRateRequest::new(
-                            *first,
-                            second.or(self.local_currency),
-                            self.event_date.borrow().clone(),
-                        );
-                        let request =
-                            MarketRequest::new(size, None, None, Some(exchange_request), None);
-                        self.market_requests.borrow_mut().push(request.clone());
+                        let size = self
+                            .market_requests
+                            .borrow_mut()
+                            .last()
+                            .ok_or(ScriptingError::NotFoundError(
+                                "No market requests found".to_string(),
+                            ))?
+                            .fxs()
+                            .len();
+                        let event_date =
+                            self.event_date
+                                .borrow()
+                                .ok_or(ScriptingError::InvalidSyntax(
+                                    "Event date is not set".to_string(),
+                                ))?;
+                        self.market_requests
+                            .borrow_mut()
+                            .last_mut()
+                            .ok_or(ScriptingError::NotFoundError(
+                                "No market requests found".to_string(),
+                            ))?
+                            .push_fx(ExchangeRateRequest::new(*first, *second, event_date));
                         opt_idx.set(size).unwrap();
                     }
                 };
@@ -206,48 +100,58 @@ impl NodeVisitor for EventIndexer {
                 match opt_idx.get() {
                     Some(_) => {}
                     None => {
-                        let size = self.market_requests.borrow_mut().len();
-                        let provider_id = name.parse::<usize>().map_err(|_| {
-                            ScriptingError::InvalidSyntax("Invalid rate index name".to_string())
-                        })?;
+                        let size = self
+                            .market_requests
+                            .borrow_mut()
+                            .last()
+                            .ok_or(ScriptingError::NotFoundError(
+                                "No market requests found".to_string(),
+                            ))?
+                            .fwds()
+                            .len();
                         let fwd_request = ForwardRateRequest::new(
-                            provider_id,
+                            name.clone(),
                             *start,
                             *start,
                             *end,
                             Compounding::Simple,
                             Frequency::Annual,
                         );
-                        let request = MarketRequest::new(size, None, Some(fwd_request), None, None);
-                        self.market_requests.borrow_mut().push(request.clone());
+                        self.market_requests
+                            .borrow_mut()
+                            .last_mut()
+                            .ok_or(ScriptingError::NotFoundError(
+                                "No market requests found".to_string(),
+                            ))?
+                            .push_fwd(fwd_request);
                         opt_idx.set(size).unwrap();
                     }
                 }
                 Ok(())
             }
-            Node::Pays(children, opt_idx) => {
-                children.iter().try_for_each(|child| self.visit(child))?;
-                match opt_idx.get() {
-                    Some(_) => Ok(()),
-                    None => {
-                        let size = self.market_requests.borrow_mut().len();
-                        let event_date = match self.event_date.borrow().clone() {
-                            Some(date) => date,
-                            None => {
-                                return Err(ScriptingError::InvalidSyntax(
-                                    "Event date is not set".to_string(),
-                                ));
-                            }
-                        };
-                        let numerarie_request = NumerarieRequest::new(size, event_date);
-                        let request =
-                            MarketRequest::new(size, None, None, None, Some(numerarie_request));
-                        self.market_requests.borrow_mut().push(request.clone());
-                        opt_idx.set(size).unwrap();
-                        Ok(())
-                    }
-                }
-            }
+            // Node::Pays(children, opt_idx) => {
+            //     children.iter().try_for_each(|child| self.visit(child))?;
+            //     match opt_idx.get() {
+            //         Some(_) => Ok(()),
+            //         None => {
+            //             let size = self.market_requests.borrow_mut().len();
+            //             let event_date = match self.event_date.borrow().clone() {
+            //                 Some(date) => date,
+            //                 None => {
+            //                     return Err(ScriptingError::InvalidSyntax(
+            //                         "Event date is not set".to_string(),
+            //                     ));
+            //                 }
+            //             };
+            //             let numerarie_request = NumerarieRequest::new(size, event_date);
+            //             let request =
+            //                 MarketRequest::new(size, None, None, None, Some(numerarie_request));
+            //             self.market_requests.borrow_mut().push(request.clone());
+            //             opt_idx.set(size).unwrap();
+            //             Ok(())
+            //         }
+            //     }
+            // }
             _ => Ok(()),
         }
     }
@@ -259,33 +163,19 @@ impl EventIndexer {
             variables: RefCell::new(HashMap::new()),
             market_requests: RefCell::new(Vec::new()),
             event_date: RefCell::new(None),
-            local_currency: None,
         }
     }
 
     /// # with_event_date
     /// Set the event date of the EventIndexer
-    pub fn set_event_date(self, date: Date) {
+    pub fn with_event_date(self, date: Date) -> Self {
         *self.event_date.borrow_mut() = Some(date);
-    }
-
-    /// # with_event_date
-    /// Set the event date of the EventIndexer
-    pub fn with_event_date(mut self, date: Date) -> Self {
-        self.event_date = RefCell::new(Some(date));
         self
     }
 
     /// # current_event_date
     pub fn current_event_date(&self) -> Option<Date> {
         self.event_date.borrow().clone()
-    }
-
-    /// # with_local_currency
-    /// Set the local currency of the EventIndexer
-    pub fn with_local_currency(mut self, currency: Currency) -> Self {
-        self.local_currency = Some(currency);
-        self
     }
 
     /// # get_variable_index
@@ -318,13 +208,22 @@ impl EventIndexer {
         self.variables.borrow_mut().len()
     }
 
-    pub fn get_market_requests(&self) -> Vec<MarketRequest> {
+    pub fn get_request(&self) -> Vec<SimulationDataRequest> {
         self.market_requests.borrow_mut().clone()
+    }
+
+    pub fn reset(&self) {
+        self.variables.borrow_mut().clear();
+        self.market_requests.borrow_mut().clear();
+        *self.event_date.borrow_mut() = None;
     }
 
     pub fn visit_events(&self, events: &EventStream) -> Result<()> {
         events.events().iter().try_for_each(|event| {
             *self.event_date.borrow_mut() = Some(event.event_date());
+            self.market_requests
+                .borrow_mut()
+                .push(SimulationDataRequest::new());
             self.visit(event.expr())?;
             Ok(())
         })
@@ -333,8 +232,6 @@ impl EventIndexer {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::OnceLock;
-
     use super::*;
     use crate::nodes::node::Node;
 
@@ -359,63 +256,6 @@ mod tests {
         assert_eq!(variables.get("x"), Some(&0));
         assert_eq!(variables.get("y"), Some(&1));
     }
-
-    #[test]
-    fn test_spot_indexer() {
-        let indexer = EventIndexer::new();
-        let node = Box::new(Node::Spot(Currency::USD, None, OnceLock::new()));
-        indexer.visit(&node).unwrap();
-        let market_requests = indexer.get_market_requests();
-        assert_eq!(market_requests.len(), 1);
-
-        let request = market_requests.get(0).unwrap();
-        assert_eq!(request.id(), 0);
-        assert_eq!(request.fx().unwrap().first_currency(), Currency::USD);
-        assert_eq!(request.fx().unwrap().second_currency(), None);
-        assert_eq!(request.fx().unwrap().reference_date(), None);
-    }
-
-    #[test]
-    fn test_spot_indexer_multiple() {
-        let indexer = EventIndexer::new();
-        let node = Box::new(Node::Spot(Currency::USD, None, OnceLock::new()));
-        indexer.visit(&node).unwrap();
-        let node = Box::new(Node::Spot(Currency::EUR, None, OnceLock::new()));
-        indexer.visit(&node).unwrap();
-        let market_requests = indexer.get_market_requests();
-        assert_eq!(market_requests.len(), 2);
-
-        let request = market_requests.get(0).unwrap();
-        assert_eq!(request.id(), 0);
-        assert_eq!(request.fx().unwrap().first_currency(), Currency::USD);
-        assert_eq!(request.fx().unwrap().second_currency(), None);
-        assert_eq!(request.fx().unwrap().reference_date(), None);
-
-        let request = market_requests.get(1).unwrap();
-        assert_eq!(request.id(), 1);
-        assert_eq!(request.fx().unwrap().first_currency(), Currency::EUR);
-        assert_eq!(request.fx().unwrap().second_currency(), None);
-        assert_eq!(request.fx().unwrap().reference_date(), None);
-    }
-
-    #[test]
-    fn test_rate_index_indexer() {
-        let indexer = EventIndexer::new();
-        let node = Box::new(Node::new_rate_index(
-            "1".to_string(),
-            Date::new(2024, 1, 1),
-            Date::new(2024, 2, 1),
-        ));
-        indexer.visit(&node).unwrap();
-        let market_requests = indexer.get_market_requests();
-        assert_eq!(market_requests.len(), 1);
-
-        let request = market_requests.get(0).unwrap();
-        assert_eq!(request.id(), 0);
-        assert_eq!(request.fwd().unwrap().provider_id(), 1);
-        assert_eq!(request.fwd().unwrap().start_date(), Date::new(2024, 1, 1));
-        assert_eq!(request.fwd().unwrap().end_date(), Date::new(2024, 2, 1));
-    }
 }
 
 #[cfg(test)]
@@ -428,14 +268,6 @@ mod ai_gen_tests {
         let date = Date::empty();
         let indexer = EventIndexer::new().with_event_date(date);
         assert_eq!(indexer.current_event_date(), Some(date));
-    }
-
-    #[test]
-    fn test_event_indexer_with_local_currency() {
-        // Test setting the local currency and retrieving it
-        let currency = Currency::USD;
-        let indexer = EventIndexer::new().with_local_currency(currency);
-        assert_eq!(indexer.local_currency, Some(currency));
     }
 
     #[test]

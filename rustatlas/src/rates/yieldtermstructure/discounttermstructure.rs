@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::prelude::*;
+use crate::utils::errors::{AtlasError, Result};
 
 /// # DiscountTermStructure
 /// A discount factors term structure.

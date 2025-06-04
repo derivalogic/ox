@@ -1,6 +1,6 @@
 #[allow(ambiguous_glob_reexports)]
 pub use crate::{
-    core::{marketstore::*, meta::*, traits::*},
+    core::{marketstore::*, traits::*},
     currencies::{enums::*, exchangeratestore::*, structs::*, traits::*},
     equities::equitystore::*,
 
@@ -8,7 +8,7 @@ pub use crate::{
         ad::{adnumber::*, node::*, tape::*},
         interpolation::{enums::*, linear::*, loglinear::*, traits::*},
     },
-    models::{blackscholes::*, deterministicmodel::*, simplemodel::*, stochasticmodel::*},
+    models::{deterministicmodel::*, simplemodel::*, stochasticmodel::*},
     rates::{
         enums::*,
         indexstore::*,
@@ -32,6 +32,5 @@ pub use crate::{
         period::*,
         schedule::*,
     },
-    utils::errors::*,
     // visitors::{fixingvisitor::*, indexingvisitor::*, npvconstvisitor::*, traits::*},
 };

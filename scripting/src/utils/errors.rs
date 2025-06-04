@@ -1,4 +1,4 @@
-use rustatlas::prelude::*;
+use rustatlas::utils::errors::AtlasError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -15,6 +15,10 @@ pub enum ScriptingError {
     EvaluationError(String),
     #[error("AtlasError: {0}")]
     AtlasError(#[from] AtlasError),
+    #[error("Not found: {0}")]
+    NotFoundError(String),
+    #[error("Invalid operation: {0}")]
+    InvalidOperation(String),
 }
 
 pub type Result<T> = std::result::Result<T, ScriptingError>;

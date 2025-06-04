@@ -1,6 +1,6 @@
-use crate::prelude::*;
-
 use super::exchangeratestore::ExchangeRateStore;
+use crate::prelude::*;
+use crate::utils::errors::Result;
 
 /// # CurrencyDetails
 /// Trait for currency details

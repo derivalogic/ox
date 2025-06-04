@@ -655,5 +655,4 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
         assert_eq!(tokens, expected_tokens);
     }
-
 }

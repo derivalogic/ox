@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 
 use crate::utils::errors::{AtlasError, Result};
@@ -39,6 +41,12 @@ pub enum Currency {
     KRW,
     DKK,
     IDR,
+}
+
+impl fmt::Display for Currency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.code())
+    }
 }
 
 impl TryFrom<String> for Currency {

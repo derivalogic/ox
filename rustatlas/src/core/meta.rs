@@ -1,5 +1,6 @@
-
 use crate::prelude::*;
+use crate::utils::errors::{AtlasError, Result};
+
 /// # ExchangeRateRequest
 /// Meta data for an exchange rate. Holds the first currency, the second currency and the reference
 /// date required to fetch the exchange rate.
@@ -50,17 +51,17 @@ impl ExchangeRateRequest {
 /// * `date` - The reference date of the discount factor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DiscountFactorRequest {
-    provider_id: usize,
+    curve_id: usize,
     date: Date,
 }
 
 impl DiscountFactorRequest {
-    pub fn new(provider_id: usize, date: Date) -> DiscountFactorRequest {
-        DiscountFactorRequest { provider_id, date }
+    pub fn new(curve_id: usize, date: Date) -> DiscountFactorRequest {
+        DiscountFactorRequest { curve_id, date }
     }
 
-    pub fn provider_id(&self) -> usize {
-        self.provider_id
+    pub fn curve_id(&self) -> usize {
+        self.curve_id
     }
 
     pub fn date(&self) -> Date {
@@ -80,7 +81,7 @@ impl DiscountFactorRequest {
 /// * `frequency` - The frequency of the forward rate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ForwardRateRequest {
-    provider_id: usize,
+    curve_id: usize,
     fixing_date: Date,
     start_date: Date,
     end_date: Date,
@@ -90,7 +91,7 @@ pub struct ForwardRateRequest {
 
 impl ForwardRateRequest {
     pub fn new(
-        provider_id: usize,
+        curve_id: usize,
         fixing_date: Date,
         start_date: Date,
         end_date: Date,
@@ -98,7 +99,7 @@ impl ForwardRateRequest {
         frequency: Frequency,
     ) -> ForwardRateRequest {
         ForwardRateRequest {
-            provider_id,
+            curve_id,
             fixing_date,
             start_date,
             end_date,
@@ -107,8 +108,8 @@ impl ForwardRateRequest {
         }
     }
 
-    pub fn provider_id(&self) -> usize {
-        self.provider_id
+    pub fn curve_id(&self) -> usize {
+        self.curve_id
     }
 
     pub fn start_date(&self) -> Date {
@@ -146,6 +147,13 @@ impl NumerarieRequest {
     pub fn reference_date(&self) -> Date {
         self.reference_date
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EquityRequest {
+    id: usize,
+    ticker_id: usize,
+    reference_date: Date,
 }
 
 /// # MarketRequest
@@ -203,7 +211,7 @@ impl MarketRequest {
     }
 }
 
-/// # MarketDataNode
+/// # MarketData
 /// Market data. Holds all the data required to price a cashflow.
 ///
 /// ## Parameters

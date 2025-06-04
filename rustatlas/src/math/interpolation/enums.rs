@@ -15,7 +15,7 @@ use crate::prelude::*;
 /// let y = interpolator.interpolate(x, &x_, &y_, true);
 /// assert_eq!(y.value(), 1.0);
 /// ```
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub enum Interpolator {
     Linear,
     LogLinear,

@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::prelude::*;
-
+use crate::utils::errors::{AtlasError, Result};
 /// # IndexStore
 /// A store for interest rate indices.
 ///

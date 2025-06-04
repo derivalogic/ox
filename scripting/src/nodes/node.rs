@@ -16,7 +16,7 @@ pub enum Node {
     String(String),
 
     // financial
-    Spot(Currency, Option<Currency>, OnceLock<usize>),
+    Spot(Currency, Currency, OnceLock<usize>),
     RateIndex(String, Date, Date, OnceLock<usize>),
     Pays(Vec<ExprTree>, OnceLock<usize>),
 
@@ -175,7 +175,7 @@ impl Node {
         Node::Pays(Vec::new(), OnceLock::new())
     }
 
-    pub fn new_spot(first: Currency, second: Option<Currency>) -> Node {
+    pub fn new_spot(first: Currency, second: Currency) -> Node {
         Node::Spot(first, second, OnceLock::new())
     }
 
@@ -524,7 +524,7 @@ mod ai_gen_tests {
     #[should_panic(expected = "Cannot add child to spot node")]
     fn test_add_child_to_spot() {
         // Test adding a child to a spot node, which should panic
-        let mut node = Node::Spot(Currency::USD, None, OnceLock::new());
+        let mut node = Node::Spot(Currency::USD, Currency::AUD, OnceLock::new());
         let child = Box::new(Node::new_add());
         node.add_child(child);
     }
@@ -571,7 +571,7 @@ mod ai_gen_tests {
     #[should_panic(expected = "Cannot get children from spot node")]
     fn test_children_of_spot() {
         // Test getting children of a spot node, which should panic
-        let node = Node::Spot(Currency::USD, None, OnceLock::new());
+        let node = Node::Spot(Currency::USD, Currency::AUD, OnceLock::new());
         node.children();
     }
 

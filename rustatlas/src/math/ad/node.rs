@@ -1,16 +1,38 @@
-#[derive(Default, Clone)]
+use std::ptr::NonNull;
+
+/// A node in the reverse-mode tape.
+///
+/// * `childs` now stores **raw pointers** to the child nodes instead of
+///   integer indices.  The addresses are stable because every node lives in
+///   a `Box` (or the bump-arena) for the whole lifetime of the tape.
+#[derive(Clone)]
 pub struct TapeNode {
-    pub childs: Vec<usize>, // indices of children on the tape
-    pub derivs: Vec<f64>,   // matching ∂parent / ∂child
-    pub adj: f64,           // this node’s adjoint
+    pub childs: Vec<NonNull<TapeNode>>, // ← was Vec<usize>
+    pub derivs: Vec<f64>,               // ∂parent / ∂child
+    pub adj: f64,
+}
+
+impl Default for TapeNode {
+    fn default() -> Self {
+        Self {
+            childs: Vec::new(),
+            derivs: Vec::new(),
+            adj: 0.0,
+        }
+    }
 }
 
 impl TapeNode {
-    #[inline]
-    pub fn propagate_into(&self, tape: &mut [TapeNode]) {
+    /// Propagate this node’s adjoint into its children
+    /// (no “book” slice needed any more).
+    #[inline(always)]
+    pub fn propagate_into(&self) {
+        debug_assert_eq!(self.childs.len(), self.derivs.len());
         let a = self.adj;
-        for (&c, &d) in self.childs.iter().zip(&self.derivs) {
-            tape[c].adj += a * d;
+        for (&child, &d) in self.childs.iter().zip(&self.derivs) {
+            // Safe because every child pointer was produced by the same Tape
+            // and remains valid for its whole lifetime.
+            unsafe { (*child.as_ptr()).adj += a * d };
         }
     }
 }

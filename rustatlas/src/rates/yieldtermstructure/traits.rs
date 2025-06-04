@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::prelude::*;
+use crate::utils::errors::Result;
 
 // /// # YieldTermStructureTraitClone
 // /// Trait for cloning a given object.

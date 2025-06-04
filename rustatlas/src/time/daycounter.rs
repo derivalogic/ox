@@ -1,3 +1,4 @@
+use crate::utils::errors::{AtlasError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;

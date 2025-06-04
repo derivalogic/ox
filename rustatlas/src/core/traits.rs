@@ -1,4 +1,6 @@
-use crate::prelude::*;
+use crate::utils::errors::Result;
+use crate::{core::meta::MarketRequest, prelude::*};
+
 pub trait HasCurrency {
     fn currency(&self) -> Result<Currency>;
 }

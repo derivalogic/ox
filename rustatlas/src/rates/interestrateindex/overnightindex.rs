@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
+use crate::utils::errors::{AtlasError, Result};
 
 use crate::prelude::*;
 

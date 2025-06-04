@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-
 use crate::prelude::*;
+use crate::utils::errors::{AtlasError, Result};
 
 /// Store for asset volatilities. Currently maps currency pairs to constant volatilities.
 #[derive(Clone)]

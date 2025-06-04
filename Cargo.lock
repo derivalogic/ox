@@ -1226,6 +1226,7 @@ version = "0.1.0"
 dependencies = [
  "ad_trait",
  "argmin",
+ "bumpalo",
  "chrono",
  "criterion",
  "indicatif",
