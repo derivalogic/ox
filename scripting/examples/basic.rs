@@ -1,5 +1,6 @@
 use scripting::prelude::*;
 use scripting::utils::errors::Result;
+use scripting::visitors::evaluator::SingleScenarioEvaluator;
 
 fn main() -> Result<()> {
     let script = "
@@ -9,11 +10,9 @@ fn main() -> Result<()> {
     ";
 
     let expr = ExprTree::try_from(script)?;
-
     let indexer = EventIndexer::new();
     indexer.visit(&expr)?;
-
-    let evaluator = ExprEvaluator::new().with_variables(indexer.get_variables_size());
+    let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
     evaluator.const_visit(expr)?;
 
     println!("Variables: {:?}", evaluator.variables());

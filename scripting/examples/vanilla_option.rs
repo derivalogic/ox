@@ -1,110 +1,119 @@
 use core::panic;
 use rustatlas::prelude::*;
+use scripting::data::termstructure::{TermStructure, TermStructureKey, TermStructureType};
+use scripting::models::scriptingmodel::{
+    BlackScholesModel, MonteCarloEngine, ParallelMonteCarloEngine,
+};
 use scripting::prelude::*;
 use scripting::utils::errors::Result;
-use std::sync::{Arc, RwLock};
+use scripting::visitors::evaluator::{Evaluator, Value};
 
-fn create_market_store(s0: NumericType, r_usd: NumericType, r_clp: NumericType) -> MarketStore {
-    let ref_date = Date::new(2024, 1, 1);
-    let mut store = MarketStore::new(ref_date, Currency::USD);
-    store
-        .mut_exchange_rate_store()
-        .add_exchange_rate(Currency::CLP, Currency::USD, s0);
-    let usd_curve = Arc::new(FlatForwardTermStructure::new(
-        ref_date,
-        r_usd,
-        RateDefinition::new(
-            DayCounter::Actual360,
-            Compounding::Continuous,
-            Frequency::Annual,
-        ),
-    ));
-    let index = Arc::new(RwLock::new(
-        OvernightIndex::new(ref_date).with_term_structure(usd_curve),
-    ));
-    let _ = store.mut_index_store().add_index(0, index);
-    store.mut_index_store().add_currency_curve(Currency::USD, 0);
-
-    let clp_curve = Arc::new(FlatForwardTermStructure::new(
-        ref_date,
-        r_clp,
-        RateDefinition::new(
-            DayCounter::Actual360,
-            Compounding::Continuous,
-            Frequency::Annual,
-        ),
-    ));
-    let index_clp = Arc::new(RwLock::new(
-        OvernightIndex::new(ref_date).with_term_structure(clp_curve),
-    ));
-    let _ = store.mut_index_store().add_index(1, index_clp);
-    store.mut_index_store().add_currency_curve(Currency::CLP, 1);
-
-    // add volatility
-    store.mut_exchange_rate_store().add_volatility(
+fn market_data(reference_date: Date) -> HistoricalData {
+    let mut store = HistoricalData::new();
+    store.mut_exchange_rates().add_exchange_rate(
+        reference_date,
         Currency::CLP,
         Currency::USD,
-        NumericType::new(0.2),
+        800.0,
     );
+
+    store
+        .mut_volatilities()
+        .add_fx_volatility(reference_date, Currency::CLP, Currency::USD, 0.2);
+
+    // general
+    let year_fractions = vec![1.0];
+    let interpolator = Interpolator::Linear;
+    let enable_extrapolation = true;
+    let rate_definition = RateDefinition::default();
+    let term_structure_type = TermStructureType::FlatForward;
+
+    // CLP term structure
+    let clp_ts_key = TermStructureKey::new(Currency::CLP, true, Some("CLP".to_string()));
+    let clp_rate = vec![0.02];
+
+    let clp_ts = TermStructure::new(
+        clp_ts_key,
+        year_fractions.clone(),
+        clp_rate,
+        interpolator,
+        enable_extrapolation,
+        rate_definition,
+        term_structure_type,
+    );
+
+    // USD term structure
+    let usd_ts_key = TermStructureKey::new(Currency::USD, true, Some("USD".to_string()));
+    let usd_rate = vec![0.02];
+
+    let usd_ts = TermStructure::new(
+        usd_ts_key,
+        year_fractions.clone(),
+        usd_rate,
+        interpolator,
+        enable_extrapolation,
+        rate_definition,
+        term_structure_type,
+    );
+
+    store
+        .mut_term_structures()
+        .add_term_structure(reference_date, clp_ts);
+    store
+        .mut_term_structures()
+        .add_term_structure(reference_date, usd_ts);
+
     store
 }
 
 fn main() -> Result<()> {
-    Tape::start_recording();
-    // Model parameters
-    let s0 = NumericType::new(800.0);
-    let r_usd = NumericType::new(0.03);
-    let r_clp = NumericType::new(0.02);
+    let reference_date = Date::new(2025, 1, 1);
+    let store = market_data(reference_date);
+    let mut model = BlackScholesModel::new(reference_date, Currency::CLP, &store);
+    model.initialize()?;
+
+    let s0 = model
+        .fx()
+        .get(&(Currency::CLP, Currency::USD))
+        .ok_or(ScriptingError::InvalidOperation(
+            "Spot rate not found".to_string(),
+        ))?
+        .read()
+        .unwrap()
+        .clone();
+    
+    let indexer = EventIndexer::new();
 
     // Scripted payoff of a call option
-    let maturity = Date::new(2025, 1, 1);
-    let script = "
-    opt = 0;
-    s = Spot(\"CLP\", \"USD\");
-    call = max(s-800, 0);
-    opt pays call;
-    ";
+    let event_maturity = Date::new(2025, 12, 1);
+    let script = "opt = 0;s = Spot(\"CLP\", \"USD\");call = s-750;opt pays call;";
 
     // Build the event stream
-    let coded = CodedEvent::new(maturity, script.to_string());
+    let coded = CodedEvent::new(event_maturity, script.to_string());
     let events = EventStream::try_from(vec![coded])?;
-    let indexer = EventIndexer::new().with_local_currency(Currency::USD);
 
+    // Visit the events to index variables and prepare for evaluation
     indexer.visit_events(&events)?;
-    let requests = indexer.get_market_requests();
+    let requests = indexer.get_request();
 
-    // Monte Carlo scenarios with Black-Scholes dynamics using AD variables
+    let scenarios = model.generate_scenarios(events.event_dates(), &requests, 10_000)?;
 
-    let store = create_market_store(s0, r_usd, r_clp);
-    let vol = store
-        .get_exchange_rate_volatility(Currency::CLP, Currency::USD)
-        .unwrap();
-    let simple = SimpleModel::new(&store);
-    let model = BlackScholesModel::new(simple);
-
-    let sims = 100_000;
-    let scenarios = (0..sims)
-        .into_iter()
-        .map(|_| model.gen_scenario(&requests).map_err(|e| e.into()))
-        .collect::<Result<Vec<Scenario>>>()?;
-
-    // // Evaluate the script under all scenarios
+    // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();
-    let evaluator: EventStreamEvaluator =
-        EventStreamEvaluator::new(indexer.get_variables_size()).with_scenarios(&scenarios);
+    let evaluator = Evaluator::new(indexer.get_variables_size(), &scenarios);
     let vars = evaluator.visit_events(&events, &var_map)?;
     let price_mc = match vars.get("opt") {
         Some(Value::Number(v)) => *v,
         _ => panic!("Option price not found in the evaluated variables"),
     };
 
-    price_mc.propagate_to_start().unwrap();
+    // price_mc.propagate_to_start().unwrap();
 
     println!("Monte Carlo Price: {}", price_mc);
-    println!("Monte Carlo Delta: {}", s0.adjoint().unwrap());
-    println!("Monte Carlo Rho CLP: {}", r_clp.adjoint().unwrap());
-    println!("Monte Carlo Rho USD: {}", r_usd.adjoint().unwrap());
-    println!("Monte Carlo Vega: {}", vol.adjoint().unwrap());
+    // println!("Monte Carlo Delta: {}", s0.adjoint().unwrap());
+    // println!("Monte Carlo Rho CLP: {}", r_clp.adjoint().unwrap());
+    // println!("Monte Carlo Rho USD: {}", r_usd.adjoint().unwrap());
+    // println!("Monte Carlo Vega: {}", vol.adjoint().unwrap());
 
     Ok(())
 }

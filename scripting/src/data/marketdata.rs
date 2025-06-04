@@ -1,8 +1,8 @@
 use crate::{
-    data::termstructure::{TermStructure, TermStructureKey, TermStructureStore, TermStructures},
+    data::termstructure::TermStructureStore,
     utils::errors::{Result, ScriptingError},
 };
-use rustatlas::{core::meta::NumerarieRequest, prelude::*};
+use rustatlas::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
@@ -274,7 +274,7 @@ pub struct HistoricalData {
     exchange_rates: ExchangeRates,
     fixings: Fixings,
     volatilities: Volatilities,
-    term_structures: TermStructures<f64>,
+    term_structures: TermStructureStore<f64>,
 }
 
 impl HistoricalData {
@@ -283,7 +283,7 @@ impl HistoricalData {
             exchange_rates: ExchangeRates::new(),
             fixings: Fixings::new(),
             volatilities: Volatilities::new(),
-            term_structures: TermStructures::new(),
+            term_structures: TermStructureStore::new(),
         }
     }
 
@@ -301,5 +301,18 @@ impl HistoricalData {
 
     pub fn term_structures(&self) -> &TermStructureStore<f64> {
         &self.term_structures
+    }
+
+    pub fn mut_exchange_rates(&mut self) -> &mut ExchangeRates {
+        &mut self.exchange_rates
+    }
+    pub fn mut_fixings(&mut self) -> &mut Fixings {
+        &mut self.fixings
+    }
+    pub fn mut_volatilities(&mut self) -> &mut Volatilities {
+        &mut self.volatilities
+    }
+    pub fn mut_term_structures(&mut self) -> &mut TermStructureStore<f64> {
+        &mut self.term_structures
     }
 }
