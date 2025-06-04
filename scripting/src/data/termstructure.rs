@@ -42,6 +42,18 @@ impl TermStructureKey {
         self.is_risk_free = is_risk_free;
         self
     }
+
+    pub fn is_risk_free(&self) -> bool {
+        self.is_risk_free
+    }
+
+    pub fn currency(&self) -> Currency {
+        self.currency
+    }
+
+    pub fn name(&self) -> Option<&String> {
+        self.name.as_ref()
+    }
 }
 
 pub struct TermStructure<T: Clone> {
@@ -73,6 +85,10 @@ impl<T: Clone> TermStructure<T> {
             rate_definition,
             term_structure_type,
         }
+    }
+
+    pub fn key(&self) -> &TermStructureKey {
+        &self.key
     }
 
     pub fn interpolator(&self) -> &Interpolator {

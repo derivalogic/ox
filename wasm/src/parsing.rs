@@ -1,25 +1,25 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::collections::HashMap;
 
 use rustatlas::prelude::*;
-use scripting::prelude::*;
+use scripting::{
+    data::termstructure::{TermStructure, TermStructureKey, TermStructureType},
+    prelude::*,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct Curve {
     pub name: String,
     pub currency: Currency,
-    pub rate: NumericType,
+    pub rate: f64,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CurrencyParity {
     pub weak: Currency,
     pub strong: Currency,
-    pub value: NumericType,
-    pub vol: NumericType,
+    pub value: f64,
+    pub vol: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,36 +49,47 @@ pub struct SimulationResults {
     pub rhos: Vec<HashMap<String, f64>>,   // sensitivies to rates as "c1/c2" from the index store
 }
 
-pub fn create_market_store(data: &MarketData) -> MarketStore {
-    let mut store = MarketStore::new(data.reference_date, data.local_currency);
+pub fn create_historical_data(data: &MarketData) -> HistoricalData {
+    let mut store = HistoricalData::new();
 
-    // Add local currency
+    // Add exchange rates
     data.fx.iter().for_each(|parity| {
-        store
-            .mut_exchange_rate_store()
-            .add_exchange_rate(parity.weak, parity.strong, parity.value);
-        store
-            .mut_exchange_rate_store()
-            .add_volatility(parity.weak, parity.strong, parity.vol);
+        store.mut_exchange_rates().add_exchange_rate(
+            data.reference_date,
+            parity.weak,
+            parity.strong,
+            parity.value,
+        );
+        store.mut_volatilities().add_fx_volatility(
+            data.reference_date,
+            parity.weak,
+            parity.strong,
+            parity.vol,
+        );
     });
 
-    // Add curves
-    data.curves.iter().enumerate().for_each(|(i, curve)| {
-        let term_structure = Arc::new(FlatForwardTermStructure::new(
-            data.reference_date,
-            curve.rate,
-            RateDefinition::default(),
-        ));
-        let index = Arc::new(RwLock::new(
-            OvernightIndex::new(data.reference_date)
-                .with_name(Some(curve.name.clone()))
-                .with_rate_definition(RateDefinition::default())
-                .with_term_structure(term_structure),
-        ));
-        store.mut_index_store().add_index(i, index).unwrap();
+    // Add term structures
+    let year_fractions = vec![1.0];
+    let interpolator = Interpolator::Linear;
+    let enable_extrapolation = true;
+    let rate_definition = RateDefinition::default();
+    let term_structure_type = TermStructureType::FlatForward;
+
+    data.curves.iter().for_each(|curve| {
+        let ts_key = TermStructureKey::new(curve.currency, true, Some(curve.name.clone()));
+        let ts = TermStructure::new(
+            ts_key,
+            year_fractions.clone(),
+            vec![curve.rate],
+            interpolator,
+            enable_extrapolation,
+            rate_definition.clone(),
+            term_structure_type.clone(),
+        );
         store
-            .mut_index_store()
-            .add_currency_curve(curve.currency, i);
+            .mut_term_structures()
+            .add_term_structure(data.reference_date, ts);
     });
+
     store
 }

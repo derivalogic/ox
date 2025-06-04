@@ -112,6 +112,7 @@ pub struct BlackScholesModel<'a> {
     fx_vols: HashMap<(Currency, Currency), RwLock<NumericType>>,
     is_initialized: RwLock<bool>,
     day_counter: DayCounter,
+    time_handle: NumericType,
 }
 
 impl<'a> BlackScholesModel<'a> {
@@ -131,6 +132,7 @@ impl<'a> BlackScholesModel<'a> {
             fx_vols: HashMap::new(),
             is_initialized: RwLock::new(false),
             day_counter: DayCounter::Actual360,
+            time_handle: NumericType::zero(),
         }
     }
 
@@ -202,6 +204,10 @@ impl<'a> BlackScholesModel<'a> {
 
     pub fn local_currency(&self) -> Currency {
         self.local_currency
+    }
+
+    pub fn time_handle(&self) -> NumericType {
+        self.time_handle
     }
 }
 
@@ -279,7 +285,7 @@ impl<'a> FxModel for BlackScholesModel<'a> {
         };
 
         // time step (dt)
-        let t = self.time_step(request.date());
+        let t: ADNumber = (self.time_step(request.date()) - self.time_handle).into();
 
         // volatility
         let vol1 = match self

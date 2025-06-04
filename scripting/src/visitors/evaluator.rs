@@ -3,7 +3,6 @@ use rustatlas::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use std::{
-    borrow::BorrowMut,
     cell::RefCell,
     collections::HashMap,
     ops::{Add, AddAssign, Div, Mul, Sub, SubAssign},

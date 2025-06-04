@@ -1,0 +1,56 @@
+{
+    "market_data": {
+        "reference_date": "2025-06-03",
+        "local_currency": "USD",
+        "curves": [
+            {
+                "name": "USD_RF_CURVE",
+                "currency": "USD",
+                "rate": 0.036
+            },
+            {
+                "name": "CLP_RF_CURVE",
+                "currency": "CLP",
+                "rate": 0.046
+            },
+            {
+                "name": "EUR_RF_CURVE",
+                "currency": "EUR",
+                "rate": 0.027
+            },
+            {
+                "name": "JPY_RF_CURVE",
+                "currency": "JPY",
+                "rate": 0.0063
+            }
+        ],
+        "fx": [
+            {
+                "weak": "JPY",
+                "strong": "USD",
+                "value": 142.74,
+                "vol": 0.2
+            },
+            {
+                "weak": "CLP",
+                "strong": "USD",
+                "value": 938.4,
+                "vol": 0.2
+            },
+            {
+                "weak": "EUR",
+                "strong": "USD",
+                "value": 0.876,
+                "vol": 0.2
+            }
+        ]
+    },
+    "script_data": {
+        "events": [
+            {
+                "event_date": "2025-06-29",
+                "script": "opt = 0;\ns = Spot(\"CLP\",\"USD\");\nif s > 950 {\nopt pays 100;\n} else {\nopt pays 0;\n}"
+            }
+        ]
+    }
+}
