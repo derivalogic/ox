@@ -1,5 +1,6 @@
 mod parsing;
 mod utils;
+
 use parsing::{SimulationData, SimulationResults};
 use rustatlas::prelude::*;
 use scripting::models::scriptingmodel::{BlackScholesModel, MonteCarloEngine};
@@ -45,7 +46,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     let t_handle = model.time_handle();
 
     let scenarios = model
-        .generate_scenarios(events.event_dates(), &requests, 50_000)
+        .generate_scenarios(events.event_dates(), &requests, 10)
         .map_err(|e| {
             JsValue::from_str(&format!("Failed to generate scenarios: {}", e.to_string()))
         })?;
@@ -110,4 +111,29 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     serde_json::to_string(&result)
         .map(|s| JsValue::from_str(&s))
         .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::{fs::File, io::Read, path::Path};
+
+    use super::*;
+
+    #[test]
+    fn test_run_simulation() {
+        // Load `data.json` located next to this example
+        let path = Path::new("/Users/josemelo/Desktop/dev/ox/wasm/src/data.json");
+        let mut file = File::open(&path).unwrap();
+        let mut json = String::new();
+        file.read_to_string(&mut json).unwrap();
+
+        // Execute the pricing routine exposed by the wasm crate
+        let result = run_simulation(&json).expect("simulation failed");
+
+        // `run_simulation` returns a JsValue containing a JSON string
+        let output = result
+            .as_string()
+            .unwrap_or_else(|| "<non-string result>".to_string());
+        println!("{output}");
+    }
 }

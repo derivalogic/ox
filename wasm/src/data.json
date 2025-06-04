@@ -49,7 +49,7 @@
         "events": [
             {
                 "event_date": "2025-06-29",
-                "script": "opt = 0;\ns = Spot(\"CLP\",\"USD\");\nif s > 950 {\nopt pays 100;\n} else {\nopt pays 0;\n}"
+                "script": "opt = 0;s = Spot(\"CLP\",\"USD\");if s > 950 {opt pays 100;} else {opt pays 0;}"
             }
         ]
     }

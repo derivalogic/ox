@@ -1,5 +1,5 @@
 [package]
-name = "wasm"
+name = "wasm_scripting"
 version = "0.1.0"
 edition = "2021"
 
@@ -17,3 +17,4 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [features]
 default = ["console_error_panic_hook"]
+

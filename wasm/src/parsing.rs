@@ -69,7 +69,7 @@ pub fn create_historical_data(data: &MarketData) -> HistoricalData {
     });
 
     // Add term structures
-    let year_fractions = vec![1.0];
+    let year_fractions = vec![0.0, 20.0];
     let interpolator = Interpolator::Linear;
     let enable_extrapolation = true;
     let rate_definition = RateDefinition::default();
@@ -80,7 +80,7 @@ pub fn create_historical_data(data: &MarketData) -> HistoricalData {
         let ts = TermStructure::new(
             ts_key,
             year_fractions.clone(),
-            vec![curve.rate],
+            vec![curve.rate, curve.rate],
             interpolator,
             enable_extrapolation,
             rate_definition.clone(),
