@@ -86,6 +86,21 @@ impl<T: Clone> TermStructure<T> {
     pub fn rate_definition(&self) -> RateDefinition {
         self.rate_definition
     }
+
+    pub fn year_fractions(&self) -> &[T] {
+        &self.year_fractions
+    }
+    pub fn values(&self) -> &[T] {
+        &self.values
+    }
+
+    pub fn nodes(&self) -> Vec<(T, T)> {
+        self.year_fractions
+            .iter()
+            .cloned()
+            .zip(self.values.iter().cloned())
+            .collect()
+    }
 }
 
 impl<T: Clone> Clone for TermStructure<T> {

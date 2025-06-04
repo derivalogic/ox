@@ -71,7 +71,6 @@ pub trait MonteCarloEngine {
 
 pub trait ParallelMonteCarloEngine: MonteCarloEngine + Sync + Send {
     fn initialize_for_parallelization(&self) {
-        Tape::start_recording();
         Tape::rewind_to_mark();
         self.put_on_tape();
         Tape::set_mark();
@@ -251,16 +250,6 @@ impl<'a> FxModel for BlackScholesModel<'a> {
 
         let s0_1 = match self
             .fx
-            .get(&(request.second_currency(), self.local_currency))
-        {
-            Some(fx_rate) => fx_rate.read().unwrap().clone(),
-            None => {
-                triangulate_currencies(&self.fx, self.local_currency, request.second_currency())?
-            }
-        };
-
-        let s0_2 = match self
-            .fx
             .get(&(request.first_currency(), self.local_currency))
         {
             Some(fx_rate) => fx_rate.read().unwrap().clone(),
@@ -269,21 +258,52 @@ impl<'a> FxModel for BlackScholesModel<'a> {
             }
         };
 
+        let s0_2 = match self
+            .fx
+            .get(&(request.second_currency(), self.local_currency))
+        {
+            Some(fx_rate) => fx_rate.read().unwrap().clone(),
+            None => {
+                triangulate_currencies(&self.fx, self.local_currency, request.second_currency())?
+            }
+        };
+
         // time step (dt)
         let t = self.time_step(request.date());
 
         // volatility
-        let volatility = match self
+        let vol1 = match self
             .fx_vols
-            .get(&(request.first_currency(), request.second_currency()))
+            .get(&(request.first_currency(), self.local_currency))
         {
             Some(vol) => vol.read().unwrap().clone(),
             None => {
-                return Err(ScriptingError::NotFoundError(format!(
-                    "Volatility not found for {} and {}",
-                    request.first_currency(),
-                    request.second_currency()
-                )));
+                if request.first_currency() == self.local_currency {
+                    NumericType::zero()
+                } else {
+                    return Err(ScriptingError::NotFoundError(format!(
+                        "Volatility not found for {} and {}",
+                        request.first_currency(),
+                        self.local_currency
+                    )));
+                }
+            }
+        };
+        let vol2 = match self
+            .fx_vols
+            .get(&(request.second_currency(), self.local_currency))
+        {
+            Some(vol) => vol.read().unwrap().clone(),
+            None => {
+                if request.second_currency() == self.local_currency {
+                    NumericType::zero()
+                } else {
+                    return Err(ScriptingError::NotFoundError(format!(
+                        "Volatility not found for {} and {}",
+                        request.second_currency(),
+                        self.local_currency
+                    )));
+                }
             }
         };
 
@@ -329,17 +349,13 @@ impl<'a> FxModel for BlackScholesModel<'a> {
 
         let z1 = self.gen_rand();
         let fx_1_l = s0_1
-            * ((foreign_rate_1 - local_rate - volatility * volatility * 0.5) * t
-                + volatility * z1 * t.sqrt())
-            .exp();
+            * ((foreign_rate_1 - local_rate - vol1 * vol1 * 0.5) * t + vol1 * z1 * t.sqrt()).exp();
 
         let z2 = self.gen_rand();
         let fx_2_l = s0_2
-            * ((foreign_rate_2 - local_rate - volatility * volatility * 0.5) * t
-                + volatility * z2 * t.sqrt())
-            .exp();
+            * ((foreign_rate_2 - local_rate - vol2 * vol2 * 0.5) * t + vol2 * z2 * t.sqrt()).exp();
 
-        let st = fx_1_l / fx_2_l;
+        let st = fx_2_l / fx_1_l;
         Ok(st.into())
     }
 }
@@ -413,13 +429,13 @@ impl<'a> ParallelMonteCarloEngine for BlackScholesModel<'a> {
             f.write().unwrap().put_on_tape();
         });
 
-        self.equities.iter().for_each(|(_, e)| {
-            e.write().unwrap().put_on_tape();
-        });
+        // self.equities.iter().for_each(|(_, e)| {
+        //     e.write().unwrap().put_on_tape();
+        // });
 
-        self.equity_vols.iter().for_each(|(_, v)| {
-            v.write().unwrap().put_on_tape();
-        });
+        // self.equity_vols.iter().for_each(|(_, v)| {
+        //     v.write().unwrap().put_on_tape();
+        // });
 
         self.fx_vols.iter().for_each(|((_, _), v)| {
             v.write().unwrap().put_on_tape();

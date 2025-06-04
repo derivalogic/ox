@@ -125,43 +125,39 @@ pub fn triangulate_currencies(
     ccy1: Currency,
     ccy2: Currency,
 ) -> Result<NumericType> {
-    // 1. trivial case
     if ccy1 == ccy2 {
         return Ok(NumericType::one());
     }
-
-    // 2. try direct quote
-    if let Some(rate) = exchange_rates.get(&(ccy1, ccy2)) {
-        return Ok(rate.read().unwrap().clone());
+    if let Some(r) = exchange_rates.get(&(ccy1, ccy2)) {
+        return Ok(r.read().unwrap().clone());
     }
-    // 3. try inverse quote
-    if let Some(rate) = exchange_rates.get(&(ccy2, ccy1)) {
-        let val = NumericType::one() / rate.read().unwrap().clone();
-        return Ok(val.into());
+    if let Some(r) = exchange_rates.get(&(ccy2, ccy1)) {
+        return Ok((NumericType::one() / r.read().unwrap().clone()).into());
     }
 
-    // 4. breadth-first search for any path
-    let mut visited: HashSet<Currency> = HashSet::new();
+    use std::collections::{HashSet, VecDeque};
+
+    let mut visited = HashSet::new();
     let mut q: VecDeque<(Currency, NumericType)> = VecDeque::new();
     q.push_back((ccy1, NumericType::one()));
 
-    while let Some((cur_ccy, acc_rate)) = q.pop_front() {
-        if cur_ccy == ccy2 {
-            return Ok(acc_rate);
+    while let Some((cur, acc)) = q.pop_front() {
+        if cur == ccy2 {
+            return Ok(acc);
         }
-        if !visited.insert(cur_ccy) {
-            continue; // already expanded
+        if !visited.insert(cur) {
+            continue;
         }
 
-        // explore neighbours
         for ((base, terms), quote) in exchange_rates.iter() {
-            let val = quote.read().unwrap().clone();
-            if *base == cur_ccy && !visited.contains(terms) {
-                // 1 `base` = quote `terms`
-                q.push_back((*terms, (acc_rate * val).into()));
-            } else if *terms == cur_ccy && !visited.contains(base) {
-                // 1 `terms` = quote `base`  ⇒  1 `base` = 1/quote `terms`
-                q.push_back((*base, (acc_rate / val).into()));
+            let v = quote.read().unwrap().clone();
+
+            if *base == cur && !visited.contains(terms) {
+                // forward edge: 1 base = v terms
+                q.push_back((*terms, (v * acc).into()));
+            } else if *terms == cur && !visited.contains(base) {
+                // reverse edge: 1 terms = (1/v) base   ← fixed
+                q.push_back((*base, ((NumericType::one() / v) * acc).into()));
             }
         }
     }

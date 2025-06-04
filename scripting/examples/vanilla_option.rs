@@ -1,9 +1,7 @@
 use core::panic;
 use rustatlas::prelude::*;
 use scripting::data::termstructure::{TermStructure, TermStructureKey, TermStructureType};
-use scripting::models::scriptingmodel::{
-    BlackScholesModel, MonteCarloEngine, ParallelMonteCarloEngine,
-};
+use scripting::models::scriptingmodel::{BlackScholesModel, MonteCarloEngine};
 use scripting::prelude::*;
 use scripting::utils::errors::Result;
 use scripting::visitors::evaluator::{Evaluator, Value};
@@ -16,6 +14,10 @@ fn market_data(reference_date: Date) -> HistoricalData {
         Currency::USD,
         800.0,
     );
+
+    store
+        .mut_volatilities()
+        .add_fx_volatility(reference_date, Currency::USD, Currency::CLP, 0.2);
 
     store
         .mut_volatilities()
@@ -44,7 +46,7 @@ fn market_data(reference_date: Date) -> HistoricalData {
 
     // USD term structure
     let usd_ts_key = TermStructureKey::new(Currency::USD, true, Some("USD".to_string()));
-    let usd_rate = vec![0.02];
+    let usd_rate = vec![0.03];
 
     let usd_ts = TermStructure::new(
         usd_ts_key,
@@ -68,9 +70,11 @@ fn market_data(reference_date: Date) -> HistoricalData {
 
 fn main() -> Result<()> {
     let reference_date = Date::new(2025, 1, 1);
+    Tape::start_recording();
     let store = market_data(reference_date);
-    let mut model = BlackScholesModel::new(reference_date, Currency::CLP, &store);
+    let mut model = BlackScholesModel::new(reference_date, Currency::USD, &store);
     model.initialize()?;
+    // model.initialize_for_parallelization();
 
     let s0 = model
         .fx()
@@ -79,20 +83,26 @@ fn main() -> Result<()> {
             "Spot rate not found".to_string(),
         ))?
         .read()
+        .unwrap();
+
+    let binding = model
+        .rates()
+        .get_by_currency(Currency::CLP)
         .unwrap()
-        .clone();
-    
-    let indexer = EventIndexer::new();
+        .nodes();
+
+    let r_clp = binding.get(0).unwrap().1.read().unwrap();
 
     // Scripted payoff of a call option
-    let event_maturity = Date::new(2025, 12, 1);
-    let script = "opt = 0;s = Spot(\"CLP\", \"USD\");call = s-750;opt pays call;";
+    let event_maturity = Date::new(2026, 1, 1);
+    let script = "opt = 0;s = Spot(\"CLP\", \"USD\");call = max(s-800,0);opt pays call;";
 
     // Build the event stream
     let coded = CodedEvent::new(event_maturity, script.to_string());
     let events = EventStream::try_from(vec![coded])?;
 
     // Visit the events to index variables and prepare for evaluation
+    let indexer = EventIndexer::new();
     indexer.visit_events(&events)?;
     let requests = indexer.get_request();
 
@@ -108,12 +118,10 @@ fn main() -> Result<()> {
     };
 
     // price_mc.propagate_to_start().unwrap();
-
+    price_mc.backward()?;
     println!("Monte Carlo Price: {}", price_mc);
-    // println!("Monte Carlo Delta: {}", s0.adjoint().unwrap());
-    // println!("Monte Carlo Rho CLP: {}", r_clp.adjoint().unwrap());
-    // println!("Monte Carlo Rho USD: {}", r_usd.adjoint().unwrap());
-    // println!("Monte Carlo Vega: {}", vol.adjoint().unwrap());
+    println!("Monte Carlo Delta: {}", s0.adjoint()?);
+    println!("Monte Carlo Rho CLP: {}", r_clp.adjoint()? * 0.01);
 
     Ok(())
 }
