@@ -19,12 +19,9 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     Tape::start_recording();
     let data: SimulationData =
         serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
-
     let store: HistoricalData = create_historical_data(&data.market_data);
-
     let events = EventStream::try_from(data.script_data.events.clone())
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
-
     let indexer = EventIndexer::new();
     indexer
         .visit_events(&events)
@@ -32,7 +29,6 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
 
     let requests = indexer.get_request();
 
-    Tape::start_recording();
     let mut model = BlackScholesModel::new(
         data.market_data.reference_date,
         data.market_data.local_currency,
@@ -46,7 +42,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     let t_handle = model.time_handle();
 
     let scenarios = model
-        .generate_scenarios(events.event_dates(), &requests, 10)
+        .generate_scenarios(events.event_dates(), &requests, 20000)
         .map_err(|e| {
             JsValue::from_str(&format!("Failed to generate scenarios: {}", e.to_string()))
         })?;
@@ -96,7 +92,8 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
                     .unwrap()
                     .adjoint()
                     .unwrap_or(0.0)
-                    * 0.01,
+                    * 0.01
+                    / 100.0,
             )
         })
         .collect::<HashMap<_, _>>();

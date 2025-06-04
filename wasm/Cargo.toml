@@ -18,3 +18,8 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 [features]
 default = ["console_error_panic_hook"]
 
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "link-arg=-zstack-size=2097152"]  
+
+# wasm-pack build --release --target web
+# export RUSTFLAGS='--cfg getrandom_backend="wasm_js" -C link-arg=-zstack-size=2097152'
