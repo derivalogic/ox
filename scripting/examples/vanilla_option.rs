@@ -32,7 +32,7 @@ fn market_data(reference_date: Date) -> HistoricalData {
 
     // CLP term structure
     let clp_ts_key = TermStructureKey::new(Currency::CLP, true, Some("CLP".to_string()));
-    let clp_rate = vec![0.02];
+    let clp_rate = vec![0.03];
 
     let clp_ts = TermStructure::new(
         clp_ts_key,
@@ -46,7 +46,7 @@ fn market_data(reference_date: Date) -> HistoricalData {
 
     // USD term structure
     let usd_ts_key = TermStructureKey::new(Currency::USD, true, Some("USD".to_string()));
-    let usd_rate = vec![0.03];
+    let usd_rate = vec![0.02];
 
     let usd_ts = TermStructure::new(
         usd_ts_key,
@@ -72,7 +72,7 @@ fn main() -> Result<()> {
     let reference_date = Date::new(2025, 1, 1);
     Tape::start_recording();
     let store = market_data(reference_date);
-    let mut model = BlackScholesModel::new(reference_date, Currency::USD, &store);
+    let mut model = BlackScholesModel::new(reference_date, Currency::CLP, &store);
     model.initialize()?;
     // model.initialize_for_parallelization();
 
@@ -93,6 +93,13 @@ fn main() -> Result<()> {
 
     let r_clp = binding.get(0).unwrap().1.read().unwrap();
 
+    let binding = model
+        .rates()
+        .get_by_currency(Currency::USD)
+        .unwrap()
+        .nodes();
+    let r_usd = binding.get(0).unwrap().1.read().unwrap();
+
     // Scripted payoff of a call option
     let event_maturity = Date::new(2026, 1, 1);
     let script = "opt = 0;s = Spot(\"CLP\", \"USD\");call = max(s-800,0);opt pays call;";
@@ -106,7 +113,7 @@ fn main() -> Result<()> {
     indexer.visit_events(&events)?;
     let requests = indexer.get_request();
 
-    let scenarios = model.generate_scenarios(events.event_dates(), &requests, 10_000)?;
+    let scenarios = model.generate_scenarios(events.event_dates(), &requests,100_000)?;
 
     // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();
@@ -121,7 +128,7 @@ fn main() -> Result<()> {
     price_mc.backward()?;
     println!("Monte Carlo Price: {}", price_mc);
     println!("Monte Carlo Delta: {}", s0.adjoint()?);
-    println!("Monte Carlo Rho CLP: {}", r_clp.adjoint()? * 0.01);
-
+    println!("Monte Carlo Rho CLP: {}", r_clp.adjoint()?);
+    println!("Monte Carlo Rho USD: {}", r_usd.adjoint()?);
     Ok(())
 }

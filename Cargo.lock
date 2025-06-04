@@ -1278,6 +1278,7 @@ dependencies = [
  "clap",
  "num-traits",
  "rand",
+ "rand_distr",
  "rayon",
  "rustatlas",
  "serde",

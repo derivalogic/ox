@@ -7,6 +7,8 @@ use crate::{
     data::termstructure::{DiscountFactorProvider, ForwardRateProvider, IndexesForDate},
     prelude::*,
 };
+use rand::Rng;
+use rand_distr::StandardNormal;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rustatlas::prelude::*;
 
@@ -215,7 +217,11 @@ impl<'a> StochasticModel for BlackScholesModel<'a> {
     }
 
     fn gen_rand(&self) -> f64 {
-        rand::random()
+        // let normal = Normal::new(0.0, 1.0).unwrap();
+        let mut rng = rand::thread_rng();
+        // Generate a random number from the standard normal distribution
+        // This is a simple way to generate a random number, but you can use any RNG you prefer
+        rng.sample::<f64, _>(StandardNormal)
     }
 
     fn time_step(&self, date: Date) -> NumericType {
@@ -244,6 +250,10 @@ impl<'a> FxModel for BlackScholesModel<'a> {
                     ))
                 })?;
             return Ok(NumericType::new(s));
+        }
+
+        if request.first_currency() == request.second_currency() {
+            return Ok(NumericType::new(1.0));
         }
         // Check if the exchange rate is already cached
         // If not, retrieve it from historical data and cache it
@@ -355,8 +365,23 @@ impl<'a> FxModel for BlackScholesModel<'a> {
         let fx_2_l = s0_2
             * ((foreign_rate_2 - local_rate - vol2 * vol2 * 0.5) * t + vol2 * z2 * t.sqrt()).exp();
 
-        let st = fx_2_l / fx_1_l;
-        Ok(st.into())
+        // we need to arrange so we effectively return ccy1 / ccy2
+        if request.first_currency() == self.local_currency {
+            // we have ccy1 as local currency, so we return ccy1 / ccy2
+            let st = fx_2_l / fx_1_l;
+            return Ok(st.into());
+        }
+        if request.second_currency() == self.local_currency {
+            // we have ccy2 as local currency, so we return ccy1 / ccy2
+            let st = fx_1_l / fx_2_l;
+            return Ok(st.into());
+        } else {
+            // we have both currencies as foreign, so we return ccy1 / ccy2
+            // this is the same as fx_1_l / fx_2_l
+            let st = fx_1_l / fx_2_l;
+            return Ok(st.into());
+        }
+        // let st = fx_2_l / fx_1_l;
     }
 }
 
