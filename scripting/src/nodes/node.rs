@@ -35,6 +35,7 @@ pub enum Node {
     Append(Vec<ExprTree>),
     Mean(Vec<ExprTree>),
     Std(Vec<ExprTree>),
+    Index(Vec<ExprTree>),
 
     // unary
     UnaryPlus(Vec<ExprTree>),
@@ -125,6 +126,10 @@ impl Node {
 
     pub fn new_std() -> Node {
         Node::Std(Vec::new())
+    }
+
+    pub fn new_index() -> Node {
+        Node::Index(Vec::new())
     }
 
     pub fn new_constant(value: NumericType) -> Node {
@@ -244,6 +249,7 @@ impl Node {
             Node::Append(children) => children.push(child),
             Node::Mean(children) => children.push(child),
             Node::Std(children) => children.push(child),
+            Node::Index(children) => children.push(child),
             Node::NotEqual(children) => children.push(child),
             Node::Pays(children, _) => children.push(child),
             Node::ForEach(_, _, children, _) => children.push(child),
@@ -287,6 +293,7 @@ impl Node {
             Node::Append(children) => children,
             Node::Mean(children) => children,
             Node::Std(children) => children,
+            Node::Index(children) => children,
             Node::NotEqual(children) => children,
             Node::Pays(children, _) => children,
             Node::ForEach(_, _, children, _) => children,
@@ -574,6 +581,12 @@ mod ai_gen_tests {
     fn test_new_std() {
         let node = Node::new_std();
         assert_eq!(node, Node::Std(Vec::new()));
+    }
+
+    #[test]
+    fn test_new_index() {
+        let node = Node::new_index();
+        assert_eq!(node, Node::Index(Vec::new()));
     }
 
     #[test]

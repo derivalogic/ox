@@ -692,6 +692,25 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.array_stack.borrow_mut().push(array);
                 Ok(())
             }
+            Node::Index(children) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                let idx_val = self.digit_stack.borrow_mut().pop().unwrap();
+                let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
+                let idx = idx_val.value().round() as usize;
+                if idx >= array.len() {
+                    return Err(ScriptingError::EvaluationError("Index out of bounds".to_string()));
+                }
+                match array[idx].clone() {
+                    Value::Bool(v) => self.boolean_stack.borrow_mut().push(v),
+                    Value::Number(v) => self.digit_stack.borrow_mut().push(v),
+                    Value::String(v) => self.string_stack.borrow_mut().push(v),
+                    Value::Array(a) => self.array_stack.borrow_mut().push(a),
+                    Value::Null => self.array_stack.borrow_mut().push(Vec::new()),
+                }
+                Ok(())
+            }
             Node::ForEach(_, iter, body, index) => {
                 iter.const_accept(self);
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
@@ -2291,6 +2310,33 @@ mod ai_gen_tests {
         } else {
             panic!("variable not found");
         }
+    }
+
+    #[test]
+    fn test_array_indexing() {
+        let script = "arr = [1,2,3]; x = arr[1];";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(expr).unwrap();
+        let idx = indexer.get_variable_index("x").unwrap();
+        if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
+            assert_eq!(*v, NumericType::new(2.0));
+        } else {
+            panic!("variable not found");
+        }
+    }
+
+    #[test]
+    fn test_array_indexing_out_of_bounds() {
+        let script = "arr = [1,2,3]; x = arr[5];";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        let result = evaluator.const_visit(expr);
+        assert!(result.is_err());
     }
 
     #[test]
