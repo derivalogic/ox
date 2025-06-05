@@ -7,9 +7,13 @@ pub enum Token {
     Identifier(String),
     String(String),
     Plus,
+    PlusAssign,
     Minus,
+    MinusAssign,
     Multiply,
+    MultiplyAssign,
     Divide,
+    DivideAssign,
     Assign,
     Equal,
     NotEqual,
@@ -32,6 +36,7 @@ pub enum Token {
     Else,
     End,
     Comma,
+    Dot,
     Power,
     For,
     Semicolon, // for end of an expression or statement
@@ -76,12 +81,29 @@ impl Lexer {
         self.skip_whitespace();
         let ch = self.next_char();
         match ch {
-            '+' => Ok(Token::Plus),
-            '-' => Ok(Token::Minus),
+            '+' => {
+                if self.peek_char() == '=' {
+                    self.next_char();
+                    Ok(Token::PlusAssign)
+                } else {
+                    Ok(Token::Plus)
+                }
+            }
+            '-' => {
+                if self.peek_char() == '=' {
+                    self.next_char();
+                    Ok(Token::MinusAssign)
+                } else {
+                    Ok(Token::Minus)
+                }
+            }
             '*' => {
                 if self.peek_char() == '*' {
                     self.next_char();
                     Ok(Token::Power)
+                } else if self.peek_char() == '=' {
+                    self.next_char();
+                    Ok(Token::MultiplyAssign)
                 } else {
                     Ok(Token::Multiply)
                 }
@@ -98,6 +120,9 @@ impl Lexer {
                         self.next_char();
                     }
                     self.next_token()
+                } else if self.peek_char() == '=' {
+                    self.next_char();
+                    Ok(Token::DivideAssign)
                 } else {
                     Ok(Token::Divide)
                 }
@@ -112,6 +137,7 @@ impl Lexer {
             }
             '\n' => Ok(Token::Newline),
             ',' => Ok(Token::Comma),
+            '.' => Ok(Token::Dot),
             '!' => {
                 if self.peek_char() == '=' {
                     self.next_char();
@@ -249,6 +275,23 @@ mod tests {
             Token::Assign,
             Token::Equal,
             Token::Semicolon,
+        ];
+
+        let lexer = Lexer::new(input.to_string());
+        let tokens = lexer.tokenize().unwrap();
+
+        assert_eq!(tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_extended_operators() {
+        let input = "+= -= *= /= .";
+        let expected_tokens = vec![
+            Token::PlusAssign,
+            Token::MinusAssign,
+            Token::MultiplyAssign,
+            Token::DivideAssign,
+            Token::Dot,
         ];
 
         let lexer = Lexer::new(input.to_string());

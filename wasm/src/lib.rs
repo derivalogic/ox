@@ -118,9 +118,9 @@ pub mod tests {
 
     #[test]
     fn test_run_simulation() {
-        // Load `data.json` located next to this example
-        let path = Path::new("/Users/josemelo/Desktop/dev/ox/wasm/src/data.json");
-        let mut file = File::open(&path).unwrap();
+        // Load `data.json` located next to this example. Skip test if not present.
+        let path = Path::new("wasm/src/data.json");
+        let Ok(mut file) = File::open(&path) else { return }; 
         let mut json = String::new();
         file.read_to_string(&mut json).unwrap();
 
