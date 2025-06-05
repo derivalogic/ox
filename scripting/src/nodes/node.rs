@@ -16,7 +16,7 @@ pub enum Node {
     String(String),
 
     // financial
-    Spot(Currency, Currency, OnceLock<usize>),
+    Spot(Currency, Currency, Option<Date>, OnceLock<usize>),
     RateIndex(String, Date, Date, OnceLock<usize>),
     Pays(Vec<ExprTree>, OnceLock<usize>),
 
@@ -200,8 +200,8 @@ impl Node {
         Node::Pays(Vec::new(), OnceLock::new())
     }
 
-    pub fn new_spot(first: Currency, second: Currency) -> Node {
-        Node::Spot(first, second, OnceLock::new())
+    pub fn new_spot(first: Currency, second: Currency, date: Option<Date>) -> Node {
+        Node::Spot(first, second, date, OnceLock::new())
     }
 
     pub fn new_rate_index(name: String, start: Date, end: Date) -> Node {
@@ -255,7 +255,7 @@ impl Node {
             Node::ForEach(_, _, children, _) => children.push(child),
             Node::Range(children) => children.push(child),
             Node::List(children) => children.push(child),
-            Node::Spot(_, _, _) => panic!("Cannot add child to spot node"),
+            Node::Spot(_, _, _, _) => panic!("Cannot add child to spot node"),
             Node::RateIndex(_, _, _, _) => panic!("Cannot add child to rate index node"),
             Node::True => panic!("Cannot add child to true node"),
             Node::False => panic!("Cannot add child to false node"),
@@ -299,7 +299,7 @@ impl Node {
             Node::ForEach(_, _, children, _) => children,
             Node::Range(children) => children,
             Node::List(children) => children,
-            Node::Spot(_, _, _) => panic!("Cannot get children from spot node"),
+            Node::Spot(_, _, _, _) => panic!("Cannot get children from spot node"),
             Node::RateIndex(_, _, _, _) => {
                 panic!("Cannot get children from rate index node")
             }
@@ -543,6 +543,27 @@ mod ai_gen_tests {
     }
 
     #[test]
+    fn test_new_spot_without_date() {
+        // Spot node defaults to None when no date is provided
+        let node = Node::new_spot(Currency::USD, Currency::EUR, None);
+        assert_eq!(
+            node,
+            Node::Spot(Currency::USD, Currency::EUR, None, OnceLock::new())
+        );
+    }
+
+    #[test]
+    fn test_new_spot_with_date() {
+        // Spot node can be created with an explicit date
+        let date = Date::new(2025, 6, 1);
+        let node = Node::new_spot(Currency::USD, Currency::EUR, Some(date));
+        assert_eq!(
+            node,
+            Node::Spot(Currency::USD, Currency::EUR, Some(date), OnceLock::new())
+        );
+    }
+
+    #[test]
     fn test_new_rate_index() {
         let start = Date::new(2024, 1, 1);
         let end = Date::new(2024, 2, 1);
@@ -619,7 +640,7 @@ mod ai_gen_tests {
     #[should_panic(expected = "Cannot add child to spot node")]
     fn test_add_child_to_spot() {
         // Test adding a child to a spot node, which should panic
-        let mut node = Node::Spot(Currency::USD, Currency::AUD, OnceLock::new());
+        let mut node = Node::Spot(Currency::USD, Currency::AUD, None, OnceLock::new());
         let child = Box::new(Node::new_add());
         node.add_child(child);
     }
@@ -666,7 +687,7 @@ mod ai_gen_tests {
     #[should_panic(expected = "Cannot get children from spot node")]
     fn test_children_of_spot() {
         // Test getting children of a spot node, which should panic
-        let node = Node::Spot(Currency::USD, Currency::AUD, OnceLock::new());
+        let node = Node::Spot(Currency::USD, Currency::AUD, None, OnceLock::new());
         node.children();
     }
 

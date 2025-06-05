@@ -204,7 +204,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     }
                 }
             }
-            Node::Spot(_, _, index) => {
+            Node::Spot(_, _, _, index) => {
                 let id = index.get().ok_or(ScriptingError::EvaluationError(
                     "Spot not indexed".to_string(),
                 ))?;

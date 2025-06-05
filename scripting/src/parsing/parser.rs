@@ -673,20 +673,32 @@ impl Parser {
             }
             _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
         };
-        let second: Currency = if self.current_token() == Token::Comma {
+        let mut second: Currency = Currency::USD;
+        let mut date: Option<Date> = None;
+        if self.current_token() == Token::Comma {
             self.advance();
             match *self.parse_string()? {
-                Node::String(s) => Currency::try_from(s)
-                    .map_err(|_| self.invalid_syntax_err("Invalid currency"))?,
+                Node::String(s) => {
+                    second = Currency::try_from(s)
+                        .map_err(|_| self.invalid_syntax_err("Invalid currency"))?;
+                }
                 _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
             }
-        } else {
-            // Default to USD if no second currency is provided
-            Currency::USD
-        };
+            if self.current_token() == Token::Comma {
+                self.advance();
+                let date_str = match *self.parse_string()? {
+                    Node::String(s) => s,
+                    _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
+                };
+                date = Some(
+                    Date::from_str(&date_str, "%Y-%m-%d")
+                        .map_err(|_| self.invalid_syntax_err("Invalid date"))?,
+                );
+            }
+        }
         self.expect_token(Token::CloseParen)?;
         self.advance();
-        Ok(Box::new(Node::Spot(first, second, OnceLock::new())))
+        Ok(Box::new(Node::Spot(first, second, date, OnceLock::new())))
     }
 
     fn parse_rate_index(&self) -> Result<ExprTree> {
@@ -960,6 +972,7 @@ mod other_tests {
             Box::new(Node::List(vec![Box::new(Node::Spot(
                 Currency::USD,
                 Currency::EUR,
+                None,
                 OnceLock::new(),
             ))])),
         ]))]));
@@ -981,8 +994,8 @@ mod other_tests {
                 OnceLock::new(),
             )),
             Box::new(Node::Mean(vec![Box::new(Node::List(vec![
-                Box::new(Node::Spot(Currency::USD, Currency::CLP, OnceLock::new())),
-                Box::new(Node::Spot(Currency::USD, Currency::EUR, OnceLock::new())),
+                Box::new(Node::Spot(Currency::USD, Currency::CLP, None, OnceLock::new())),
+                Box::new(Node::Spot(Currency::USD, Currency::EUR, None, OnceLock::new())),
             ]))])),
         ]))]));
 
@@ -1559,6 +1572,30 @@ fn test_spot_function() {
         Box::new(Node::Spot(
             Currency::try_from("USD".to_string()).unwrap(),
             Currency::try_from("EUR".to_string()).unwrap(),
+            None,
+            OnceLock::new(),
+        )),
+    ]))]));
+
+    assert_eq!(nodes, expected);
+}
+
+#[test]
+fn test_spot_function_with_date() {
+    let script = "
+            x = Spot(\"USD\", \"EUR\", \"2025-06-01\");
+        "
+    .to_string();
+
+    let tokens = Lexer::new(script).tokenize().unwrap();
+    let nodes = Parser::new(tokens).parse().unwrap();
+
+    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+        Box::new(Node::Spot(
+            Currency::try_from("USD".to_string()).unwrap(),
+            Currency::try_from("EUR".to_string()).unwrap(),
+            Some(Date::new(2025, 6, 1)),
             OnceLock::new(),
         )),
     ]))]));
@@ -1944,6 +1981,7 @@ mod test_pays_expression {
                         Box::new(Node::Spot(
                             Currency::try_from("CLP".to_string()).unwrap(),
                             Currency::try_from("USD".to_string()).unwrap(),
+                            None,
                             OnceLock::new(),
                         )),
                         Box::new(Node::Constant(NumericType::new(900.0))),
