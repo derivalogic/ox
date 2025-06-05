@@ -2354,6 +2354,22 @@ mod ai_gen_tests {
     }
 
     #[test]
+    fn test_mean_on_literal_list() {
+        let script = "avg = [1,2,3].mean();";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(expr).unwrap();
+        let idx = indexer.get_variable_index("avg").unwrap();
+        if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
+            assert!((v.value() - 2.0).abs() < 1e-8);
+        } else {
+            panic!("avg not found");
+        }
+    }
+
+    #[test]
     fn test_expr_evaluator_with_scenario_none() {
         // Test the SingleScenarioEvaluator to ensure it correctly handles None scenario.
         let evaluator = SingleScenarioEvaluator::new();
