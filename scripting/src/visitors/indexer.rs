@@ -351,4 +351,15 @@ mod ai_gen_tests {
         indexer.visit(&node).unwrap();
         assert_eq!(indexer.get_variables_size(), 2);
     }
+
+    #[test]
+    fn test_visit_index_node() {
+        let script = "arr = [1,2,3]; x = arr[1];";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let variable_indexes = indexer.get_variable_indexes();
+        assert_eq!(variable_indexes.get("arr"), Some(&0));
+        assert_eq!(variable_indexes.get("x"), Some(&1));
+    }
 }

@@ -2329,6 +2329,17 @@ mod ai_gen_tests {
     }
 
     #[test]
+    fn test_array_indexing_out_of_bounds() {
+        let script = "arr = [1,2,3]; x = arr[5];";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        let result = evaluator.const_visit(expr);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_for_each_variable_loop() {
         let script = "arr = [1,2,3]; sum = 0; for v in arr { sum = sum + v; }";
         let expr = ExprTree::try_from(script).unwrap();
