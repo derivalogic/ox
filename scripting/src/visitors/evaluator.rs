@@ -21,6 +21,7 @@ pub enum Value {
     Bool(bool),
     Number(NumericType),
     String(String),
+    Array(Vec<Value>),
     Null,
 }
 
@@ -95,6 +96,7 @@ pub struct SingleScenarioEvaluator<'a> {
     digit_stack: RefCell<Vec<NumericType>>,
     boolean_stack: RefCell<Vec<bool>>,
     string_stack: RefCell<Vec<String>>,
+    array_stack: RefCell<Vec<Vec<Value>>>,
     is_lhs_variable: RefCell<bool>,
     lhs_variable: RefCell<Option<Box<Node>>>,
     scenario: Option<&'a Scenario>,
@@ -108,6 +110,7 @@ impl<'a> SingleScenarioEvaluator<'a> {
             digit_stack: RefCell::new(Vec::new()),
             boolean_stack: RefCell::new(Vec::new()),
             string_stack: RefCell::new(Vec::new()),
+            array_stack: RefCell::new(Vec::new()),
             is_lhs_variable: RefCell::new(false),
             lhs_variable: RefCell::new(None),
             scenario: None,
@@ -188,6 +191,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                                 Value::Number(v) => self.digit_stack.borrow_mut().push(*v),
                                 Value::Bool(v) => self.boolean_stack.borrow_mut().push(*v),
                                 Value::String(v) => self.string_stack.borrow_mut().push(v.clone()),
+                                Value::Array(a) => self.array_stack.borrow_mut().push(a.clone()),
                                 Value::Null => {
                                     return Err(ScriptingError::EvaluationError(format!(
                                         "Variable {} not initialized",
@@ -329,20 +333,20 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                         Some(id) => {
                             let mut variables = self.variables.borrow_mut();
                             if !self.boolean_stack.borrow_mut().is_empty() {
-                                // Pop from boolean stack and store the boolean value
                                 let value = self.boolean_stack.borrow_mut().pop().unwrap();
                                 variables[*id] = Value::Bool(value);
                                 Ok(())
                             } else if !self.string_stack.borrow_mut().is_empty() {
-                                // Pop from string stack and store the string value
                                 let value = self.string_stack.borrow_mut().pop().unwrap();
                                 variables[*id] = Value::String(value);
                                 Ok(())
+                            } else if !self.array_stack.borrow_mut().is_empty() {
+                                let value = self.array_stack.borrow_mut().pop().unwrap();
+                                variables[*id] = Value::Array(value);
+                                Ok(())
                             } else {
-                                // Pop from digit stack and store the numeric value
                                 let value = self.digit_stack.borrow_mut().pop().unwrap();
                                 variables[*id] = Value::Number(value);
-
                                 Ok(())
                             }
                         }
@@ -570,6 +574,54 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 let basis = DayCounter::try_from(basis_str)?;
                 let yf = basis.year_fraction(start, end);
                 self.digit_stack.borrow_mut().push(yf);
+                Ok(())
+            }
+            Node::Range(children) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                let end = self.digit_stack.borrow_mut().pop().unwrap();
+                let start = self.digit_stack.borrow_mut().pop().unwrap();
+                let mut vec = Vec::new();
+                let s = start.value().round() as i64;
+                let e = end.value().round() as i64;
+                for i in s..=e {
+                    vec.push(Value::Number((i as f64).into()));
+                }
+                self.array_stack.borrow_mut().push(vec);
+                Ok(())
+            }
+            Node::List(children) => {
+                let mut array = Vec::new();
+                for child in children {
+                    self.const_visit(child.clone())?;
+                    if !self.boolean_stack.borrow().is_empty() {
+                        let v = self.boolean_stack.borrow_mut().pop().unwrap();
+                        array.push(Value::Bool(v));
+                    } else if !self.string_stack.borrow().is_empty() {
+                        let v = self.string_stack.borrow_mut().pop().unwrap();
+                        array.push(Value::String(v));
+                    } else if !self.array_stack.borrow().is_empty() {
+                        let v = self.array_stack.borrow_mut().pop().unwrap();
+                        array.push(Value::Array(v));
+                    } else {
+                        let v = self.digit_stack.borrow_mut().pop().unwrap();
+                        array.push(Value::Number(v));
+                    }
+                }
+                self.array_stack.borrow_mut().push(array);
+                Ok(())
+            }
+            Node::ForEach(_, iter, body, index) => {
+                iter.const_accept(self);
+                let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
+                let idx = index.get().ok_or(ScriptingError::EvaluationError("Loop variable not indexed".to_string()))?;
+                for val in array {
+                    self.set_variable(*idx, val);
+                    for child in body {
+                        child.const_accept(self);
+                    }
+                }
                 Ok(())
             }
             Node::If(children, first_else) => {
@@ -2091,6 +2143,90 @@ mod ai_gen_tests {
         let node = Box::new(Node::new_constant(NumericType::new(1.0)));
         *evaluator.lhs_variable.borrow_mut() = Some(node.clone());
         assert_eq!(*evaluator.lhs_variable.borrow_mut(), Some(node));
+    }
+
+    #[test]
+    fn test_for_each_range_loop() {
+        let script = "total = 0; for i in range(1,3) { total = total + i; }";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(expr).unwrap();
+        let idx = indexer.get_variable_index("total").unwrap();
+        if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
+            assert_eq!(*v, NumericType::new(6.0));
+        } else {
+            panic!("variable not found");
+        }
+    }
+
+    #[test]
+    fn test_for_each_list_loop() {
+        let script = "sum = 0; for x in [1,2,3] { sum = sum + x; }";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(expr).unwrap();
+        let idx = indexer.get_variable_index("sum").unwrap();
+        if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
+            assert_eq!(*v, NumericType::new(6.0));
+        } else {
+            panic!("variable not found");
+        }
+    }
+
+    #[test]
+    fn test_list_assignment() {
+        let script = "a = [1,2];";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(expr).unwrap();
+        let idx = indexer.get_variable_index("a").unwrap();
+        if let Value::Array(arr) = evaluator.variables().get(idx).unwrap() {
+            assert_eq!(arr.len(), 2);
+        } else {
+            panic!("variable not found");
+        }
+    }
+
+    #[test]
+    fn test_list_with_variable_values() {
+        let script = "x = 1; a = [x, 2];";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(expr).unwrap();
+        let idx = indexer.get_variable_index("a").unwrap();
+        if let Value::Array(arr) = evaluator.variables().get(idx).unwrap() {
+            assert_eq!(arr.len(), 2);
+            match arr[0] {
+                Value::Number(n) => assert_eq!(n, NumericType::new(1.0)),
+                _ => panic!("unexpected value"),
+            }
+        } else {
+            panic!("variable not found");
+        }
+    }
+
+    #[test]
+    fn test_for_each_variable_loop() {
+        let script = "arr = [1,2,3]; sum = 0; for v in arr { sum = sum + v; }";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(expr).unwrap();
+        let idx = indexer.get_variable_index("sum").unwrap();
+        if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
+            assert_eq!(*v, NumericType::new(6.0));
+        } else {
+            panic!("variable not found");
+        }
     }
 
     #[test]
