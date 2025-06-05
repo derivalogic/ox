@@ -65,7 +65,7 @@ impl NodeVisitor for EventIndexer {
                 children.iter().try_for_each(|child| self.visit(child))?;
                 Ok(())
             }
-            Node::Range(children) | Node::List(children) => {
+            Node::Range(children) | Node::List(children) | Node::Index(children) => {
                 children.iter().try_for_each(|child| self.visit(child))?;
                 Ok(())
             }

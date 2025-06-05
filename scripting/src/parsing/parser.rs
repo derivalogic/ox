@@ -614,39 +614,49 @@ impl Parser {
     }
 
     fn parse_postfix(&self, mut expr: ExprTree) -> Result<ExprTree> {
-        while self.current_token() == Token::Dot {
-            self.advance();
-            let method = match self.current_token() {
-                Token::Identifier(name) => {
-                    self.advance();
-                    name
-                }
-                _ => return Err(self.invalid_syntax_err("Expected method name")),
-            };
-            let args = self.parse_function_args()?;
-            self.expect_token(Token::CloseParen)?;
-            self.advance();
-            expr = match method.as_str() {
-                "append" => {
-                    if args.len() != 1 {
-                        return Err(self.invalid_syntax_err("append expects one argument"));
+        loop {
+            if self.current_token() == Token::Dot {
+                self.advance();
+                let method = match self.current_token() {
+                    Token::Identifier(name) => {
+                        self.advance();
+                        name
                     }
-                    Box::new(Node::Append(vec![expr, args[0].clone()]))
-                }
-                "mean" => {
-                    if !args.is_empty() {
-                        return Err(self.invalid_syntax_err("mean expects no arguments"));
+                    _ => return Err(self.invalid_syntax_err("Expected method name")),
+                };
+                let args = self.parse_function_args()?;
+                self.expect_token(Token::CloseParen)?;
+                self.advance();
+                expr = match method.as_str() {
+                    "append" => {
+                        if args.len() != 1 {
+                            return Err(self.invalid_syntax_err("append expects one argument"));
+                        }
+                        Box::new(Node::Append(vec![expr, args[0].clone()]))
                     }
-                    Box::new(Node::Mean(vec![expr]))
-                }
-                "std" => {
-                    if !args.is_empty() {
-                        return Err(self.invalid_syntax_err("std expects no arguments"));
+                    "mean" => {
+                        if !args.is_empty() {
+                            return Err(self.invalid_syntax_err("mean expects no arguments"));
+                        }
+                        Box::new(Node::Mean(vec![expr]))
                     }
-                    Box::new(Node::Std(vec![expr]))
-                }
-                _ => return Err(self.invalid_syntax_err("Unknown method")),
-            };
+                    "std" => {
+                        if !args.is_empty() {
+                            return Err(self.invalid_syntax_err("std expects no arguments"));
+                        }
+                        Box::new(Node::Std(vec![expr]))
+                    }
+                    _ => return Err(self.invalid_syntax_err("Unknown method")),
+                };
+            } else if self.current_token() == Token::OpenBracket {
+                self.advance();
+                let idx = self.parse_expr()?;
+                self.expect_token(Token::CloseBracket)?;
+                self.advance();
+                expr = Box::new(Node::Index(vec![expr, idx]));
+            } else {
+                break;
+            }
         }
         Ok(expr)
     }
