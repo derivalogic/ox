@@ -92,7 +92,7 @@ impl NodeVisitor for EventIndexer {
                 };
                 Ok(())
             }
-            Node::Spot(first, second, opt_idx) => {
+            Node::Spot(first, second, date_opt, opt_idx) => {
                 match opt_idx.get() {
                     Some(_) => {}
                     None => {
@@ -111,13 +111,14 @@ impl NodeVisitor for EventIndexer {
                                 .ok_or(ScriptingError::InvalidSyntax(
                                     "Event date is not set".to_string(),
                                 ))?;
+                        let ref_date = date_opt.unwrap_or(event_date);
                         self.market_requests
                             .borrow_mut()
                             .last_mut()
                             .ok_or(ScriptingError::NotFoundError(
                                 "No market requests found".to_string(),
                             ))?
-                            .push_fx(ExchangeRateRequest::new(*first, *second, event_date));
+                            .push_fx(ExchangeRateRequest::new(*first, *second, ref_date));
                         opt_idx.set(size).unwrap();
                     }
                 };
@@ -361,5 +362,38 @@ mod ai_gen_tests {
         let variable_indexes = indexer.get_variable_indexes();
         assert_eq!(variable_indexes.get("arr"), Some(&0));
         assert_eq!(variable_indexes.get("x"), Some(&1));
+    }
+
+    #[test]
+    fn test_spot_request_with_date() {
+        let script = "x = Spot(\"USD\", \"EUR\", \"2025-06-01\");";
+        let expr = ExprTree::try_from(script).unwrap();
+        let event = Event::new(Date::new(2025, 1, 1), expr);
+        let events = EventStream::new().with_events(vec![event]);
+
+        let indexer = EventIndexer::new();
+        indexer.visit_events(&events).unwrap();
+
+        let req = indexer.get_request();
+        let fx = &req[0].fxs()[0];
+        assert_eq!(fx.first_currency(), Currency::USD);
+        assert_eq!(fx.second_currency(), Currency::EUR);
+        assert_eq!(fx.date(), Date::new(2025, 6, 1));
+    }
+
+    #[test]
+    fn test_spot_request_uses_event_date_when_none() {
+        let script = "x = Spot(\"USD\", \"EUR\");";
+        let expr = ExprTree::try_from(script).unwrap();
+        let event_date = Date::new(2025, 1, 1);
+        let event = Event::new(event_date, expr);
+        let events = EventStream::new().with_events(vec![event]);
+
+        let indexer = EventIndexer::new();
+        indexer.visit_events(&events).unwrap();
+
+        let req = indexer.get_request();
+        let fx = &req[0].fxs()[0];
+        assert_eq!(fx.date(), event_date);
     }
 }
