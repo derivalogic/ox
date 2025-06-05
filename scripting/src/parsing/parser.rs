@@ -491,7 +491,8 @@ impl Parser {
 
         // List literal
         if self.current_token() == Token::OpenBracket {
-            return self.parse_list();
+            let list = self.parse_list()?;
+            return self.parse_postfix(list);
         }
 
         // Check if the current token is a constant
@@ -943,6 +944,24 @@ mod other_tests {
                 Currency::EUR,
                 OnceLock::new(),
             ))])),
+        ]))]));
+
+        assert_eq!(ast, expected);
+    }
+
+    #[test]
+    fn test_list_method_call() {
+        let script = "spots = [Spot(\"USD\",\"CLP\"), Spot(\"USD\",\"EUR\")].mean();";
+        let tokens = Lexer::new(script.to_string()).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "spots".to_string(), OnceLock::new())),
+            Box::new(Node::Mean(vec![Box::new(Node::List(vec![
+                Box::new(Node::Spot(Currency::USD, Currency::CLP, OnceLock::new())),
+                Box::new(Node::Spot(Currency::USD, Currency::EUR, OnceLock::new())),
+            ]))])),
         ]))]));
 
         assert_eq!(ast, expected);
