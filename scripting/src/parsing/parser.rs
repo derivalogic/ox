@@ -41,6 +41,8 @@ impl Parser {
                 "min".to_string(),
                 "max".to_string(),
                 "cvg".to_string(),
+                "in".to_string(),
+                "range".to_string(),
             ],
         }
     }
@@ -139,6 +141,7 @@ impl Parser {
     fn parse_expression(&self) -> Result<ExprTree> {
         match self.current_token() {
             Token::If => self.parse_if(),
+            Token::For => self.parse_for(),
             Token::Pays => {
                 let expr = self.parse_pays()?;
                 if self.current_token() == Token::Semicolon {
@@ -222,6 +225,43 @@ impl Parser {
         nodes.append(&mut if_body);
 
         Ok(Box::new(Node::If(nodes, else_index)))
+    }
+
+    /// Parse a for-each loop: for <var> in <expr> { <body> }
+    fn parse_for(&self) -> Result<ExprTree> {
+        self.expect_token(Token::For)?;
+        self.advance();
+
+        let var_name = match self.current_token() {
+            Token::Identifier(name) => {
+                self.expect_not_reserved(&name)?;
+                self.advance();
+                name
+            }
+            _ => return Err(self.invalid_syntax_err("Expected variable name")),
+        };
+
+        match self.current_token() {
+            Token::Identifier(ref s) if s == "in" => self.advance(),
+            _ => return Err(self.invalid_syntax_err("Expected 'in' after variable")),
+        }
+
+        let iter_expr = self.parse_expr()?;
+
+        self.expect_token(Token::OpenCurlyParen)?;
+        self.advance();
+
+        let mut body = Vec::new();
+        while self.current_token() != Token::CloseCurlyParen {
+            if self.current_token() == Token::EOF {
+                return Err(self.invalid_syntax_err("Unexpected end of input in for body"));
+            }
+            let expr = self.parse_expression()?;
+            body.push(expr);
+        }
+        self.advance();
+
+        Ok(Box::new(Node::ForEach(var_name, iter_expr, body, OnceLock::new())))
     }
 
     /// Parse a variable
@@ -378,6 +418,25 @@ impl Parser {
         Ok(args)
     }
 
+    /// Parse a list literal
+    fn parse_list(&self) -> Result<ExprTree> {
+        self.expect_token(Token::OpenBracket)?;
+        self.advance();
+        let mut elements = Vec::new();
+        while self.current_token() != Token::CloseBracket {
+            let elem = self.parse_expr()?;
+            elements.push(elem);
+            match self.current_token() {
+                Token::Comma => self.advance(),
+                Token::CloseBracket => (),
+                _ => return Err(self.invalid_syntax_err("Expected comma or closing bracket")),
+            };
+        }
+        self.expect_token(Token::CloseBracket)?;
+        self.advance();
+        Ok(Box::new(Node::List(elements)))
+    }
+
     /// Parse a variable, constant, parentheses or function
     fn parse_var_const_func(&self) -> Result<ExprTree> {
         // Parenthesised expression
@@ -387,6 +446,11 @@ impl Parser {
             self.expect_token(Token::CloseParen)?;
             self.advance();
             return Ok(expr);
+        }
+
+        // List literal
+        if self.current_token() == Token::OpenBracket {
+            return self.parse_list();
         }
 
         // Check if the current token is a constant
@@ -439,6 +503,11 @@ impl Parser {
                     min_args = 3;
                     max_args = 3;
                     expr = Some(Node::new_cvg());
+                }
+                "range" => {
+                    min_args = 2;
+                    max_args = 2;
+                    expr = Some(Node::new_range());
                 }
                 "Spot" => {
                     return self.parse_spot();
@@ -728,6 +797,72 @@ mod other_tests {
                 ])),
                 Box::new(Node::Constant(NumericType::new(2.0))),
             ])),
+        ]))]));
+
+        assert_eq!(ast, expected);
+    }
+
+    #[test]
+    fn test_list_expression() {
+        let script = "a = [1,2,3];".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+            Box::new(Node::List(vec![
+                Box::new(Node::Constant(NumericType::new(1.0))),
+                Box::new(Node::Constant(NumericType::new(2.0))),
+                Box::new(Node::Constant(NumericType::new(3.0))),
+            ])),
+        ]))]));
+
+        assert_eq!(ast, expected);
+    }
+
+    #[test]
+    fn test_list_with_variables() {
+        let script = "x = 1; y = 2; a = [x, y];".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![
+            Box::new(Node::Assign(vec![
+                Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+                Box::new(Node::Constant(NumericType::new(1.0))),
+            ])),
+            Box::new(Node::Assign(vec![
+                Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+                Box::new(Node::Constant(NumericType::new(2.0))),
+            ])),
+            Box::new(Node::Assign(vec![
+                Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+                Box::new(Node::List(vec![
+                    Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+                    Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+                ])),
+            ])),
+        ]));
+
+        assert_eq!(ast, expected);
+    }
+
+    #[test]
+    fn test_list_with_spot() {
+        let script = "a = [Spot(\"USD\", \"EUR\")];".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+            Box::new(Node::List(vec![Box::new(Node::Spot(
+                Currency::USD,
+                Currency::EUR,
+                OnceLock::new(),
+            ))])),
         ]))]));
 
         assert_eq!(ast, expected);

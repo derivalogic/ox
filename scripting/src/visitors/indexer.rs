@@ -42,6 +42,30 @@ impl NodeVisitor for EventIndexer {
                 children.iter().try_for_each(|child| self.visit(child))?;
                 Ok(())
             }
+            Node::ForEach(name, iter, children, opt_idx) => {
+                self.visit(iter)?;
+                match opt_idx.get() {
+                    Some(id) => {
+                        self.variables.borrow_mut().insert(name.clone(), *id);
+                    }
+                    None => {
+                        if self.variables.borrow_mut().contains_key(name) {
+                            let size = self.variables.borrow_mut().get(name).unwrap().clone();
+                            opt_idx.set(size).unwrap();
+                        } else {
+                            let size = self.variables.borrow_mut().len();
+                            self.variables.borrow_mut().insert(name.clone(), size);
+                            opt_idx.set(size).unwrap();
+                        }
+                    }
+                };
+                children.iter().try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Range(children) | Node::List(children) => {
+                children.iter().try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
 
             Node::Variable(children, name, opt_idx) => {
                 children.iter().try_for_each(|child| self.visit(child))?;

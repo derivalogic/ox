@@ -52,6 +52,11 @@ pub enum Node {
 
     // control flow
     If(Vec<ExprTree>, Option<usize>),
+    ForEach(String, ExprTree, Vec<ExprTree>, OnceLock<usize>),
+
+    // iterable
+    Range(Vec<ExprTree>),
+    List(Vec<ExprTree>),
 }
 
 impl Node {
@@ -183,6 +188,18 @@ impl Node {
         Node::RateIndex(name, start, end, OnceLock::new())
     }
 
+    pub fn new_range() -> Node {
+        Node::Range(Vec::new())
+    }
+
+    pub fn new_list() -> Node {
+        Node::List(Vec::new())
+    }
+
+    pub fn new_for_each(var: String, iter: ExprTree, body: Vec<ExprTree>) -> Node {
+        Node::ForEach(var, iter, body, OnceLock::new())
+    }
+
     pub fn add_child(&mut self, child: ExprTree) {
         match self {
             Node::Base(children) => children.push(child),
@@ -211,6 +228,9 @@ impl Node {
             Node::Cvg(children) => children.push(child),
             Node::NotEqual(children) => children.push(child),
             Node::Pays(children, _) => children.push(child),
+            Node::ForEach(_, _, children, _) => children.push(child),
+            Node::Range(children) => children.push(child),
+            Node::List(children) => children.push(child),
             Node::Spot(_, _, _) => panic!("Cannot add child to spot node"),
             Node::RateIndex(_, _, _, _) => panic!("Cannot add child to rate index node"),
             Node::True => panic!("Cannot add child to true node"),
@@ -248,6 +268,9 @@ impl Node {
             Node::Cvg(children) => children,
             Node::NotEqual(children) => children,
             Node::Pays(children, _) => children,
+            Node::ForEach(_, _, children, _) => children,
+            Node::Range(children) => children,
+            Node::List(children) => children,
             Node::Spot(_, _, _) => panic!("Cannot get children from spot node"),
             Node::RateIndex(_, _, _, _) => {
                 panic!("Cannot get children from rate index node")
@@ -500,6 +523,26 @@ mod ai_gen_tests {
             node,
             Node::RateIndex("0".to_string(), start, end, OnceLock::new())
         );
+    }
+
+    #[test]
+    fn test_new_range() {
+        let node = Node::new_range();
+        assert_eq!(node, Node::Range(Vec::new()));
+    }
+
+    #[test]
+    fn test_new_list() {
+        let node = Node::new_list();
+        assert_eq!(node, Node::List(Vec::new()));
+    }
+
+    #[test]
+    fn test_new_for_each() {
+        let iter = Box::new(Node::new_range());
+        let body: Vec<ExprTree> = Vec::new();
+        let node = Node::new_for_each("i".to_string(), iter.clone(), body.clone());
+        assert_eq!(node, Node::ForEach("i".to_string(), iter, body, OnceLock::new()));
     }
 
     #[test]

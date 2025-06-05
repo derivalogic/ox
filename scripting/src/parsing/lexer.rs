@@ -25,6 +25,8 @@ pub enum Token {
     CloseParen,
     OpenCurlyParen,
     CloseCurlyParen,
+    OpenBracket,
+    CloseBracket,
     If,
     Then,
     Else,
@@ -90,7 +92,16 @@ impl Lexer {
                 }
                 self.next_token()
             }
-            '/' => Ok(Token::Divide),
+            '/' => {
+                if self.peek_char() == '/' {
+                    while self.peek_char() != '\n' && self.peek_char() != '\0' {
+                        self.next_char();
+                    }
+                    self.next_token()
+                } else {
+                    Ok(Token::Divide)
+                }
+            }
             '=' => {
                 if self.peek_char() == '=' {
                     self.next_char();
@@ -115,6 +126,8 @@ impl Lexer {
             ')' => Ok(Token::CloseParen),
             '{' => Ok(Token::OpenCurlyParen),
             '}' => Ok(Token::CloseCurlyParen),
+            '[' => Ok(Token::OpenBracket),
+            ']' => Ok(Token::CloseBracket),
             ';' => Ok(Token::Semicolon),
             '\0' => Ok(Token::EOF),
             '>' => {
@@ -572,6 +585,16 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         assert_eq!(tokens, expected_tokens);
+
+        let input = "1 // comment\n2";
+        let expected_tokens = vec![
+            Token::Value(Some(1.0), None),
+            Token::Newline,
+            Token::Value(Some(2.0), None),
+        ];
+        let lexer = Lexer::new(input.to_string());
+        let tokens = lexer.tokenize().unwrap();
+        assert_eq!(tokens, expected_tokens);
     }
 
     #[test]
@@ -651,6 +674,21 @@ mod tests {
     fn test_string_literals_with_special_chars() {
         let input = "\"hello world!\"";
         let expected_tokens = vec![Token::String("hello world!".to_string())];
+        let lexer = Lexer::new(input.to_string());
+        let tokens = lexer.tokenize().unwrap();
+        assert_eq!(tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_list_tokens() {
+        let input = "[1,2]";
+        let expected_tokens = vec![
+            Token::OpenBracket,
+            Token::Value(Some(1.0), None),
+            Token::Comma,
+            Token::Value(Some(2.0), None),
+            Token::CloseBracket,
+        ];
         let lexer = Lexer::new(input.to_string());
         let tokens = lexer.tokenize().unwrap();
         assert_eq!(tokens, expected_tokens);
