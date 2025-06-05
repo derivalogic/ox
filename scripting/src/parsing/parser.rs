@@ -966,6 +966,30 @@ mod other_tests {
 
         assert_eq!(ast, expected);
     }
+
+    #[test]
+    fn test_variable_method_call() {
+        let script = "vals = [1,2]; avg = vals.mean();".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![
+            Box::new(Node::Assign(vec![
+                Box::new(Node::Variable(Vec::new(), "vals".to_string(), OnceLock::new())),
+                Box::new(Node::List(vec![
+                    Box::new(Node::Constant(NumericType::new(1.0))),
+                    Box::new(Node::Constant(NumericType::new(2.0))),
+                ])),
+            ])),
+            Box::new(Node::Assign(vec![
+                Box::new(Node::Variable(Vec::new(), "avg".to_string(), OnceLock::new())),
+                Box::new(Node::Mean(vec![Box::new(Node::Variable(Vec::new(), "vals".to_string(), OnceLock::new()))])),
+            ])),
+        ]));
+
+        assert_eq!(ast, expected);
+    }
 }
 
 // /// Tests for the `parse` method
