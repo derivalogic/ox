@@ -576,6 +576,86 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push(yf);
                 Ok(())
             }
+            Node::Append(children) => {
+                *self.is_lhs_variable.borrow_mut() = true;
+                self.const_visit(children.get(0).unwrap().clone())?;
+                *self.is_lhs_variable.borrow_mut() = false;
+                self.const_visit(children.get(1).unwrap().clone())?;
+
+                let var_node = self.lhs_variable.borrow_mut().clone().unwrap();
+                if let Node::Variable(_, name, idx) = var_node.as_ref() {
+                    let id = idx.get().ok_or(ScriptingError::EvaluationError(format!("Variable {} not indexed", name)))?;
+                    let mut vars = self.variables.borrow_mut();
+                    let val = if !self.boolean_stack.borrow().is_empty() {
+                        Value::Bool(self.boolean_stack.borrow_mut().pop().unwrap())
+                    } else if !self.string_stack.borrow().is_empty() {
+                        Value::String(self.string_stack.borrow_mut().pop().unwrap())
+                    } else if !self.array_stack.borrow().is_empty() {
+                        Value::Array(self.array_stack.borrow_mut().pop().unwrap())
+                    } else {
+                        Value::Number(self.digit_stack.borrow_mut().pop().unwrap())
+                    };
+                    match vars.get_mut(*id).unwrap() {
+                        Value::Array(ref mut arr) => arr.push(val),
+                        Value::Null => {
+                            *vars.get_mut(*id).unwrap() = Value::Array(vec![val]);
+                        }
+                        _ => {
+                            return Err(ScriptingError::EvaluationError("Append on non-array".to_string()));
+                        }
+                    }
+                    Ok(())
+                } else {
+                    Err(ScriptingError::EvaluationError("Invalid append target".to_string()))
+                }
+            }
+            Node::Mean(children) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
+                let mut sum = NumericType::new(0.0);
+                let mut count = 0.0;
+                for v in array {
+                    if let Value::Number(n) = v {
+                        sum += n;
+                        count += 1.0;
+                    }
+                }
+                if count == 0.0 {
+                    return Err(ScriptingError::EvaluationError("mean of empty array".to_string()));
+                }
+                self.digit_stack.borrow_mut().push((sum / count).into());
+                Ok(())
+            }
+            Node::Std(children) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
+                let mut sum = NumericType::new(0.0);
+                let mut count = 0.0;
+                let mut nums = Vec::new();
+                for v in array {
+                    if let Value::Number(n) = v {
+                        sum += n;
+                        nums.push(n);
+                        count += 1.0;
+                    }
+                }
+                if count == 0.0 {
+                    return Err(ScriptingError::EvaluationError("std of empty array".to_string()));
+                }
+                let mean = sum / count;
+                let mut var = NumericType::new(0.0);
+                for n in nums {
+                    let diff = n - mean.clone();
+                    var += diff.clone() * diff;
+                }
+                let std = (var / count).sqrt();
+                self.digit_stack.borrow_mut().push(std.into());
+                Ok(())
+            }
             Node::Range(children) => {
                 children
                     .iter()
@@ -2226,6 +2306,50 @@ mod ai_gen_tests {
             assert_eq!(*v, NumericType::new(6.0));
         } else {
             panic!("variable not found");
+        }
+    }
+
+    #[test]
+    fn test_compound_assignments() {
+        let script = "x = 1; x += 2; x -= 1; x *= 3; x /= 2;";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(expr).unwrap();
+        let idx = indexer.get_variable_index("x").unwrap();
+        if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
+            assert_eq!(*v, NumericType::new(3.0));
+        } else {
+            panic!("variable not found");
+        }
+    }
+
+    #[test]
+    fn test_append_and_statistics() {
+        let script = "arr = [1,2]; arr.append(3); mean_val = arr.mean(); std_val = arr.std();";
+        let expr = ExprTree::try_from(script).unwrap();
+        let indexer = EventIndexer::new();
+        indexer.visit(&expr).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(expr).unwrap();
+        let arr_idx = indexer.get_variable_index("arr").unwrap();
+        if let Value::Array(arr) = evaluator.variables().get(arr_idx).unwrap() {
+            assert_eq!(arr.len(), 3);
+        } else {
+            panic!("arr not found");
+        }
+        let mean_idx = indexer.get_variable_index("mean_val").unwrap();
+        if let Value::Number(v) = evaluator.variables().get(mean_idx).unwrap() {
+            assert!((v.value() - 2.0).abs() < 1e-8);
+        } else {
+            panic!("mean not found");
+        }
+        let std_idx = indexer.get_variable_index("std_val").unwrap();
+        if let Value::Number(v) = evaluator.variables().get(std_idx).unwrap() {
+            assert!((v.value() - 0.81649658).abs() < 1e-6);
+        } else {
+            panic!("std not found");
         }
     }
 

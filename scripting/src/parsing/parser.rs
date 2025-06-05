@@ -81,6 +81,14 @@ impl Parser {
             .unwrap_or(Token::EOF)
     }
 
+    fn peek_token(&self) -> Token {
+        self.tokens
+            .borrow()
+            .get(*self.position.borrow() + 1)
+            .cloned()
+            .unwrap_or(Token::EOF)
+    }
+
     /// Advance the position in the tokens
     fn advance(&self) {
         let mut pos = self.position.borrow_mut();
@@ -151,20 +159,37 @@ impl Parser {
             }
             Token::EOF => Err(self.invalid_syntax_err("Unexpected end of expression")),
             _ => {
-                let lhs = self.parse_variable()?;
-                match self.current_token() {
-                    Token::Assign => self.parse_assign(lhs),
-                    Token::Pays => {
-                        let pays_expr = self.parse_pays()?;
-                        if self.current_token() == Token::Semicolon {
-                            self.advance();
+                if let Token::Identifier(_) = self.current_token() {
+                    match self.peek_token() {
+                        Token::Assign => {
+                            let lhs = self.parse_variable()?;
+                            self.parse_assign(lhs)
                         }
-                        let rhs = Box::new(Node::Add(vec![lhs.clone(), pays_expr]));
-                        Ok(Box::new(Node::Assign(vec![lhs, rhs])))
+                        Token::PlusAssign | Token::MinusAssign | Token::MultiplyAssign | Token::DivideAssign => {
+                            let lhs = self.parse_variable()?;
+                            self.parse_compound_assign(lhs)
+                        }
+                        Token::Pays => {
+                            let lhs = self.parse_variable()?;
+                            let pays_expr = self.parse_pays()?;
+                            if self.current_token() == Token::Semicolon {
+                                self.advance();
+                            }
+                            let rhs = Box::new(Node::Add(vec![lhs.clone(), pays_expr]));
+                            Ok(Box::new(Node::Assign(vec![lhs, rhs])))
+                        }
+                        _ => {
+                            let expr = self.parse_expr()?;
+                            self.expect_token(Token::Semicolon)?;
+                            self.advance();
+                            Ok(expr)
+                        }
                     }
-                    Token::EOF => Err(self.invalid_syntax_err("Unexpected end of expression")),
-                    Token::Newline => Err(self.invalid_syntax_err("Unexpected newline")),
-                    _ => Err(self.invalid_syntax_err("Unexpected token")),
+                } else {
+                    let expr = self.parse_expr()?;
+                    self.expect_token(Token::Semicolon)?;
+                    self.advance();
+                    Ok(expr)
                 }
             }
         }
@@ -296,6 +321,22 @@ impl Parser {
         self.expect_token(Token::Semicolon)?;
         self.advance();
         Ok(Box::new(Node::Assign(vec![lhs, rhs])))
+    }
+
+    fn parse_compound_assign(&self, lhs: ExprTree) -> Result<ExprTree> {
+        let op = self.current_token();
+        self.advance();
+        let rhs = self.parse_expr()?;
+        self.expect_token(Token::Semicolon)?;
+        self.advance();
+        let rhs_expr = match op {
+            Token::PlusAssign => Box::new(Node::Add(vec![lhs.clone(), rhs])),
+            Token::MinusAssign => Box::new(Node::Subtract(vec![lhs.clone(), rhs])),
+            Token::MultiplyAssign => Box::new(Node::Multiply(vec![lhs.clone(), rhs])),
+            Token::DivideAssign => Box::new(Node::Divide(vec![lhs.clone(), rhs])),
+            _ => unreachable!(),
+        };
+        Ok(Box::new(Node::Assign(vec![lhs, rhs_expr])))
     }
 
     /// Parse a constant
@@ -559,7 +600,46 @@ impl Parser {
         }
 
         // Check if the current token is a variable
-        self.parse_variable()
+        let var = self.parse_variable()?;
+        self.parse_postfix(var)
+    }
+
+    fn parse_postfix(&self, mut expr: ExprTree) -> Result<ExprTree> {
+        while self.current_token() == Token::Dot {
+            self.advance();
+            let method = match self.current_token() {
+                Token::Identifier(name) => {
+                    self.advance();
+                    name
+                }
+                _ => return Err(self.invalid_syntax_err("Expected method name")),
+            };
+            let args = self.parse_function_args()?;
+            self.expect_token(Token::CloseParen)?;
+            self.advance();
+            expr = match method.as_str() {
+                "append" => {
+                    if args.len() != 1 {
+                        return Err(self.invalid_syntax_err("append expects one argument"));
+                    }
+                    Box::new(Node::Append(vec![expr, args[0].clone()]))
+                }
+                "mean" => {
+                    if !args.is_empty() {
+                        return Err(self.invalid_syntax_err("mean expects no arguments"));
+                    }
+                    Box::new(Node::Mean(vec![expr]))
+                }
+                "std" => {
+                    if !args.is_empty() {
+                        return Err(self.invalid_syntax_err("std expects no arguments"));
+                    }
+                    Box::new(Node::Std(vec![expr]))
+                }
+                _ => return Err(self.invalid_syntax_err("Unknown method")),
+            };
+        }
+        Ok(expr)
     }
 
     /// Parse a spot expression
