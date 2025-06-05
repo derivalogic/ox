@@ -209,6 +209,40 @@ impl<'a> BlackScholesModel<'a> {
     pub fn time_handle(&self) -> NumericType {
         self.time_handle
     }
+
+    fn spot_in_local(&self, ccy: Currency) -> Result<NumericType> {
+        if ccy == self.local_currency {
+            return Ok(NumericType::one());
+        }
+        // try (ccy, local)  ─────────────────────────────────────────────
+        if let Some(p) = self.fx.get(&(ccy, self.local_currency)) {
+            return Ok(p.read().unwrap().clone());
+        }
+        // try (local, ccy)  ─────────────────────────────────────────────
+        if let Some(p) = self.fx.get(&(self.local_currency, ccy)) {
+            return Ok((NumericType::one() / p.read().unwrap().clone()).into());
+        }
+        // fall back to triangulation (may still need inversion)
+        let l_over_ccy = triangulate_currencies(&self.fx, self.local_currency, ccy)?;
+        Ok((NumericType::one() / l_over_ccy).into()) // l/ccy → ccy/l
+    }
+
+    fn fx_vol(&self, ccy: Currency) -> Result<NumericType> {
+        // helper: 0 vol if the currency IS local, otherwise look both directions
+        if ccy == self.local_currency {
+            return Ok(NumericType::zero());
+        }
+        if let Some(v) = self.fx_vols.get(&(ccy, self.local_currency)) {
+            return Ok(v.read().unwrap().clone());
+        }
+        if let Some(v) = self.fx_vols.get(&(self.local_currency, ccy)) {
+            return Ok(v.read().unwrap().clone());
+        }
+        Err(ScriptingError::NotFoundError(format!(
+            "Volatility not found for {} and {}",
+            ccy, self.local_currency
+        )))
+    }
 }
 
 impl<'a> StochasticModel for BlackScholesModel<'a> {
@@ -261,67 +295,15 @@ impl<'a> FxModel for BlackScholesModel<'a> {
         if request.first_currency() == request.second_currency() {
             return Ok(NumericType::new(1.0));
         }
-        // Check if the exchange rate is already cached
-        // If not, retrieve it from historical data and cache it
 
-        let s0_1 = match self
-            .fx
-            .get(&(request.first_currency(), self.local_currency))
-        {
-            Some(fx_rate) => fx_rate.read().unwrap().clone(),
-            None => {
-                triangulate_currencies(&self.fx, self.local_currency, request.first_currency())?
-            }
-        };
-
-        let s0_2 = match self
-            .fx
-            .get(&(request.second_currency(), self.local_currency))
-        {
-            Some(fx_rate) => fx_rate.read().unwrap().clone(),
-            None => {
-                triangulate_currencies(&self.fx, self.local_currency, request.second_currency())?
-            }
-        };
+        let s0_1 = self.spot_in_local(request.first_currency())?;
+        let s0_2 = self.spot_in_local(request.second_currency())?;
 
         // time step (dt)
         let t: ADNumber = (self.time_step(request.date()) - self.time_handle).into();
 
-        // volatility
-        let vol1 = match self
-            .fx_vols
-            .get(&(request.first_currency(), self.local_currency))
-        {
-            Some(vol) => vol.read().unwrap().clone(),
-            None => {
-                if request.first_currency() == self.local_currency {
-                    NumericType::zero()
-                } else {
-                    return Err(ScriptingError::NotFoundError(format!(
-                        "Volatility not found for {} and {}",
-                        request.first_currency(),
-                        self.local_currency
-                    )));
-                }
-            }
-        };
-        let vol2 = match self
-            .fx_vols
-            .get(&(request.second_currency(), self.local_currency))
-        {
-            Some(vol) => vol.read().unwrap().clone(),
-            None => {
-                if request.second_currency() == self.local_currency {
-                    NumericType::zero()
-                } else {
-                    return Err(ScriptingError::NotFoundError(format!(
-                        "Volatility not found for {} and {}",
-                        request.second_currency(),
-                        self.local_currency
-                    )));
-                }
-            }
-        };
+        let vol1 = self.fx_vol(request.first_currency())?;
+        let vol2 = self.fx_vol(request.second_currency())?;
 
         // we need to get the risk free curves
         let local_rate = self
@@ -363,31 +345,20 @@ impl<'a> FxModel for BlackScholesModel<'a> {
                 ),
             )?;
 
-        let z1 = self.gen_rand();
+        let z = self.gen_rand();
+        let rho = NumericType::zero(); // Assuming no correlation for simplicity, can be set to a value between -1 and 1
+        let z_perp = self.gen_rand();
+        let z1 = z;
+        let z2 = rho * z + (-rho * rho + 1.0).sqrt() * z_perp;
+
         let fx_1_l = s0_1
             * ((foreign_rate_1 - local_rate - vol1 * vol1 * 0.5) * t + vol1 * z1 * t.sqrt()).exp();
 
-        let z2 = self.gen_rand();
         let fx_2_l = s0_2
             * ((foreign_rate_2 - local_rate - vol2 * vol2 * 0.5) * t + vol2 * z2 * t.sqrt()).exp();
 
-        // we need to arrange so we effectively return ccy1 / ccy2
-        if request.first_currency() == self.local_currency {
-            // we have ccy1 as local currency, so we return ccy1 / ccy2
-            let st = fx_2_l / fx_1_l;
-            return Ok(st.into());
-        }
-        if request.second_currency() == self.local_currency {
-            // we have ccy2 as local currency, so we return ccy1 / ccy2
-            let st = fx_1_l / fx_2_l;
-            return Ok(st.into());
-        } else {
-            // we have both currencies as foreign, so we return ccy1 / ccy2
-            // this is the same as fx_1_l / fx_2_l
-            let st = fx_1_l / fx_2_l;
-            return Ok(st.into());
-        }
-        // let st = fx_2_l / fx_1_l;
+        let st = fx_1_l / fx_2_l;
+        Ok(st.into())
     }
 }
 
@@ -454,28 +425,248 @@ impl<'a> MonteCarloEngine for BlackScholesModel<'a> {
     }
 }
 
-impl<'a> ParallelMonteCarloEngine for BlackScholesModel<'a> {
-    fn put_on_tape(&self) {
-        self.fx.iter().for_each(|((_, _), f)| {
-            f.write().unwrap().put_on_tape();
-        });
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::termstructure::{TermStructure, TermStructureKey, TermStructureType};
 
-        // self.equities.iter().for_each(|(_, e)| {
-        //     e.write().unwrap().put_on_tape();
-        // });
+    fn market_data(reference_date: Date) -> HistoricalData {
+        let mut store = HistoricalData::new();
+        store.mut_exchange_rates().add_exchange_rate(
+            reference_date,
+            Currency::CLP,
+            Currency::USD,
+            800.0,
+        );
 
-        // self.equity_vols.iter().for_each(|(_, v)| {
-        //     v.write().unwrap().put_on_tape();
-        // });
+        store.mut_exchange_rates().add_exchange_rate(
+            reference_date,
+            Currency::JPY,
+            Currency::USD,
+            142.0,
+        );
 
-        self.fx_vols.iter().for_each(|((_, _), v)| {
-            v.write().unwrap().put_on_tape();
-        });
+        store.mut_volatilities().add_fx_volatility(
+            reference_date,
+            Currency::USD,
+            Currency::CLP,
+            0.0,
+        );
+
+        store.mut_volatilities().add_fx_volatility(
+            reference_date,
+            Currency::CLP,
+            Currency::USD,
+            0.0,
+        );
+
+        store.mut_volatilities().add_fx_volatility(
+            reference_date,
+            Currency::JPY,
+            Currency::USD,
+            0.0,
+        );
+
+        store.mut_volatilities().add_fx_volatility(
+            reference_date,
+            Currency::USD,
+            Currency::JPY,
+            0.0,
+        );
+
+        store.mut_volatilities().add_fx_volatility(
+            reference_date,
+            Currency::CLP,
+            Currency::JPY,
+            0.0,
+        );
+
+        // general
+        let year_fractions = vec![1.0];
+        let interpolator = Interpolator::Linear;
+        let enable_extrapolation = true;
+        let rate_definition = RateDefinition::new(
+            DayCounter::Actual360,
+            Compounding::Continuous,
+            Frequency::Annual,
+        );
+        let term_structure_type = TermStructureType::FlatForward;
+
+        // CLP term structure
+        let clp_ts_key = TermStructureKey::new(Currency::CLP, true, Some("CLP".to_string()));
+        let clp_rate = vec![0.03];
+
+        let clp_ts = TermStructure::new(
+            clp_ts_key,
+            year_fractions.clone(),
+            clp_rate,
+            interpolator,
+            enable_extrapolation,
+            rate_definition,
+            term_structure_type,
+        );
+
+        // USD term structure
+        let usd_ts_key = TermStructureKey::new(Currency::USD, true, Some("USD".to_string()));
+        let usd_rate = vec![0.02];
+
+        let usd_ts = TermStructure::new(
+            usd_ts_key,
+            year_fractions.clone(),
+            usd_rate,
+            interpolator,
+            enable_extrapolation,
+            rate_definition,
+            term_structure_type,
+        );
+
+        store
+            .mut_term_structures()
+            .add_term_structure(reference_date, clp_ts);
+        store
+            .mut_term_structures()
+            .add_term_structure(reference_date, usd_ts);
+
+        // JPY term structure
+        let jpy_ts_key = TermStructureKey::new(Currency::JPY, true, Some("JPY".to_string()));
+        let jpy_rate = vec![0.01];
+        let jpy_ts = TermStructure::new(
+            jpy_ts_key,
+            year_fractions,
+            jpy_rate,
+            interpolator,
+            enable_extrapolation,
+            rate_definition,
+            term_structure_type,
+        );
+        store
+            .mut_term_structures()
+            .add_term_structure(reference_date, jpy_ts);
+
+        store
     }
 
-    fn is_initialized(&self) -> bool {
-        self.is_initialized.read().unwrap().clone()
+    /// 1) Local currency **CLP**  – check USD/CLP × CLP/USD ≈ 1
+    #[test]
+    fn reciprocity_with_domestic_clp() {
+        let today = Date::new(2025, 6, 5);
+        let binding = market_data(today);
+        let mut model = BlackScholesModel::new(
+            today,
+            Currency::CLP, // domestic
+            &binding,
+        );
+        model.initialize().unwrap();
+
+        // one year forward so we run through `simulate_fx`
+        let t1y = Date::new(2026, 6, 5);
+
+        let usd_clp = ExchangeRateRequest::new(Currency::USD, Currency::CLP, t1y);
+        let clp_usd = ExchangeRateRequest::new(Currency::CLP, Currency::USD, t1y);
+
+        let r1 = model.simulate_fx(&usd_clp).unwrap().value();
+        let r2 = model.simulate_fx(&clp_usd).unwrap().value();
+
+        // must be exact reciprocals
+        assert!((r1 * r2 - 1.0).abs() < 1e-12);
+    }
+
+    /// 2) Local currency **USD** – this is the configuration that was broken
+    #[test]
+    fn reciprocity_with_domestic_usd() {
+        let today = Date::new(2025, 6, 5);
+        let binding = market_data(today);
+        let mut model = BlackScholesModel::new(
+            today,
+            Currency::USD, // domestic
+            &binding,
+        );
+        model.initialize().unwrap();
+
+        let t1y = Date::new(2026, 6, 5);
+
+        let usd_clp = ExchangeRateRequest::new(Currency::USD, Currency::CLP, t1y);
+        let clp_usd = ExchangeRateRequest::new(Currency::CLP, Currency::USD, t1y);
+
+        let r1 = model.simulate_fx(&usd_clp).unwrap().value();
+        let r2 = model.simulate_fx(&clp_usd).unwrap().value();
+
+        // before the patch r1·r2 ≫ 1 (≈6.4 × 10⁵); after the patch it is 1
+        assert!((r1 * r2 - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn forward_price_matches_interest_parity_requests_clp_usd() {
+        // domestic = CLP
+        let today = Date::new(2025, 6, 5);
+        let hd = market_data(today);
+
+        let mut model = BlackScholesModel::new(today, Currency::CLP, &hd);
+        model.initialize().unwrap();
+
+        let fut = Date::new(2025, 12, 4); // ≈ 0.5y
+        let t = model.day_counter.year_fraction(today, fut);
+
+        // *** note the constructor signature: (first, second, date) ***
+        let req = ExchangeRateRequest::new(Currency::CLP, Currency::USD, fut);
+
+        let fwd = model.simulate_fx(&req).unwrap().value();
+
+        let spot = 800.0; // CLP/USD stored in `market_data`
+        let r_dom = 0.03; // CLP curve
+        let r_for = 0.02; // USD curve
+        let should_be = spot * f64::exp((r_dom - r_for) * t.value());
+
+        assert!((fwd - should_be).abs() < 1e-4); // now passes
+    }
+
+    #[test]
+    fn forward_price_matches_interest_parity_requests_usd_clp() {
+        // domestic = USD
+        let today = Date::new(2025, 6, 5);
+        let hd = market_data(today);
+
+        let mut model = BlackScholesModel::new(today, Currency::USD, &hd);
+        model.initialize().unwrap();
+
+        let fut = Date::new(2025, 12, 4); // ≈ 0.5y
+        let t = model.day_counter.year_fraction(today, fut);
+
+        // *** note the constructor signature: (first, second, date) ***
+        let req = ExchangeRateRequest::new(Currency::USD, Currency::CLP, fut);
+
+        let fwd = model.simulate_fx(&req).unwrap().value();
+
+        let spot = 1.0 / 800.0; // USD/CLP stored in `market_data`
+        let r_dom = 0.02; // USD curve
+        let r_for = 0.03; // CLP curve
+        let should_be = spot * f64::exp((r_dom - r_for) * t.value());
+
+        assert!((fwd - should_be).abs() < 1e-4); // now passes
+    }
+
+    #[test]
+    fn forward_price_matches_interest_parity_requests_jpy_usd_local_clp() {
+        // domestic = CLP
+        let today = Date::new(2025, 6, 5);
+        let hd = market_data(today);
+
+        let mut model = BlackScholesModel::new(today, Currency::CLP, &hd);
+        model.initialize().unwrap();
+
+        let fut = Date::new(2025, 12, 4); // ≈ 0.5y
+        let t = model.day_counter.year_fraction(today, fut);
+
+        // *** note the constructor signature: (first, second, date) ***
+        let req = ExchangeRateRequest::new(Currency::JPY, Currency::USD, fut);
+
+        let fwd = model.simulate_fx(&req).unwrap().value();
+
+        let spot = 142.0; // JPY/USD stored in `market_data`
+        let r_dom = 0.01; // JPY curve
+        let r_for = 0.02; // USD curve
+        let should_be = spot * f64::exp((r_dom - r_for) * t.value());
+
+        assert!((fwd - should_be).abs() < 1e-4); // now passes
     }
 }
-
-pub enum Model {}
