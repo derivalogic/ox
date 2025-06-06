@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use crate::utils::errors::{Result, ScriptingError};
 use rustatlas::prelude::*;
+use crate::data::simulationdatarequest::DiscountFactorRequest;
 use std::cell::RefCell;
 use std::collections::HashMap;
 /// # EventIndexer
@@ -122,6 +123,32 @@ impl NodeVisitor for EventIndexer {
                         opt_idx.set(size).unwrap();
                     }
                 };
+                Ok(())
+            }
+            Node::Df(date, curve, opt_idx) => {
+                match opt_idx.get() {
+                    Some(_) => {}
+                    None => {
+                        let size = self
+                            .market_requests
+                            .borrow_mut()
+                            .last()
+                            .ok_or(ScriptingError::NotFoundError(
+                                "No market requests found".to_string(),
+                            ))?
+                            .dfs()
+                            .len();
+                        let curve_name = curve.clone().unwrap_or_else(|| "local".to_string());
+                        self.market_requests
+                            .borrow_mut()
+                            .last_mut()
+                            .ok_or(ScriptingError::NotFoundError(
+                                "No market requests found".to_string(),
+                            ))?
+                            .push_df(DiscountFactorRequest::new(curve_name, *date));
+                        opt_idx.set(size).unwrap();
+                    }
+                }
                 Ok(())
             }
             Node::RateIndex(name, start, end, opt_idx) => {
@@ -395,5 +422,38 @@ mod ai_gen_tests {
         let req = indexer.get_request();
         let fx = &req[0].fxs()[0];
         assert_eq!(fx.date(), event_date);
+    }
+
+    #[test]
+    fn test_df_request_with_curve() {
+        let script = "x = Df(\"2025-06-01\", \"curve\");";
+        let expr = ExprTree::try_from(script).unwrap();
+        let event = Event::new(Date::new(2025, 1, 1), expr);
+        let events = EventStream::new().with_events(vec![event]);
+
+        let indexer = EventIndexer::new();
+        indexer.visit_events(&events).unwrap();
+
+        let req = indexer.get_request();
+        let df = &req[0].dfs()[0];
+        assert_eq!(df.curve(), &"curve".to_string());
+        assert_eq!(df.date(), Date::new(2025, 6, 1));
+    }
+
+    #[test]
+    fn test_df_request_without_curve() {
+        let script = "x = Df(\"2025-06-01\");";
+        let expr = ExprTree::try_from(script).unwrap();
+        let event_date = Date::new(2025, 1, 1);
+        let event = Event::new(event_date, expr);
+        let events = EventStream::new().with_events(vec![event]);
+
+        let indexer = EventIndexer::new();
+        indexer.visit_events(&events).unwrap();
+
+        let req = indexer.get_request();
+        let df = &req[0].dfs()[0];
+        assert_eq!(df.curve(), &"local".to_string());
+        assert_eq!(df.date(), Date::new(2025, 6, 1));
     }
 }

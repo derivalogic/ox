@@ -17,6 +17,7 @@ pub enum Node {
 
     // financial
     Spot(Currency, Currency, Option<Date>, OnceLock<usize>),
+    Df(Date, Option<String>, OnceLock<usize>),
     RateIndex(String, Date, Date, OnceLock<usize>),
     Pays(Vec<ExprTree>, OnceLock<usize>),
 
@@ -204,6 +205,10 @@ impl Node {
         Node::Spot(first, second, date, OnceLock::new())
     }
 
+    pub fn new_df(date: Date, curve: Option<String>) -> Node {
+        Node::Df(date, curve, OnceLock::new())
+    }
+
     pub fn new_rate_index(name: String, start: Date, end: Date) -> Node {
         Node::RateIndex(name, start, end, OnceLock::new())
     }
@@ -256,6 +261,7 @@ impl Node {
             Node::Range(children) => children.push(child),
             Node::List(children) => children.push(child),
             Node::Spot(_, _, _, _) => panic!("Cannot add child to spot node"),
+            Node::Df(_, _, _) => panic!("Cannot add child to df node"),
             Node::RateIndex(_, _, _, _) => panic!("Cannot add child to rate index node"),
             Node::True => panic!("Cannot add child to true node"),
             Node::False => panic!("Cannot add child to false node"),
@@ -300,6 +306,7 @@ impl Node {
             Node::Range(children) => children,
             Node::List(children) => children,
             Node::Spot(_, _, _, _) => panic!("Cannot get children from spot node"),
+            Node::Df(_, _, _) => panic!("Cannot get children from df node"),
             Node::RateIndex(_, _, _, _) => {
                 panic!("Cannot get children from rate index node")
             }
@@ -564,6 +571,16 @@ mod ai_gen_tests {
     }
 
     #[test]
+    fn test_new_df() {
+        let date = Date::new(2025, 6, 1);
+        let node = Node::new_df(date, Some("curve".to_string()));
+        assert_eq!(
+            node,
+            Node::Df(date, Some("curve".to_string()), OnceLock::new())
+        );
+    }
+
+    #[test]
     fn test_new_rate_index() {
         let start = Date::new(2024, 1, 1);
         let end = Date::new(2024, 2, 1);
@@ -646,6 +663,13 @@ mod ai_gen_tests {
     }
 
     #[test]
+    #[should_panic(expected = "Cannot add child to df node")]
+    fn test_add_child_to_df() {
+        let mut node = Node::new_df(Date::new(2025, 1, 1), None);
+        node.add_child(Box::new(Node::new_add()));
+    }
+
+    #[test]
     #[should_panic(expected = "Cannot add child to rate index node")]
     fn test_add_child_to_rate_index() {
         let mut node = Node::new_rate_index(
@@ -688,6 +712,13 @@ mod ai_gen_tests {
     fn test_children_of_spot() {
         // Test getting children of a spot node, which should panic
         let node = Node::Spot(Currency::USD, Currency::AUD, None, OnceLock::new());
+        node.children();
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot get children from df node")]
+    fn test_children_of_df() {
+        let node = Node::new_df(Date::new(2025, 1, 1), None);
         node.children();
     }
 

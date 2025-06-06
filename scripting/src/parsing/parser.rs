@@ -34,6 +34,7 @@ impl Parser {
                 "false".to_string(),
                 "Spot".to_string(),
                 "RateIndex".to_string(),
+                "Df".to_string(),
                 "pays".to_string(),
                 "exp".to_string(),
                 "ln".to_string(),
@@ -562,6 +563,9 @@ impl Parser {
                 "Spot" => {
                     return self.parse_spot();
                 }
+                "Df" => {
+                    return self.parse_df();
+                }
                 "RateIndex" => {
                     return self.parse_rate_index();
                 }
@@ -699,6 +703,30 @@ impl Parser {
         self.expect_token(Token::CloseParen)?;
         self.advance();
         Ok(Box::new(Node::Spot(first, second, date, OnceLock::new())))
+    }
+
+    fn parse_df(&self) -> Result<ExprTree> {
+        self.expect_token(Token::Identifier("Df".to_string()))?;
+        self.advance();
+        self.expect_token(Token::OpenParen)?;
+        self.advance();
+        let date_str = match *self.parse_string()? {
+            Node::String(s) => s,
+            _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
+        };
+        let date = Date::from_str(&date_str, "%Y-%m-%d")
+            .map_err(|_| self.invalid_syntax_err("Invalid date"))?;
+        let mut curve: Option<String> = None;
+        if self.current_token() == Token::Comma {
+            self.advance();
+            match *self.parse_string()? {
+                Node::String(s) => curve = Some(s),
+                _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
+            }
+        }
+        self.expect_token(Token::CloseParen)?;
+        self.advance();
+        Ok(Box::new(Node::Df(date, curve, OnceLock::new())))
     }
 
     fn parse_rate_index(&self) -> Result<ExprTree> {
@@ -1596,6 +1624,38 @@ fn test_spot_function_with_date() {
             Currency::try_from("USD".to_string()).unwrap(),
             Currency::try_from("EUR".to_string()).unwrap(),
             Some(Date::new(2025, 6, 1)),
+            OnceLock::new(),
+        )),
+    ]))]));
+
+    assert_eq!(nodes, expected);
+}
+
+#[test]
+fn test_df_function() {
+    let script = "x = Df(\"2025-06-01\");".to_string();
+    let tokens = Lexer::new(script).tokenize().unwrap();
+    let nodes = Parser::new(tokens).parse().unwrap();
+
+    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+        Box::new(Node::Df(Date::new(2025, 6, 1), None, OnceLock::new())),
+    ]))]));
+
+    assert_eq!(nodes, expected);
+}
+
+#[test]
+fn test_df_function_with_curve() {
+    let script = "x = Df(\"2025-06-01\", \"curve\");".to_string();
+    let tokens = Lexer::new(script).tokenize().unwrap();
+    let nodes = Parser::new(tokens).parse().unwrap();
+
+    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+        Box::new(Node::Df(
+            Date::new(2025, 6, 1),
+            Some("curve".to_string()),
             OnceLock::new(),
         )),
     ]))]));
