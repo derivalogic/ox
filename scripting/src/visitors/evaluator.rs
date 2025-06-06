@@ -222,6 +222,26 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push(market_data.get_fx(*id)?);
                 Ok(())
             }
+            Node::Df(_, _, index) => {
+                let id = index.get().ok_or(ScriptingError::EvaluationError(
+                    "Df not indexed".to_string(),
+                ))?;
+
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError(
+                        "No scenario set".to_string(),
+                    ))?
+                    .get(*self.current_event.borrow_mut())
+                    .ok_or(ScriptingError::EvaluationError(
+                        "Df not found".to_string(),
+                    ))?;
+
+                self.digit_stack
+                    .borrow_mut()
+                    .push(market_data.get_df(*id)?);
+                Ok(())
+            }
             Node::RateIndex(_, _, _, index) => {
                 let id = index.get().ok_or(ScriptingError::EvaluationError(
                     "RateIndex not indexed".to_string(),
