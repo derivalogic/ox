@@ -21,6 +21,8 @@ pub enum Token {
     Or,
     Not,
     Pays,
+    On,
+    In,
     Superior,
     Inferior,
     SuperiorOrEqual,
@@ -220,6 +222,8 @@ impl Lexer {
             "true" => Ok(Token::Value(None, Some(true))),
             "false" => Ok(Token::Value(None, Some(false))),
             "pays" => Ok(Token::Pays),
+            "on" => Ok(Token::On),
+            "in" => Ok(Token::In),
             _ => Ok(Token::Identifier(identifier)),
         }
     }
@@ -690,6 +694,15 @@ mod tests {
     fn test_pays() {
         let input = "pays";
         let expected_tokens = vec![Token::Pays];
+        let lexer = Lexer::new(input.to_string());
+        let tokens = lexer.tokenize().unwrap();
+        assert_eq!(tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_on_token() {
+        let input = "on";
+        let expected_tokens = vec![Token::On];
         let lexer = Lexer::new(input.to_string());
         let tokens = lexer.tokenize().unwrap();
         assert_eq!(tokens, expected_tokens);

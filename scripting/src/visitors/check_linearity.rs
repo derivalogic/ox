@@ -69,7 +69,7 @@ impl NodeVisitor for CheckLinearity {
             | Node::SuperiorOrEqual(children)
             | Node::InferiorOrEqual(children)
             | Node::If(children, _)
-            | Node::Pays(children, _)
+            | Node::Pays(children, _, _, _, _)
             | Node::Range(children)
             | Node::List(children)
             | Node::Variable(children, ..) => {
@@ -80,6 +80,7 @@ impl NodeVisitor for CheckLinearity {
                 body.iter().for_each(|c| self.visit(c));
             }
             Node::Spot(..)
+            | Node::Df(..)
             | Node::RateIndex(..)
             | Node::True
             | Node::False

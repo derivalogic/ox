@@ -19,7 +19,13 @@ pub enum Node {
     Spot(Currency, Currency, Option<Date>, OnceLock<usize>),
     Df(Date, Option<String>, OnceLock<usize>),
     RateIndex(String, Date, Date, OnceLock<usize>),
-    Pays(Vec<ExprTree>, OnceLock<usize>),
+    Pays(
+        Vec<ExprTree>,
+        Option<Date>,
+        Option<Currency>,
+        OnceLock<usize>,
+        OnceLock<usize>,
+    ),
 
     // math
     Add(Vec<ExprTree>),
@@ -198,7 +204,13 @@ impl Node {
     }
 
     pub fn new_pays() -> Node {
-        Node::Pays(Vec::new(), OnceLock::new())
+        Node::Pays(
+            Vec::new(),
+            None,
+            None,
+            OnceLock::new(),
+            OnceLock::new(),
+        )
     }
 
     pub fn new_spot(first: Currency, second: Currency, date: Option<Date>) -> Node {
@@ -256,7 +268,7 @@ impl Node {
             Node::Std(children) => children.push(child),
             Node::Index(children) => children.push(child),
             Node::NotEqual(children) => children.push(child),
-            Node::Pays(children, _) => children.push(child),
+            Node::Pays(children, _, _, _, _) => children.push(child),
             Node::ForEach(_, _, children, _) => children.push(child),
             Node::Range(children) => children.push(child),
             Node::List(children) => children.push(child),
@@ -301,7 +313,7 @@ impl Node {
             Node::Std(children) => children,
             Node::Index(children) => children,
             Node::NotEqual(children) => children,
-            Node::Pays(children, _) => children,
+            Node::Pays(children, _, _, _, _) => children,
             Node::ForEach(_, _, children, _) => children,
             Node::Range(children) => children,
             Node::List(children) => children,
@@ -546,7 +558,16 @@ mod ai_gen_tests {
     fn test_new_pays() {
         // Test the creation of a new pays node
         let node = Node::new_pays();
-        assert_eq!(node, Node::Pays(Vec::new(), OnceLock::new()));
+        assert_eq!(
+            node,
+            Node::Pays(
+                Vec::new(),
+                None,
+                None,
+                OnceLock::new(),
+                OnceLock::new()
+            )
+        );
     }
 
     #[test]
