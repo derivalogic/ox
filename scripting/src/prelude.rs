@@ -3,6 +3,6 @@ pub use crate::{
     models::*,
     nodes::{event::*, node::*, traits::*},
     parsing::{lexer::*, parser::*},
-    utils::errors::*,
-    visitors::{check_linearity::*, indexer::*},
+    utils::{errors::*, math::*},
+    visitors::{check_linearity::*, indexer::*, fuzzy_evaluator::*},
 };

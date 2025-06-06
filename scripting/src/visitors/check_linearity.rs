@@ -54,6 +54,7 @@ impl NodeVisitor for CheckLinearity {
             | Node::Exp(children)
             | Node::Pow(children)
             | Node::Ln(children)
+            | Node::FIf(children)
             | Node::Cvg(children)
             | Node::Append(children)
             | Node::Mean(children)

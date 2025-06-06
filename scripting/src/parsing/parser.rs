@@ -42,6 +42,7 @@ impl Parser {
                 "min".to_string(),
                 "max".to_string(),
                 "cvg".to_string(),
+                "fIf".to_string(),
                 "in".to_string(),
                 "range".to_string(),
             ],
@@ -589,6 +590,11 @@ impl Parser {
                     min_args = 2;
                     max_args = 100;
                     expr = Some(Node::new_max());
+                }
+                "fIf" => {
+                    min_args = 4;
+                    max_args = 4;
+                    expr = Some(Node::new_f_if());
                 }
                 "cvg" => {
                     min_args = 3;
@@ -2199,5 +2205,24 @@ mod test_pays_assignment {
         ]))]));
 
         assert_eq!(nodes, expected);
+    }
+
+    #[test]
+    fn test_parse_f_if_function() {
+        let script = "res = fIf(x, 1, 0, 0.1);".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let ast = Parser::new(tokens).parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "res".to_string(), OnceLock::new())),
+            Box::new(Node::FIf(vec![
+                Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+                Box::new(Node::Constant(NumericType::new(1.0))),
+                Box::new(Node::Constant(NumericType::new(0.0))),
+                Box::new(Node::Constant(NumericType::new(0.1))),
+            ])),
+        ]))]));
+
+        assert_eq!(ast, expected);
     }
 }
