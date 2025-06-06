@@ -10,6 +10,7 @@ pub struct EventIndexer {
     variables: RefCell<HashMap<String, usize>>,
     market_requests: RefCell<Vec<SimulationDataRequest>>,
     event_date: RefCell<Option<Date>>,
+    local_currency: RefCell<Option<Currency>>,
 }
 
 impl NodeVisitor for EventIndexer {
@@ -41,7 +42,6 @@ impl NodeVisitor for EventIndexer {
             | Node::Inferior(children)
             | Node::SuperiorOrEqual(children)
             | Node::InferiorOrEqual(children)
-            | Node::Pays(children, _)
             | Node::If(children, _) => {
                 children.iter().try_for_each(|child| self.visit(child))?;
                 Ok(())
@@ -184,29 +184,74 @@ impl NodeVisitor for EventIndexer {
                 }
                 Ok(())
             }
-            // Node::Pays(children, opt_idx) => {
-            //     children.iter().try_for_each(|child| self.visit(child))?;
-            //     match opt_idx.get() {
-            //         Some(_) => Ok(()),
-            //         None => {
-            //             let size = self.market_requests.borrow_mut().len();
-            //             let event_date = match self.event_date.borrow().clone() {
-            //                 Some(date) => date,
-            //                 None => {
-            //                     return Err(ScriptingError::InvalidSyntax(
-            //                         "Event date is not set".to_string(),
-            //                     ));
-            //                 }
-            //             };
-            //             let numerarie_request = NumerarieRequest::new(size, event_date);
-            //             let request =
-            //                 MarketRequest::new(size, None, None, None, Some(numerarie_request));
-            //             self.market_requests.borrow_mut().push(request.clone());
-            //             opt_idx.set(size).unwrap();
-            //             Ok(())
-            //         }
-            //     }
-            // }
+            Node::Pays(children, pay_date, currency, df_idx, fx_idx) => {
+                children.iter().try_for_each(|child| self.visit(child))?;
+                match df_idx.get() {
+                    Some(_) => {}
+                    None => {
+                        let event_date = match pay_date {
+                            Some(d) => *d,
+                            None => self
+                                .event_date
+                                .borrow()
+                                .ok_or(ScriptingError::InvalidSyntax(
+                                    "Event date is not set".to_string(),
+                                ))?,
+                        };
+                        let size = {
+                            let mut mr = self.market_requests.borrow_mut();
+                            let last = mr
+                                .last_mut()
+                                .ok_or(ScriptingError::NotFoundError(
+                                    "No market requests found".to_string(),
+                                ))?;
+                            let size = last.dfs().len();
+                            last.push_df(DiscountFactorRequest::new(
+                                "local".to_string(),
+                                event_date,
+                            ));
+                            size
+                        };
+                        df_idx.set(size).unwrap();
+                    }
+                };
+
+                if let Some(ccy) = currency {
+                    match fx_idx.get() {
+                        Some(_) => {}
+                        None => {
+                            let dom = self
+                                .local_currency
+                                .borrow()
+                                .ok_or(ScriptingError::InvalidSyntax(
+                                    "Local currency is not set".to_string(),
+                                ))?;
+                            let event_date = match pay_date {
+                                Some(d) => *d,
+                                None => self
+                                    .event_date
+                                    .borrow()
+                                    .ok_or(ScriptingError::InvalidSyntax(
+                                        "Event date is not set".to_string(),
+                                    ))?,
+                            };
+                            let size = {
+                                let mut mr = self.market_requests.borrow_mut();
+                                let last = mr
+                                    .last_mut()
+                                    .ok_or(ScriptingError::NotFoundError(
+                                        "No market requests found".to_string(),
+                                    ))?;
+                                let size = last.fxs().len();
+                                last.push_fx(ExchangeRateRequest::new(dom, *ccy, event_date));
+                                size
+                            };
+                            fx_idx.set(size).unwrap();
+                        }
+                    }
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
@@ -218,6 +263,7 @@ impl EventIndexer {
             variables: RefCell::new(HashMap::new()),
             market_requests: RefCell::new(Vec::new()),
             event_date: RefCell::new(None),
+            local_currency: RefCell::new(None),
         }
     }
 
@@ -225,6 +271,11 @@ impl EventIndexer {
     /// Set the event date of the EventIndexer
     pub fn with_event_date(self, date: Date) -> Self {
         *self.event_date.borrow_mut() = Some(date);
+        self
+    }
+
+    pub fn with_local_currency(self, ccy: Currency) -> Self {
+        *self.local_currency.borrow_mut() = Some(ccy);
         self
     }
 
@@ -271,6 +322,7 @@ impl EventIndexer {
         self.variables.borrow_mut().clear();
         self.market_requests.borrow_mut().clear();
         *self.event_date.borrow_mut() = None;
+        *self.local_currency.borrow_mut() = None;
     }
 
     pub fn visit_events(&self, events: &EventStream) -> Result<()> {

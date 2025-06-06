@@ -22,7 +22,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     let store: HistoricalData = create_historical_data(&data.market_data);
     let events = EventStream::try_from(data.script_data.events.clone())
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let indexer = EventIndexer::new();
+    let indexer = EventIndexer::new().with_local_currency(data.market_data.local_currency);
     indexer
         .visit_events(&events)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;

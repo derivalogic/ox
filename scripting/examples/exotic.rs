@@ -113,7 +113,7 @@ fn main() -> Result<()> {
     let events = EventStream::try_from(vec![e1, e2])?;
 
     // Visit the events to index variables and prepare for evaluation
-    let indexer = EventIndexer::new();
+    let indexer = EventIndexer::new().with_local_currency(model.local_currency());
     indexer.visit_events(&events)?;
     let requests = indexer.get_request();
 

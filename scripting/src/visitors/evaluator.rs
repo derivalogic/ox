@@ -258,7 +258,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     .push(market_data.get_fwd(*id)?);
                 Ok(())
             }
-            Node::Pays(children, _) => {
+            Node::Pays(children, _, currency, df_index, fx_index) => {
                 children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
@@ -275,10 +275,27 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     .clone();
 
                 let current_value = self.digit_stack.borrow_mut().pop().unwrap();
+                let df_id = df_index
+                    .get()
+                    .ok_or(ScriptingError::EvaluationError(
+                        "Pays not indexed".to_string(),
+                    ))?;
+                let df = market_data.get_df(*df_id)?;
                 let numerarie = market_data.numerarie();
-                self.digit_stack
-                    .borrow_mut()
-                    .push((current_value / numerarie).into());
+
+                let value: NumericType = if let Some(_) = currency {
+                    let fx_id = fx_index
+                        .get()
+                        .ok_or(ScriptingError::EvaluationError(
+                            "Pays FX not indexed".to_string(),
+                        ))?;
+                    let fx = market_data.get_fx(*fx_id)?;
+                    ((current_value * df * fx) / numerarie).into()
+                } else {
+                    ((current_value * df) / numerarie).into()
+                };
+
+                self.digit_stack.borrow_mut().push(value);
                 Ok(())
             }
             Node::Constant(value) => {
@@ -999,6 +1016,9 @@ impl<'a> EventStreamEvaluator<'a> {
 mod general_tests {
 
     use super::*;
+    use crate::data::simulationdata::SimulationData;
+    use crate::nodes::event::{Event, EventStream};
+    use rustatlas::currencies::enums::Currency;
 
     #[test]
     fn test_add_node() {
@@ -1970,6 +1990,76 @@ mod ai_gen_tests {
         evaluator.const_visit(base).unwrap();
 
         assert!((evaluator.digit_stack().pop().unwrap() - (152.0 / 360.0)).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_pays_node_discount() {
+        // Pays should apply the discount factor fetched from the scenario
+        let mut base = Box::new(Node::new_base());
+        let mut pays = Box::new(Node::new_pays());
+        pays.add_child(Box::new(Node::new_constant(NumericType::new(100.0))));
+        base.add_child(pays);
+
+        let event_date = Date::new(2024, 1, 1);
+        let scenario = vec![SimulationData::new(
+            NumericType::new(1.0),
+            vec![NumericType::new(0.5)],
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )];
+
+        let indexer = EventIndexer::new().with_event_date(event_date);
+        let event = Event::new(event_date, base.clone());
+        let events = EventStream::new().with_events(vec![event]);
+        indexer.visit_events(&events).unwrap();
+
+        let evaluator = SingleScenarioEvaluator::new()
+            .with_scenario(&scenario)
+            .with_variables(indexer.get_variables_size());
+        let expr = events.events().first().unwrap().expr().clone();
+        evaluator.const_visit(expr).unwrap();
+
+        assert!((evaluator.digit_stack().pop().unwrap() - 50.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_pays_node_discount_and_fx() {
+        // Pays should apply discount and fx conversion
+        let mut base = Box::new(Node::new_base());
+        let mut pays = Box::new(Node::new_pays());
+        pays.add_child(Box::new(Node::new_constant(NumericType::new(100.0))));
+        // set currency EUR
+        if let Node::Pays(_, ref mut date, ref mut ccy, _, _) = *pays {
+            *date = Some(Date::new(2024, 1, 1));
+            *ccy = Some(Currency::EUR);
+        }
+        base.add_child(pays);
+
+        let event_date = Date::new(2024, 1, 1);
+        let scenario = vec![SimulationData::new(
+            NumericType::new(2.0),
+            vec![NumericType::new(0.5)],
+            Vec::new(),
+            vec![NumericType::new(0.8)],
+            Vec::new(),
+        )];
+
+        let indexer = EventIndexer::new()
+            .with_event_date(event_date)
+            .with_local_currency(Currency::USD);
+        let event = Event::new(event_date, base.clone());
+        let events = EventStream::new().with_events(vec![event]);
+        indexer.visit_events(&events).unwrap();
+
+        let evaluator = SingleScenarioEvaluator::new()
+            .with_scenario(&scenario)
+            .with_variables(indexer.get_variables_size());
+        let expr = events.events().first().unwrap().expr().clone();
+        evaluator.const_visit(expr).unwrap();
+
+        // 100 * 0.5 * 0.8 / 2 = 20
+        assert!((evaluator.digit_stack().pop().unwrap() - 20.0).abs() < f64::EPSILON);
     }
 
     // #[test]

@@ -207,11 +207,50 @@ impl Parser {
         while self.current_token() != Token::EOF
             && self.current_token() != Token::Semicolon
             && self.current_token() != Token::CloseParen
+            && self.current_token() != Token::On
+            && self.current_token() != Token::In
         {
             let expr = self.parse_expr()?;
             pays.push(expr);
         }
-        Ok(Box::new(Node::Pays(pays, OnceLock::new())))
+
+        let mut pay_date = None;
+        if self.current_token() == Token::On {
+            self.advance();
+            let date_str = match *self.parse_string()? {
+                Node::String(s) => s,
+                _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
+            };
+            pay_date = Some(
+                Date::from_str(&date_str, "%Y-%m-%d")
+                    .map_err(|_| self.invalid_syntax_err("Invalid date"))?,
+            );
+        }
+
+        let mut currency = None;
+        if self.current_token() == Token::In {
+            self.advance();
+            let ccy_str = match *self.parse_string()? {
+                Node::String(s) => s,
+                _ => {
+                    return Err(
+                        self.invalid_syntax_err("Invalid argument, expected string"),
+                    )
+                }
+            };
+            currency = Some(
+                Currency::try_from(ccy_str)
+                    .map_err(|_| self.invalid_syntax_err("Invalid currency"))?,
+            );
+        }
+
+        Ok(Box::new(Node::Pays(
+            pays,
+            pay_date,
+            currency,
+            OnceLock::new(),
+            OnceLock::new(),
+        )))
     }
 
     /// Parse an if expression
@@ -271,6 +310,7 @@ impl Parser {
         };
 
         match self.current_token() {
+            Token::In => self.advance(),
             Token::Identifier(ref s) if s == "in" => self.advance(),
             _ => return Err(self.invalid_syntax_err("Expected 'in' after variable")),
         }
@@ -2058,6 +2098,9 @@ mod test_pays_expression {
                     ])),
                     Box::new(Node::Constant(NumericType::new(0.0))),
                 ]))],
+                None,
+                None,
+                OnceLock::new(),
                 OnceLock::new(),
             )),
         ]))]));
@@ -2091,6 +2134,65 @@ mod test_pays_assignment {
                 )),
                 Box::new(Node::Pays(
                     vec![Box::new(Node::Constant(NumericType::new(100.0)))],
+                    None,
+                    None,
+                    OnceLock::new(),
+                    OnceLock::new(),
+                )),
+            ])),
+        ]))]));
+
+        assert_eq!(nodes, expected);
+    }
+
+    #[test]
+    fn test_variable_pays_assignment_with_date() {
+        let script = "prd pays 100 on \"2025-06-30\";".to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(
+                Vec::new(),
+                "prd".to_string(),
+                OnceLock::new(),
+            )),
+            Box::new(Node::Add(vec![
+                Box::new(Node::Variable(
+                    Vec::new(),
+                    "prd".to_string(),
+                    OnceLock::new(),
+                )),
+                Box::new(Node::Pays(
+                    vec![Box::new(Node::Constant(NumericType::new(100.0)))],
+                    Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
+                    None,
+                    OnceLock::new(),
+                    OnceLock::new(),
+                )),
+            ])),
+        ]))]));
+
+        assert_eq!(nodes, expected);
+    }
+
+    #[test]
+    fn test_variable_pays_assignment_with_date_and_currency() {
+        let script = "prd pays 100 on \"2025-06-30\" in \"EUR\";".to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse().unwrap();
+
+        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+            Box::new(Node::Variable(Vec::new(), "prd".to_string(), OnceLock::new())),
+            Box::new(Node::Add(vec![
+                Box::new(Node::Variable(Vec::new(), "prd".to_string(), OnceLock::new())),
+                Box::new(Node::Pays(
+                    vec![Box::new(Node::Constant(NumericType::new(100.0)))],
+                    Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
+                    Some(Currency::try_from("EUR".to_string()).unwrap()),
+                    OnceLock::new(),
                     OnceLock::new(),
                 )),
             ])),
