@@ -4,5 +4,5 @@ pub use crate::{
     nodes::{event::*, node::*, traits::*},
     parsing::{lexer::*, parser::*},
     utils::errors::*,
-    visitors::{check_linearity::*, indexer::*},
+    visitors::{check_linearity::*, indexer::*, cashflow_collector::*},
 };
