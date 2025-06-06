@@ -1022,8 +1022,18 @@ mod other_tests {
                 OnceLock::new(),
             )),
             Box::new(Node::Mean(vec![Box::new(Node::List(vec![
-                Box::new(Node::Spot(Currency::USD, Currency::CLP, None, OnceLock::new())),
-                Box::new(Node::Spot(Currency::USD, Currency::EUR, None, OnceLock::new())),
+                Box::new(Node::Spot(
+                    Currency::USD,
+                    Currency::CLP,
+                    None,
+                    OnceLock::new(),
+                )),
+                Box::new(Node::Spot(
+                    Currency::USD,
+                    Currency::EUR,
+                    None,
+                    OnceLock::new(),
+                )),
             ]))])),
         ]))]));
 

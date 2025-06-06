@@ -233,13 +233,9 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                         "No scenario set".to_string(),
                     ))?
                     .get(*self.current_event.borrow_mut())
-                    .ok_or(ScriptingError::EvaluationError(
-                        "Df not found".to_string(),
-                    ))?;
+                    .ok_or(ScriptingError::EvaluationError("Df not found".to_string()))?;
 
-                self.digit_stack
-                    .borrow_mut()
-                    .push(market_data.get_df(*id)?);
+                self.digit_stack.borrow_mut().push(market_data.get_df(*id)?);
                 Ok(())
             }
             Node::RateIndex(_, _, _, index) => {
@@ -604,7 +600,10 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 let var_node = self.lhs_variable.borrow_mut().clone().unwrap();
                 if let Node::Variable(_, name, idx) = var_node.as_ref() {
-                    let id = idx.get().ok_or(ScriptingError::EvaluationError(format!("Variable {} not indexed", name)))?;
+                    let id = idx.get().ok_or(ScriptingError::EvaluationError(format!(
+                        "Variable {} not indexed",
+                        name
+                    )))?;
                     let mut vars = self.variables.borrow_mut();
                     let val = if !self.boolean_stack.borrow().is_empty() {
                         Value::Bool(self.boolean_stack.borrow_mut().pop().unwrap())
@@ -621,12 +620,16 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                             *vars.get_mut(*id).unwrap() = Value::Array(vec![val]);
                         }
                         _ => {
-                            return Err(ScriptingError::EvaluationError("Append on non-array".to_string()));
+                            return Err(ScriptingError::EvaluationError(
+                                "Append on non-array".to_string(),
+                            ));
                         }
                     }
                     Ok(())
                 } else {
-                    Err(ScriptingError::EvaluationError("Invalid append target".to_string()))
+                    Err(ScriptingError::EvaluationError(
+                        "Invalid append target".to_string(),
+                    ))
                 }
             }
             Node::Mean(children) => {
@@ -643,7 +646,9 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     }
                 }
                 if count == 0.0 {
-                    return Err(ScriptingError::EvaluationError("mean of empty array".to_string()));
+                    return Err(ScriptingError::EvaluationError(
+                        "mean of empty array".to_string(),
+                    ));
                 }
                 self.digit_stack.borrow_mut().push((sum / count).into());
                 Ok(())
@@ -664,7 +669,9 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     }
                 }
                 if count == 0.0 {
-                    return Err(ScriptingError::EvaluationError("std of empty array".to_string()));
+                    return Err(ScriptingError::EvaluationError(
+                        "std of empty array".to_string(),
+                    ));
                 }
                 let mean = sum / count;
                 let mut var = NumericType::new(0.0);
@@ -720,7 +727,9 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
                 let idx = idx_val.value().round() as usize;
                 if idx >= array.len() {
-                    return Err(ScriptingError::EvaluationError("Index out of bounds".to_string()));
+                    return Err(ScriptingError::EvaluationError(
+                        "Index out of bounds".to_string(),
+                    ));
                 }
                 match array[idx].clone() {
                     Value::Bool(v) => self.boolean_stack.borrow_mut().push(v),
@@ -734,7 +743,9 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::ForEach(_, iter, body, index) => {
                 iter.const_accept(self);
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
-                let idx = index.get().ok_or(ScriptingError::EvaluationError("Loop variable not indexed".to_string()))?;
+                let idx = index.get().ok_or(ScriptingError::EvaluationError(
+                    "Loop variable not indexed".to_string(),
+                ))?;
                 for val in array {
                     self.set_variable(*idx, val);
                     for child in body {

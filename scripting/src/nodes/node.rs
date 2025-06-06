@@ -632,7 +632,10 @@ mod ai_gen_tests {
         let iter = Box::new(Node::new_range());
         let body: Vec<ExprTree> = Vec::new();
         let node = Node::new_for_each("i".to_string(), iter.clone(), body.clone());
-        assert_eq!(node, Node::ForEach("i".to_string(), iter, body, OnceLock::new()));
+        assert_eq!(
+            node,
+            Node::ForEach("i".to_string(), iter, body, OnceLock::new())
+        );
     }
 
     #[test]

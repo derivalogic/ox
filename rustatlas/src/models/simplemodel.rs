@@ -1,3 +1,4 @@
+use crate::models::deterministicmodel::DeterministicModel;
 use crate::utils::errors::Result;
 use crate::{
     core::meta::{

@@ -1,7 +1,7 @@
+use crate::data::simulationdatarequest::DiscountFactorRequest;
 use crate::prelude::*;
 use crate::utils::errors::{Result, ScriptingError};
 use rustatlas::prelude::*;
-use crate::data::simulationdatarequest::DiscountFactorRequest;
 use std::cell::RefCell;
 use std::collections::HashMap;
 /// # EventIndexer

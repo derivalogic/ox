@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
     data::termstructure::{DiscountFactorProvider, ForwardRateProvider, IndexesForDate},
+    models::ramdomnumbers::RandomNumberGenerator,
     prelude::*,
 };
 use rand::Rng;
@@ -31,31 +32,12 @@ pub trait NumerarieModel {
 
 pub trait MarketModel: FxModel + InterestRateModel + EquityModel + NumerarieModel {}
 
-pub trait StochasticModel {
-    type Rng;
-    fn set_rng(&self, rng: Self::Rng);
-    fn set_seed(&self, seed: u64);
-    fn gen_rand(&self) -> f64;
-    fn time_step(&self, date: Date) -> NumericType;
-}
-
 pub trait MonteCarloEngine {
     fn generate_scenario(
         &self,
         event_dates: Vec<Date>,
         request: &Vec<SimulationDataRequest>,
     ) -> Result<Scenario>;
-    // fn generate_scenarios(
-    //     &self,
-    //     request: &Vec<SimulationDataRequest>,
-    //     num_scenarios: usize,
-    // ) -> Result<Vec<Scenario>> {
-    //     let scenarios = (0..num_scenarios)
-    //         .into_iter()
-    //         .map(|_| self.generate_scenario_for_date(request))
-    //         .collect::<Result<Vec<SimulationData>>>()?;
-    //     Ok(scenarios)
-    // }
 
     fn generate_scenarios(
         &self,
@@ -245,16 +227,14 @@ impl<'a> BlackScholesModel<'a> {
     }
 }
 
-impl<'a> StochasticModel for BlackScholesModel<'a> {
+impl<'a> RandomNumberGenerator for BlackScholesModel<'a> {
     type Rng = rand::rngs::ThreadRng;
 
     fn set_rng(&self, _rng: Self::Rng) {
         // Placeholder for setting RNG
     }
 
-    fn set_seed(&self, _seed: u64) {
-        // Placeholder for setting seed
-    }
+    fn set_seed(&self, _seed: u64) {}
 
     fn gen_rand(&self) -> f64 {
         // let normal = Normal::new(0.0, 1.0).unwrap();
