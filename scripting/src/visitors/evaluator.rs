@@ -478,12 +478,10 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             }
             Node::True => {
                 self.boolean_stack.borrow_mut().push(true);
-
                 Ok(())
             }
             Node::False => {
                 self.boolean_stack.borrow_mut().push(false);
-
                 Ok(())
             }
             Node::Equal(children) => {

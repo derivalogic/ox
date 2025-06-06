@@ -232,11 +232,7 @@ impl Parser {
             self.advance();
             let ccy_str = match *self.parse_string()? {
                 Node::String(s) => s,
-                _ => {
-                    return Err(
-                        self.invalid_syntax_err("Invalid argument, expected string"),
-                    )
-                }
+                _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
             };
             currency = Some(
                 Currency::try_from(ccy_str)
@@ -2185,9 +2181,17 @@ mod test_pays_assignment {
         let nodes = Parser::new(tokens).parse().unwrap();
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "prd".to_string(), OnceLock::new())),
+            Box::new(Node::Variable(
+                Vec::new(),
+                "prd".to_string(),
+                OnceLock::new(),
+            )),
             Box::new(Node::Add(vec![
-                Box::new(Node::Variable(Vec::new(), "prd".to_string(), OnceLock::new())),
+                Box::new(Node::Variable(
+                    Vec::new(),
+                    "prd".to_string(),
+                    OnceLock::new(),
+                )),
                 Box::new(Node::Pays(
                     vec![Box::new(Node::Constant(NumericType::new(100.0)))],
                     Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),

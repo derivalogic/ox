@@ -129,56 +129,7 @@ fn main() -> Result<()> {
     let store = market_data(reference_date);
     let mut model = BlackScholesModel::new(reference_date, Currency::USD, &store);
     model.initialize()?;
-    // model.initialize_for_parallelization();
 
-    // let s0_jpy = model
-    //     .fx()
-    //     .get(&(Currency::JPY, Currency::USD))
-    //     .ok_or(ScriptingError::InvalidOperation(
-    //         "Spot rate not found".to_string(),
-    //     ))?
-    //     .read()
-    //     .unwrap();
-
-    // let s0_eur = model
-    //     .fx()
-    //     .get(&(Currency::EUR, Currency::USD))
-    //     .ok_or(ScriptingError::InvalidOperation(
-    //         "Spot rate not found".to_string(),
-    //     ))?
-    //     .read()
-    //     .unwrap();
-
-    // let s0_clp = model
-    //     .fx()
-    //     .get(&(Currency::CLP, Currency::USD))
-    //     .ok_or(ScriptingError::InvalidOperation(
-    //         "Spot rate not found".to_string(),
-    //     ))?
-    //     .read()
-    //     .unwrap();
-
-    // let binding = model
-    //     .rates()
-    //     .get_by_currency(Currency::CLP)
-    //     .unwrap()
-    //     .nodes();
-
-    // let r_clp = binding.get(0).unwrap().1.read().unwrap();
-
-    // let binding = model
-    //     .rates()
-    //     .get_by_currency(Currency::USD)
-    //     .unwrap()
-    //     .nodes();
-    // let r_usd = binding.get(0).unwrap().1.read().unwrap();
-
-    // let binding = model
-    //     .rates()
-    //     .get_by_currency(Currency::EUR)
-    //     .unwrap()
-    //     .nodes();
-    // let r_eur = binding.get(0).unwrap().1.read().unwrap();
     let time_handle = model.time_handle();
     // Scripted payoff of a call option
     let event_maturity = Date::new(2025, 6, 29);
@@ -207,13 +158,6 @@ fn main() -> Result<()> {
     // price_mc.propagate_to_start().unwrap();
     price_mc.backward()?;
     println!("Monte Carlo Price: {}", price_mc);
-    // println!("Monte Carlo Delta JPY: {}", s0_jpy.adjoint()?);
-    // println!("Monte Carlo Delta CLP: {}", s0_clp.adjoint()?);
-    // println!("Monte Carlo Delta EUR: {}", s0_eur.adjoint()?);
-
-    // println!("Monte Carlo Rho CLP: {}", r_clp.adjoint()?);
-    // println!("Monte Carlo Rho USD: {}", r_usd.adjoint()?);
-    // println!("Monte Carlo Rho EUR: {}", r_eur.adjoint()?);
     println!("Theta: {}", time_handle.adjoint()? * 1.0 / 360.0);
 
     let deltas = model
