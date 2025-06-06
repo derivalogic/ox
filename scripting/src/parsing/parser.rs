@@ -42,6 +42,7 @@ impl Parser {
                 "min".to_string(),
                 "max".to_string(),
                 "cvg".to_string(),
+                "fif".to_string(),
                 "in".to_string(),
                 "range".to_string(),
             ],
@@ -590,6 +591,11 @@ impl Parser {
                     min_args = 3;
                     max_args = 3;
                     expr = Some(Node::new_cvg());
+                }
+                "fif" => {
+                    min_args = 4;
+                    max_args = 4;
+                    expr = Some(Node::new_fif());
                 }
                 "range" => {
                     min_args = 2;
@@ -1614,6 +1620,29 @@ fn test_max_function() {
 }
 
 #[test]
+fn test_fif_function() {
+    let script = "
+            z = fif(0.0, 1, 0, 1);
+        "
+    .to_string();
+
+    let tokens = Lexer::new(script).tokenize().unwrap();
+    let nodes = Parser::new(tokens).parse().unwrap();
+
+    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
+        Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
+        Box::new(Node::Fif(vec![
+            Box::new(Node::Constant(NumericType::new(0.0))),
+            Box::new(Node::Constant(NumericType::new(1.0))),
+            Box::new(Node::Constant(NumericType::new(0.0))),
+            Box::new(Node::Constant(NumericType::new(1.0))),
+        ])),
+    ]))]));
+
+    assert_eq!(nodes, expected);
+}
+
+#[test]
 fn test_string_variable() {
     let script = "
             x = \"hello\";
@@ -1911,6 +1940,18 @@ mod test_reserved_keywords {
     fn test_cvg_reserved() {
         let script = "
             cvg = 1;
+        "
+        .to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let nodes = Parser::new(tokens).parse();
+        assert!(nodes.is_err());
+    }
+
+    #[test]
+    fn test_fif_reserved() {
+        let script = "
+            fif = 1;
         "
         .to_string();
 

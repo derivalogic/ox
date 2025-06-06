@@ -38,6 +38,7 @@ pub enum Node {
     Exp(Vec<ExprTree>),
     Pow(Vec<ExprTree>),
     Ln(Vec<ExprTree>),
+    Fif(Vec<ExprTree>),
     Cvg(Vec<ExprTree>),
     Append(Vec<ExprTree>),
     Mean(Vec<ExprTree>),
@@ -113,6 +114,10 @@ impl Node {
 
     pub fn new_ln() -> Node {
         Node::Ln(Vec::new())
+    }
+
+    pub fn new_fif() -> Node {
+        Node::Fif(Vec::new())
     }
 
     pub fn new_pow() -> Node {
@@ -261,6 +266,7 @@ impl Node {
             Node::Max(children) => children.push(child),
             Node::Exp(children) => children.push(child),
             Node::Ln(children) => children.push(child),
+            Node::Fif(children) => children.push(child),
             Node::Pow(children) => children.push(child),
             Node::Cvg(children) => children.push(child),
             Node::Append(children) => children.push(child),
@@ -306,6 +312,7 @@ impl Node {
             Node::Max(children) => children,
             Node::Exp(children) => children,
             Node::Ln(children) => children,
+            Node::Fif(children) => children,
             Node::Pow(children) => children,
             Node::Cvg(children) => children,
             Node::Append(children) => children,
@@ -426,6 +433,13 @@ mod ai_gen_tests {
         // Test the creation of a new ln node
         let node = Node::new_ln();
         assert_eq!(node, Node::Ln(Vec::new()));
+    }
+
+    #[test]
+    fn test_new_fif() {
+        // Test the creation of a new fif node
+        let node = Node::new_fif();
+        assert_eq!(node, Node::Fif(Vec::new()));
     }
 
     #[test]

@@ -578,6 +578,23 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
+            Node::Fif(children) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+
+                let eps = self.digit_stack.borrow_mut().pop().unwrap();
+                let b = self.digit_stack.borrow_mut().pop().unwrap();
+                let a = self.digit_stack.borrow_mut().pop().unwrap();
+                let x = self.digit_stack.borrow_mut().pop().unwrap();
+
+                let half = eps.clone() * 0.5;
+                let inner = (x + half).min(eps.clone()).max(NumericType::zero());
+                let res = b.clone() + ((a - b) / eps) * inner;
+                self.digit_stack.borrow_mut().push(res.into());
+
+                Ok(())
+            }
             Node::Exp(children) => {
                 children
                     .iter()
@@ -1913,6 +1930,26 @@ mod ai_gen_tests {
         evaluator.const_visit(base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 2.0);
+    }
+
+    #[test]
+    fn test_fif_node() {
+        // Test the Fif node to ensure it correctly computes the functional if.
+        let mut base = Box::new(Node::new_base());
+        let mut fif = Box::new(Node::new_fif());
+
+        fif.add_child(Box::new(Node::new_constant(NumericType::new(0.0))));
+        fif.add_child(Box::new(Node::new_constant(NumericType::new(1.0))));
+        fif.add_child(Box::new(Node::new_constant(NumericType::new(0.0))));
+        fif.add_child(Box::new(Node::new_constant(NumericType::new(1.0))));
+
+        base.add_child(fif);
+
+        let evaluator = SingleScenarioEvaluator::new();
+        evaluator.const_visit(base).unwrap();
+
+        let res = evaluator.digit_stack().pop().unwrap();
+        assert!((res - 0.5).abs() < 1e-12);
     }
 
     #[test]

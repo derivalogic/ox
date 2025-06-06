@@ -503,6 +503,23 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
 
                 Ok(())
             }
+            Node::Fif(children) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+
+                let eps = self.digit_stack.borrow_mut().pop().unwrap();
+                let b = self.digit_stack.borrow_mut().pop().unwrap();
+                let a = self.digit_stack.borrow_mut().pop().unwrap();
+                let x = self.digit_stack.borrow_mut().pop().unwrap();
+
+                let half = eps.clone() * 0.5;
+                let inner = (x + half).min(eps.clone()).max(NumericType::zero());
+                let res = b.clone() + ((a - b) / eps) * inner;
+                self.digit_stack.borrow_mut().push(res.into());
+
+                Ok(())
+            }
             Node::Exp(children) => {
                 children
                     .iter()

@@ -28,6 +28,7 @@ impl NodeVisitor for EventIndexer {
             | Node::Exp(children)
             | Node::Pow(children)
             | Node::Ln(children)
+            | Node::Fif(children)
             | Node::Append(children)
             | Node::Mean(children)
             | Node::Std(children)
