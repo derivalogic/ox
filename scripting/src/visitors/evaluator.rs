@@ -580,6 +580,20 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
+            Node::FIf(children) => {
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                let eps = self.digit_stack.borrow_mut().pop().unwrap();
+                let b = self.digit_stack.borrow_mut().pop().unwrap();
+                let a = self.digit_stack.borrow_mut().pop().unwrap();
+                let x = self.digit_stack.borrow_mut().pop().unwrap();
+                self
+                    .digit_stack
+                    .borrow_mut()
+                    .push(crate::utils::math::f_if(x, a, b, eps));
+                Ok(())
+            }
             Node::Exp(children) => {
                 children
                     .iter()
