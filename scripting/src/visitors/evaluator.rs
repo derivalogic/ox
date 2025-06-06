@@ -275,20 +275,16 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     .clone();
 
                 let current_value = self.digit_stack.borrow_mut().pop().unwrap();
-                let df_id = df_index
-                    .get()
-                    .ok_or(ScriptingError::EvaluationError(
-                        "Pays not indexed".to_string(),
-                    ))?;
+                let df_id = df_index.get().ok_or(ScriptingError::EvaluationError(
+                    "Pays not indexed".to_string(),
+                ))?;
                 let df = market_data.get_df(*df_id)?;
                 let numerarie = market_data.numerarie();
 
                 let value: NumericType = if let Some(_) = currency {
-                    let fx_id = fx_index
-                        .get()
-                        .ok_or(ScriptingError::EvaluationError(
-                            "Pays FX not indexed".to_string(),
-                        ))?;
+                    let fx_id = fx_index.get().ok_or(ScriptingError::EvaluationError(
+                        "Pays FX not indexed".to_string(),
+                    ))?;
                     let fx = market_data.get_fx(*fx_id)?;
                     ((current_value * df * fx) / numerarie).into()
                 } else {
@@ -1016,9 +1012,6 @@ impl<'a> EventStreamEvaluator<'a> {
 mod general_tests {
 
     use super::*;
-    use crate::data::simulationdata::SimulationData;
-    use crate::nodes::event::{Event, EventStream};
-    use rustatlas::currencies::enums::Currency;
 
     #[test]
     fn test_add_node() {

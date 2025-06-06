@@ -14,7 +14,9 @@ pub struct CheckLinearity {
 impl CheckLinearity {
     /// Create a new `CheckLinearity` visitor.
     pub fn new() -> Self {
-        Self { linear: Cell::new(true) }
+        Self {
+            linear: Cell::new(true),
+        }
     }
 
     /// Returns `true` if the visited script is linear.
@@ -79,9 +81,9 @@ impl NodeVisitor for CheckLinearity {
                 self.visit(iter);
                 body.iter().for_each(|c| self.visit(c));
             }
-            Node::Spot(..)
-            | Node::Df(..)
-            | Node::RateIndex(..)
+            Node::Spot(_, _, _, _)
+            | Node::Df(_, _, _)
+            | Node::RateIndex(_, _, _, _)
             | Node::True
             | Node::False
             | Node::Constant(_)
