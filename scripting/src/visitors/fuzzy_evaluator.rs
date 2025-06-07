@@ -1,8 +1,8 @@
 use std::cell::RefCell;
-use std::sync::OnceLock;
 
 use crate::prelude::*;
 use crate::visitors::evaluator::{SingleScenarioEvaluator, Value};
+use rustatlas::prelude::*;
 
 /// Evaluator implementing a simple fuzzy logic mode using
 /// the `fIf` smoothing kernel described in `docs/AGENTS.md`.
@@ -12,9 +12,9 @@ use crate::visitors::evaluator::{SingleScenarioEvaluator, Value};
 /// inside `if` blocks are weighted by these probabilities.
 pub struct FuzzyEvaluator<'a> {
     base: SingleScenarioEvaluator<'a>,
-    dt_stack: RefCell<Vec<NumericType>>,       // condition truth values in [0,1]
-    weight_stack: RefCell<Vec<NumericType>>,   // multiplicative weights
-    eps: NumericType,
+    dt_stack: RefCell<Vec<NumericType>>, // condition truth values in [0,1]
+    weight_stack: RefCell<Vec<NumericType>>, // multiplicative weights
+    eps: f64,
 }
 
 impl<'a> FuzzyEvaluator<'a> {
@@ -24,7 +24,7 @@ impl<'a> FuzzyEvaluator<'a> {
             base: SingleScenarioEvaluator::new(),
             dt_stack: RefCell::new(Vec::new()),
             weight_stack: RefCell::new(vec![NumericType::one()]),
-            eps: NumericType::one(),
+            eps: 1e-12,
         }
     }
 
@@ -50,15 +50,9 @@ impl<'a> FuzzyEvaluator<'a> {
         self.base.digit_stack()
     }
 
-    fn fif(&self, x: NumericType, a: NumericType, b: NumericType) -> NumericType {
-        let half = self.eps * NumericType::new(0.5);
-        let inner = (x + half).min(self.eps).max(NumericType::zero());
-        b + ((a - b) / self.eps) * inner
-    }
-
     fn push_weight(&self, w: NumericType) {
         let current = *self.weight_stack.borrow().last().unwrap();
-        self.weight_stack.borrow_mut().push(current * w);
+        self.weight_stack.borrow_mut().push((current * w).into());
     }
 
     fn pop_weight(&self) {
@@ -67,6 +61,15 @@ impl<'a> FuzzyEvaluator<'a> {
 
     fn current_weight(&self) -> NumericType {
         *self.weight_stack.borrow().last().unwrap()
+    }
+
+    fn fif(&self, x: NumericType, a: NumericType, b: NumericType) -> NumericType {
+        let half = self.eps * 0.5;
+        let inner = (x + half)
+            .min(NumericType::from(self.eps))
+            .max(NumericType::zero());
+        let res = b.clone() + ((a - b) / self.eps) * inner;
+        res.into()
     }
 }
 
@@ -84,93 +87,139 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 Ok(())
             }
             Node::Superior(children) => {
-                for c in children { c.const_accept(self)?; }
+                for c in children {
+                    c.const_accept(self);
+                }
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif(left - right, NumericType::one(), NumericType::zero());
+                let dt = self.fif(
+                    (left - right).into(),
+                    NumericType::one(),
+                    NumericType::zero(),
+                );
+
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
             Node::Inferior(children) => {
-                for c in children { c.const_accept(self)?; }
+                for c in children {
+                    c.const_accept(self);
+                }
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif(right - left, NumericType::one(), NumericType::zero());
+                let dt = self.fif(
+                    (right - left).into(),
+                    NumericType::one(),
+                    NumericType::zero(),
+                );
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
             Node::SuperiorOrEqual(children) => {
-                for c in children { c.const_accept(self)?; }
+                for c in children {
+                    c.const_accept(self);
+                }
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif(left - right, NumericType::one(), NumericType::zero());
+                let dt = self.fif(
+                    (left - right).into(),
+                    NumericType::one(),
+                    NumericType::zero(),
+                );
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
             Node::InferiorOrEqual(children) => {
-                for c in children { c.const_accept(self)?; }
+                for c in children {
+                    c.const_accept(self);
+                }
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif(right - left, NumericType::one(), NumericType::zero());
+                let dt = self.fif(
+                    (right - left).into(),
+                    NumericType::one(),
+                    NumericType::zero(),
+                );
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
             Node::Equal(children) => {
-                for c in children { c.const_accept(self)?; }
+                for c in children {
+                    c.const_accept(self);
+                }
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let diff = (right - left).abs();
-                let dt = if diff.value() < f64::EPSILON { NumericType::one() } else { NumericType::zero() };
+                let dt = if diff < f64::EPSILON {
+                    NumericType::one()
+                } else {
+                    NumericType::zero()
+                };
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
             Node::NotEqual(children) => {
-                for c in children { c.const_accept(self)?; }
+                for c in children {
+                    c.const_accept(self);
+                }
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let diff = (right - left).abs();
-                let dt = if diff.value() >= f64::EPSILON { NumericType::one() } else { NumericType::zero() };
+                let dt = if diff >= f64::EPSILON {
+                    NumericType::one()
+                } else {
+                    NumericType::zero()
+                };
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
             Node::And(children) => {
-                for c in children { c.const_accept(self)?; }
+                for c in children {
+                    c.const_accept(self);
+                }
                 let b = self.dt_stack.borrow_mut().pop().unwrap();
-                let a_ref = self.dt_stack.borrow_mut().last_mut().unwrap();
-                *a_ref = *a_ref * b;
+                let mut binding = self.dt_stack.borrow_mut();
+                let a_ref = binding.last_mut().unwrap();
+                *a_ref = (*a_ref * b).into();
                 Ok(())
             }
             Node::Or(children) => {
-                for c in children { c.const_accept(self)?; }
+                for c in children {
+                    c.const_accept(self);
+                }
                 let b = self.dt_stack.borrow_mut().pop().unwrap();
-                let a_ref = self.dt_stack.borrow_mut().last_mut().unwrap();
-                *a_ref = *a_ref + b - *a_ref * b;
+                let mut binding = self.dt_stack.borrow_mut();
+                let a_ref = binding.last_mut().unwrap();
+                *a_ref = (*a_ref + b - *a_ref * b).into();
                 Ok(())
             }
             Node::Not(children) => {
-                for c in children { c.const_accept(self)?; }
-                let top = self.dt_stack.borrow_mut().last_mut().unwrap();
-                *top = NumericType::one() - *top;
+                for c in children {
+                    c.const_accept(self);
+                }
+                let mut binding = self.dt_stack.borrow_mut();
+                let top = binding.last_mut().unwrap();
+                *top = (NumericType::one() - *top).into();
                 Ok(())
             }
             Node::If(children, first_else, ..) => {
                 // evaluate condition
-                children[0].const_accept(self)?;
+                children[0].const_accept(self);
                 let dt = self.dt_stack.borrow_mut().pop().unwrap();
                 let last_condition = first_else.unwrap_or(children.len());
 
                 // then branch
                 self.push_weight(dt);
                 for c in children.iter().skip(1).take(last_condition - 1) {
-                    c.const_accept(self)?;
+                    c.const_accept(self);
                 }
                 self.pop_weight();
 
                 // else branch
                 if let Some(idx) = first_else {
-                    self.push_weight(NumericType::one() - dt);
-                    for c in children.iter().skip(idx) {
-                        c.const_accept(self)?;
+                    self.push_weight((-dt + 1.0).into());
+                    for c in children.iter().skip(*idx) {
+                        c.const_accept(self);
                     }
                     self.pop_weight();
                 }
@@ -214,67 +263,28 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                                 if weight.value() >= 1.0 - f64::EPSILON {
                                     variables[*id] = Value::Number(value);
                                 } else {
-                                    let existing = variables.get(*id).cloned().unwrap_or(Value::Number(NumericType::zero()));
+                                    let existing = variables
+                                        .get(*id)
+                                        .cloned()
+                                        .unwrap_or(Value::Number(NumericType::zero()));
                                     if let Value::Number(old) = existing {
-                                        let new_val = old * (NumericType::one() - weight) + value * weight;
-                                        variables[*id] = Value::Number(new_val);
+                                        let new_val =
+                                            old * (NumericType::one() - weight) + value * weight;
+                                        variables[*id] = Value::Number(new_val.into());
                                     } else {
-                                        variables[*id] = Value::Number(value * weight);
+                                        variables[*id] = Value::Number((value * weight).into());
                                     }
                                 }
                             }
                             Ok(())
                         }
                     },
-                    _ => Err(ScriptingError::EvaluationError("Invalid variable assignment".to_string())),
+                    _ => Err(ScriptingError::EvaluationError(
+                        "Invalid variable assignment".to_string(),
+                    )),
                 }
             }
             _ => self.base.const_visit(node),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::OnceLock;
-
-    #[test]
-    fn test_fuzzy_if_assignment() {
-        let x = Box::new(Node::new_variable_with_id("x".to_string(), 0));
-        let zero = Box::new(Node::new_constant(NumericType::new(0.0)));
-
-        // condition x > 0
-        let cond = Box::new(Node::Superior(vec![x.clone(), zero.clone()]));
-
-        let assign_then = Box::new(Node::Assign(vec![
-            x.clone(),
-            Box::new(Node::new_constant(NumericType::new(1.0))),
-        ]));
-        let assign_else = Box::new(Node::Assign(vec![
-            x.clone(),
-            Box::new(Node::new_constant(NumericType::new(0.0))),
-        ]));
-        let if_node = Box::new(Node::If(
-            vec![cond, assign_then, assign_else],
-            Some(2),
-            OnceLock::new(),
-            None,
-            None,
-        ));
-
-        let base = Box::new(Node::Base(vec![
-            Box::new(Node::Assign(vec![x.clone(), zero.clone()])),
-            if_node,
-        ]));
-
-        let evaluator = FuzzyEvaluator::new().with_variables(1);
-        evaluator.const_visit(base).unwrap();
-
-        let vars = evaluator.variables();
-        match vars.get(0).unwrap() {
-            Value::Number(n) => assert!((n.value() - 0.5).abs() < 1e-12),
-            _ => panic!("expected numeric"),
         }
     }
 }

@@ -92,13 +92,13 @@ impl Div for Value {
 /// # SingleScenarioEvaluator
 /// Visitor that evaluates the expression tree
 pub struct SingleScenarioEvaluator<'a> {
-    variables: RefCell<Vec<Value>>,
-    digit_stack: RefCell<Vec<NumericType>>,
-    boolean_stack: RefCell<Vec<bool>>,
-    string_stack: RefCell<Vec<String>>,
-    array_stack: RefCell<Vec<Vec<Value>>>,
-    is_lhs_variable: RefCell<bool>,
-    lhs_variable: RefCell<Option<Box<Node>>>,
+    pub variables: RefCell<Vec<Value>>,
+    pub digit_stack: RefCell<Vec<NumericType>>,
+    pub boolean_stack: RefCell<Vec<bool>>,
+    pub string_stack: RefCell<Vec<String>>,
+    pub array_stack: RefCell<Vec<Vec<Value>>>,
+    pub is_lhs_variable: RefCell<bool>,
+    pub lhs_variable: RefCell<Option<Box<Node>>>,
     scenario: Option<&'a Scenario>,
     current_event: RefCell<usize>,
 }
