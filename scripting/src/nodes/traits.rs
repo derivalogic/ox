@@ -2,12 +2,12 @@ use crate::prelude::*;
 
 pub trait NodeVisitor {
     type Output;
-    fn visit(&self, node: &Box<Node>) -> Self::Output;
+    fn visit(&self, node: &mut Node) -> Self::Output;
 }
 
 pub trait NodeConstVisitor {
     type Output;
-    fn const_visit(&self, node: Box<Node>) -> Self::Output;
+    fn const_visit(&self, node: &Node) -> Self::Output;
 }
 
 pub trait Visitable {

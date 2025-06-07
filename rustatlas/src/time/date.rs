@@ -155,7 +155,7 @@ impl Sub<Period> for NaiveDate {
 /// assert_eq!(date.month(), 2);
 /// assert_eq!(date.year(), 2020);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Date {
     base_date: NaiveDate,
 }
