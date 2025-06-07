@@ -959,28 +959,16 @@ mod other_tests {
         let parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(
-                Vec::new(),
-                "avg".to_string(),
-                OnceLock::new(),
-            )),
+        let expected = Box::new(Node::Base(NodeData { children: vec![Box::new(Node::Assign(vec![
+            Box::new(Node::new_variable("avg".to_string())),
             Box::new(Node::Divide(vec![
                 Box::new(Node::Add(vec![
-                    Box::new(Node::Variable(
-                        Vec::new(),
-                        "s1".to_string(),
-                        OnceLock::new(),
-                    )),
-                    Box::new(Node::Variable(
-                        Vec::new(),
-                        "s2".to_string(),
-                        OnceLock::new(),
-                    )),
+                    Box::new(Node::new_variable("s1".to_string())),
+                    Box::new(Node::new_variable("s2".to_string())),
                 ])),
-                Box::new(Node::Constant(NumericType::new(2.0))),
+                Box::new(Node::new_constant(2.0)),
             ])),
-        ]))]));
+        ]))]}) );
 
         assert_eq!(ast, expected);
     }
@@ -993,11 +981,11 @@ mod other_tests {
         let ast = parser.parse().unwrap();
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("a".to_string())),
             Box::new(Node::List(vec![
-                Box::new(Node::Constant(NumericType::new(1.0))),
-                Box::new(Node::Constant(NumericType::new(2.0))),
-                Box::new(Node::Constant(NumericType::new(3.0))),
+                Box::new(Node::new_constant(1.0)),
+                Box::new(Node::new_constant(2.0)),
+                Box::new(Node::new_constant(3.0)),
             ])),
         ]))]));
 
@@ -1013,18 +1001,18 @@ mod other_tests {
 
         let expected = Box::new(Node::Base(vec![
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(1.0))),
+                Box::new(Node::new_variable("x".to_string())),
+                Box::new(Node::new_constant(1.0)),
             ])),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(2.0))),
+                Box::new(Node::new_variable("y".to_string())),
+                Box::new(Node::new_constant(2.0)),
             ])),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+                Box::new(Node::new_variable("a".to_string())),
                 Box::new(Node::List(vec![
-                    Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                    Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+                    Box::new(Node::new_variable("x".to_string())),
+                    Box::new(Node::new_variable("y".to_string())),
                 ])),
             ])),
         ]));
@@ -1040,7 +1028,7 @@ mod other_tests {
         let ast = parser.parse().unwrap();
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("a".to_string())),
             Box::new(Node::List(vec![Box::new(Node::Spot(
                 Currency::USD,
                 Currency::EUR,
@@ -1099,8 +1087,8 @@ mod other_tests {
                     OnceLock::new(),
                 )),
                 Box::new(Node::List(vec![
-                    Box::new(Node::Constant(NumericType::new(1.0))),
-                    Box::new(Node::Constant(NumericType::new(2.0))),
+                    Box::new(Node::new_constant(1.0)),
+                    Box::new(Node::new_constant(2.0)),
                 ])),
             ])),
             Box::new(Node::Assign(vec![
@@ -1146,8 +1134,8 @@ fn test_variable_assignment() {
     let result = parser.parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-        Box::new(Node::Constant(NumericType::new(1.0))),
+        Box::new(Node::new_variable("a".to_string())),
+        Box::new(Node::new_constant(1.0)),
     ]))]));
 
     assert_eq!(result, expected);
@@ -1160,8 +1148,8 @@ fn test_variable_assignment_with_new_lines() {
     let result = parser.parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-        Box::new(Node::Constant(NumericType::new(1.0))),
+        Box::new(Node::new_variable("a".to_string())),
+        Box::new(Node::new_constant(1.0)),
     ]))]));
 
     assert_eq!(result, expected);
@@ -1174,10 +1162,10 @@ fn test_boolean_expression_assignment() {
     let result = parser.parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
+        Box::new(Node::new_variable("a".to_string())),
         Box::new(Node::Inferior(vec![
-            Box::new(Node::Constant(NumericType::new(1.0))),
-            Box::new(Node::Constant(NumericType::new(2.0))),
+            Box::new(Node::new_constant(1.0)),
+            Box::new(Node::new_constant(2.0)),
         ])),
     ]))]));
 
@@ -1201,12 +1189,12 @@ fn test_if_statement() {
     let expected = Box::new(Node::Base(vec![Box::new(Node::If(
         vec![
             Box::new(Node::Equal(vec![
-                Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(1.0))),
+                Box::new(Node::new_variable("a".to_string())),
+                Box::new(Node::new_constant(1.0)),
             ])),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(2.0))),
+                Box::new(Node::new_variable("b".to_string())),
+                Box::new(Node::new_constant(2.0)),
             ])),
         ],
         None,
@@ -1237,16 +1225,16 @@ fn test_if_else_statement() {
     let expected = Box::new(Node::Base(vec![Box::new(Node::If(
         vec![
             Box::new(Node::Equal(vec![
-                Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(1.0))),
+                Box::new(Node::new_variable("a".to_string())),
+                Box::new(Node::new_constant(1.0)),
             ])),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(2.0))),
+                Box::new(Node::new_variable("b".to_string())),
+                Box::new(Node::new_constant(2.0)),
             ])),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(3.0))),
+                Box::new(Node::new_variable("b".to_string())),
+                Box::new(Node::new_constant(3.0)),
             ])),
         ],
         Some(1),
@@ -1281,22 +1269,22 @@ fn test_nested_if_else_statement() {
     let expected = Box::new(Node::Base(vec![Box::new(Node::If(
         vec![
             Box::new(Node::Equal(vec![
-                Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(1.0))),
+                Box::new(Node::new_variable("a".to_string())),
+                Box::new(Node::new_constant(1.0)),
             ])),
             Box::new(Node::If(
                 vec![
                     Box::new(Node::Equal(vec![
-                        Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(NumericType::new(2.0))),
+                        Box::new(Node::new_variable("b".to_string())),
+                        Box::new(Node::new_constant(2.0)),
                     ])),
                     Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(NumericType::new(3.0))),
+                        Box::new(Node::new_variable("c".to_string())),
+                        Box::new(Node::new_constant(3.0)),
                     ])),
                     Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(NumericType::new(4.0))),
+                        Box::new(Node::new_variable("c".to_string())),
+                        Box::new(Node::new_constant(4.0)),
                     ])),
                 ],
                 Some(1),
@@ -1305,8 +1293,8 @@ fn test_nested_if_else_statement() {
                 None,
             )),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(5.0))),
+                Box::new(Node::new_variable("c".to_string())),
+                Box::new(Node::new_constant(5.0)),
             ])),
         ],
         Some(1),
@@ -1344,30 +1332,30 @@ fn test_nested_if_else_statement_with_multiple_statements() {
     let expected = Box::new(Node::Base(vec![Box::new(Node::If(
         vec![
             Box::new(Node::Equal(vec![
-                Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(1.0))),
+                Box::new(Node::new_variable("a".to_string())),
+                Box::new(Node::new_constant(1.0)),
             ])),
             Box::new(Node::If(
                 vec![
                     Box::new(Node::Equal(vec![
-                        Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(NumericType::new(2.0))),
+                        Box::new(Node::new_variable("b".to_string())),
+                        Box::new(Node::new_constant(2.0)),
                     ])),
                     Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(NumericType::new(3.0))),
+                        Box::new(Node::new_variable("c".to_string())),
+                        Box::new(Node::new_constant(3.0)),
                     ])),
                     Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(NumericType::new(4.0))),
+                        Box::new(Node::new_variable("d".to_string())),
+                        Box::new(Node::new_constant(4.0)),
                     ])),
                     Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(NumericType::new(5.0))),
+                        Box::new(Node::new_variable("c".to_string())),
+                        Box::new(Node::new_constant(5.0)),
                     ])),
                     Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
-                        Box::new(Node::Constant(NumericType::new(6.0))),
+                        Box::new(Node::new_variable("d".to_string())),
+                        Box::new(Node::new_constant(6.0)),
                     ])),
                 ],
                 Some(2),
@@ -1376,12 +1364,12 @@ fn test_nested_if_else_statement_with_multiple_statements() {
                 None,
             )),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(7.0))),
+                Box::new(Node::new_variable("c".to_string())),
+                Box::new(Node::new_constant(7.0)),
             ])),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(8.0))),
+                Box::new(Node::new_variable("d".to_string())),
+                Box::new(Node::new_constant(8.0)),
             ])),
         ],
         Some(1),
@@ -1412,17 +1400,17 @@ fn test_if_multiple_conditions() {
         vec![
             Box::new(Node::And(vec![
                 Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(NumericType::new(1.0))),
+                    Box::new(Node::new_variable("a".to_string())),
+                    Box::new(Node::new_constant(1.0)),
                 ])),
                 Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(NumericType::new(2.0))),
+                    Box::new(Node::new_variable("b".to_string())),
+                    Box::new(Node::new_constant(2.0)),
                 ])),
             ])),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(3.0))),
+                Box::new(Node::new_variable("c".to_string())),
+                Box::new(Node::new_constant(3.0)),
             ])),
         ],
         None,
@@ -1449,17 +1437,17 @@ fn test_if_multiple_conditions() {
         vec![
             Box::new(Node::Or(vec![
                 Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(NumericType::new(1.0))),
+                    Box::new(Node::new_variable("a".to_string())),
+                    Box::new(Node::new_constant(1.0)),
                 ])),
                 Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(NumericType::new(2.0))),
+                    Box::new(Node::new_variable("b".to_string())),
+                    Box::new(Node::new_constant(2.0)),
                 ])),
             ])),
             Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                Box::new(Node::Constant(NumericType::new(3.0))),
+                Box::new(Node::new_variable("c".to_string())),
+                Box::new(Node::new_constant(3.0)),
             ])),
         ],
         None,
@@ -1490,22 +1478,22 @@ fn test_if_new_variable() {
 
     let expected = Box::new(Node::Base(vec![
         Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-            Box::new(Node::Constant(NumericType::new(2.0))),
+            Box::new(Node::new_variable("x".to_string())),
+            Box::new(Node::new_constant(2.0)),
         ])),
         Box::new(Node::If(
             vec![
                 Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(NumericType::new(1.0))),
+                    Box::new(Node::new_variable("x".to_string())),
+                    Box::new(Node::new_constant(1.0)),
                 ])),
                 Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(NumericType::new(3.0))),
+                    Box::new(Node::new_variable("z".to_string())),
+                    Box::new(Node::new_constant(3.0)),
                 ])),
                 Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "w".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(NumericType::new(4.0))),
+                    Box::new(Node::new_variable("w".to_string())),
+                    Box::new(Node::new_constant(4.0)),
                 ])),
             ],
             None,
@@ -1537,22 +1525,22 @@ fn test_bool_variables_with_if() {
 
     let expected = Box::new(Node::Base(vec![
         Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("x".to_string())),
             Box::new(Node::True),
         ])),
         Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("y".to_string())),
             Box::new(Node::False),
         ])),
         Box::new(Node::If(
             vec![
                 Box::new(Node::Equal(vec![
-                    Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+                    Box::new(Node::new_variable("x".to_string())),
                     Box::new(Node::True),
                 ])),
                 Box::new(Node::Assign(vec![
-                    Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
-                    Box::new(Node::Constant(NumericType::new(3.0))),
+                    Box::new(Node::new_variable("z".to_string())),
+                    Box::new(Node::new_constant(3.0)),
                 ])),
             ],
             None,
@@ -1580,25 +1568,25 @@ fn test_multiple_bool_vars() {
 
     let expected = Box::new(Node::Base(vec![
         Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("x".to_string())),
             Box::new(Node::True),
         ])),
         Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("y".to_string())),
             Box::new(Node::False),
         ])),
         Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("z".to_string())),
             Box::new(Node::And(vec![
-                Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+                Box::new(Node::new_variable("x".to_string())),
+                Box::new(Node::new_variable("y".to_string())),
             ])),
         ])),
         Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "w".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("w".to_string())),
             Box::new(Node::Or(vec![
-                Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-                Box::new(Node::Variable(Vec::new(), "y".to_string(), OnceLock::new())),
+                Box::new(Node::new_variable("x".to_string())),
+                Box::new(Node::new_variable("y".to_string())),
             ])),
         ])),
     ]));
@@ -1617,7 +1605,7 @@ fn test_cvg_function() {
     let nodes = Parser::new(tokens).parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+        Box::new(Node::new_variable("x".to_string())),
         Box::new(Node::Cvg(vec![
             Box::new(Node::String("2020-01-01".to_string())),
             Box::new(Node::String("2020-06-01".to_string())),
@@ -1641,10 +1629,10 @@ fn test_max_function() {
     let nodes = Parser::new(tokens).parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
+        Box::new(Node::new_variable("z".to_string())),
         Box::new(Node::Max(vec![
-            Box::new(Node::Constant(NumericType::new(1.0))),
-            Box::new(Node::Constant(NumericType::new(2.0))),
+            Box::new(Node::new_constant(1.0)),
+            Box::new(Node::new_constant(2.0)),
         ])),
     ]))]));
 
@@ -1662,12 +1650,12 @@ fn test_fif_function() {
     let nodes = Parser::new(tokens).parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "z".to_string(), OnceLock::new())),
+        Box::new(Node::new_variable("z".to_string())),
         Box::new(Node::Fif(vec![
-            Box::new(Node::Constant(NumericType::new(0.0))),
-            Box::new(Node::Constant(NumericType::new(1.0))),
-            Box::new(Node::Constant(NumericType::new(0.0))),
-            Box::new(Node::Constant(NumericType::new(1.0))),
+            Box::new(Node::new_constant(0.0)),
+            Box::new(Node::new_constant(1.0)),
+            Box::new(Node::new_constant(0.0)),
+            Box::new(Node::new_constant(1.0)),
         ])),
     ]))]));
 
@@ -1685,7 +1673,7 @@ fn test_string_variable() {
     let nodes = Parser::new(tokens).parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+        Box::new(Node::new_variable("x".to_string())),
         Box::new(Node::String("hello".to_string())),
     ]))]));
 
@@ -1703,7 +1691,7 @@ fn test_spot_function() {
     let nodes = Parser::new(tokens).parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+        Box::new(Node::new_variable("x".to_string())),
         Box::new(Node::Spot(
             Currency::try_from("USD".to_string()).unwrap(),
             Currency::try_from("EUR".to_string()).unwrap(),
@@ -1726,7 +1714,7 @@ fn test_spot_function_with_date() {
     let nodes = Parser::new(tokens).parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+        Box::new(Node::new_variable("x".to_string())),
         Box::new(Node::Spot(
             Currency::try_from("USD".to_string()).unwrap(),
             Currency::try_from("EUR".to_string()).unwrap(),
@@ -1745,8 +1733,8 @@ fn test_df_function() {
     let nodes = Parser::new(tokens).parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
-        Box::new(Node::Df(Date::new(2025, 6, 1), None, OnceLock::new())),
+        Box::new(Node::new_variable("x".to_string())),
+        Box::new(Node::new_df(Date::new(2025, 6, 1), None)),
     ]))]));
 
     assert_eq!(nodes, expected);
@@ -1759,7 +1747,7 @@ fn test_df_function_with_curve() {
     let nodes = Parser::new(tokens).parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+        Box::new(Node::new_variable("x".to_string())),
         Box::new(Node::Df(
             Date::new(2025, 6, 1),
             Some("curve".to_string()),
@@ -1781,7 +1769,7 @@ fn test_rate_index_function() {
     let nodes = Parser::new(tokens).parse().unwrap();
 
     let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+        Box::new(Node::new_variable("x".to_string())),
         Box::new(Node::RateIndex(
             "0".to_string(),
             Date::new(2024, 1, 1),
@@ -2009,10 +1997,10 @@ mod test_function_args {
         let nodes = Parser::new(tokens).parse().unwrap();
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("x".to_string())),
             Box::new(Node::Max(vec![
-                Box::new(Node::Constant(NumericType::new(1.0))),
-                Box::new(Node::Constant(NumericType::new(2.0))),
+                Box::new(Node::new_constant(1.0)),
+                Box::new(Node::new_constant(2.0)),
             ])),
         ]))]));
 
@@ -2030,12 +2018,12 @@ mod test_function_args {
         let nodes = Parser::new(tokens).parse().unwrap();
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("x".to_string())),
             Box::new(Node::Max(vec![
-                Box::new(Node::Constant(NumericType::new(1.0))),
-                Box::new(Node::Constant(NumericType::new(2.0))),
-                Box::new(Node::Constant(NumericType::new(3.0))),
-                Box::new(Node::Constant(NumericType::new(4.0))),
+                Box::new(Node::new_constant(1.0)),
+                Box::new(Node::new_constant(2.0)),
+                Box::new(Node::new_constant(3.0)),
+                Box::new(Node::new_constant(4.0)),
             ])),
         ]))]));
 
@@ -2053,13 +2041,13 @@ mod test_function_args {
         let nodes = Parser::new(tokens).parse().unwrap();
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("x".to_string())),
             Box::new(Node::Max(vec![
                 Box::new(Node::Max(vec![
-                    Box::new(Node::Constant(NumericType::new(1.0))),
-                    Box::new(Node::Constant(NumericType::new(2.0))),
+                    Box::new(Node::new_constant(1.0)),
+                    Box::new(Node::new_constant(2.0)),
                 ])),
-                Box::new(Node::Constant(NumericType::new(3.0))),
+                Box::new(Node::new_constant(3.0)),
             ])),
         ]))]));
 
@@ -2077,15 +2065,15 @@ mod test_function_args {
         let nodes = Parser::new(tokens).parse().unwrap();
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("x".to_string())),
             Box::new(Node::Max(vec![
                 Box::new(Node::Max(vec![
-                    Box::new(Node::Constant(NumericType::new(1.0))),
-                    Box::new(Node::Constant(NumericType::new(2.0))),
+                    Box::new(Node::new_constant(1.0)),
+                    Box::new(Node::new_constant(2.0)),
                 ])),
                 Box::new(Node::Max(vec![
-                    Box::new(Node::Constant(NumericType::new(3.0))),
-                    Box::new(Node::Constant(NumericType::new(4.0))),
+                    Box::new(Node::new_constant(3.0)),
+                    Box::new(Node::new_constant(4.0)),
                 ])),
             ])),
         ]))]));
@@ -2104,15 +2092,15 @@ mod test_function_args {
         let nodes = Parser::new(tokens).parse().unwrap();
 
         let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(Vec::new(), "x".to_string(), OnceLock::new())),
+            Box::new(Node::new_variable("x".to_string())),
             Box::new(Node::Max(vec![
                 Box::new(Node::Max(vec![
-                    Box::new(Node::Variable(Vec::new(), "a".to_string(), OnceLock::new())),
-                    Box::new(Node::Variable(Vec::new(), "b".to_string(), OnceLock::new())),
+                    Box::new(Node::new_variable("a".to_string())),
+                    Box::new(Node::new_variable("b".to_string())),
                 ])),
                 Box::new(Node::Max(vec![
-                    Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
-                    Box::new(Node::Variable(Vec::new(), "d".to_string(), OnceLock::new())),
+                    Box::new(Node::new_variable("c".to_string())),
+                    Box::new(Node::new_variable("d".to_string())),
                 ])),
             ])),
         ]))]));
@@ -2163,9 +2151,9 @@ mod test_pays_expression {
                             None,
                             OnceLock::new(),
                         )),
-                        Box::new(Node::Constant(NumericType::new(900.0))),
+                        Box::new(Node::new_constant(900.0)),
                     ])),
-                    Box::new(Node::Constant(NumericType::new(0.0))),
+                    Box::new(Node::new_constant(0.0)),
                 ]))],
                 None,
                 None,
@@ -2202,7 +2190,7 @@ mod test_pays_assignment {
                     OnceLock::new(),
                 )),
                 Box::new(Node::Pays(
-                    vec![Box::new(Node::Constant(NumericType::new(100.0)))],
+                    vec![Box::new(Node::new_constant(100.0))],
                     None,
                     None,
                     OnceLock::new(),
@@ -2234,7 +2222,7 @@ mod test_pays_assignment {
                     OnceLock::new(),
                 )),
                 Box::new(Node::Pays(
-                    vec![Box::new(Node::Constant(NumericType::new(100.0)))],
+                    vec![Box::new(Node::new_constant(100.0))],
                     Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
                     None,
                     OnceLock::new(),
@@ -2266,7 +2254,7 @@ mod test_pays_assignment {
                     OnceLock::new(),
                 )),
                 Box::new(Node::Pays(
-                    vec![Box::new(Node::Constant(NumericType::new(100.0)))],
+                    vec![Box::new(Node::new_constant(100.0))],
                     Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
                     Some(Currency::try_from("EUR".to_string()).unwrap()),
                     OnceLock::new(),
