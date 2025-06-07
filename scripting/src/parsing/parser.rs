@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::sync::OnceLock;
 
 use rustatlas::currencies::enums::Currency;
 use rustatlas::prelude::*;
@@ -49,7 +48,7 @@ impl Parser {
         }
     }
 
-    pub fn parse(&self) -> Result<ExprTree> {
+    pub fn parse(&self) -> Result<Node> {
         let mut expressions = Vec::new();
         while self.current_token() != Token::EOF {
             if self.current_token() == Token::Newline {
@@ -59,7 +58,7 @@ impl Parser {
             let expr = self.parse_expression()?;
             expressions.push(expr);
         }
-        Ok(Box::new(Node::Base(expressions)))
+        Ok(Node::Base(NodeData { children: expressions }))
     }
 }
 
@@ -148,7 +147,7 @@ impl Parser {
     }
 
     /// Parse an expression
-    fn parse_expression(&self) -> Result<ExprTree> {
+    fn parse_expression(&self) -> Result<Node> {
         match self.current_token() {
             Token::If => self.parse_if(),
             Token::For => self.parse_for(),
@@ -180,8 +179,10 @@ impl Parser {
                             if self.current_token() == Token::Semicolon {
                                 self.advance();
                             }
-                            let rhs = Box::new(Node::Add(vec![lhs.clone(), pays_expr]));
-                            Ok(Box::new(Node::Assign(vec![lhs, rhs])))
+                            let rhs = Node::Add(NodeData {
+                                children: vec![lhs.clone(), pays_expr],
+                            });
+                            Ok(Node::Assign(NodeData { children: vec![lhs, rhs] }))
                         }
                         _ => {
                             let expr = self.parse_expr()?;
@@ -201,7 +202,7 @@ impl Parser {
     }
 
     /// Parse a pays expression
-    fn parse_pays(&self) -> Result<ExprTree> {
+    fn parse_pays(&self) -> Result<Node> {
         self.expect_token(Token::Pays)?;
         self.advance();
         let mut pays = Vec::new();
@@ -241,17 +242,17 @@ impl Parser {
             );
         }
 
-        Ok(Box::new(Node::Pays(
-            pays,
-            pay_date,
+        Ok(Node::Pays(PaysData {
+            children: pays,
+            date: pay_date,
             currency,
-            OnceLock::new(),
-            OnceLock::new(),
-        )))
+            id: None,
+            index_id: None,
+        }))
     }
 
     /// Parse an if expression
-    fn parse_if(&self) -> Result<ExprTree> {
+    fn parse_if(&self) -> Result<Node> {
         self.expect_token(Token::If)?;
         self.advance();
         let condition = self.parse_conditions()?;
@@ -289,17 +290,14 @@ impl Parser {
         let mut nodes = condition;
         nodes.append(&mut if_body);
 
-        Ok(Box::new(Node::If(
-            nodes,
-            else_index,
-            OnceLock::new(),
-            None,
-            None,
-        )))
+        Ok(Node::If(IfData {
+            first_else: else_index,
+            affected_vars: Vec::new(),
+        }))
     }
 
     /// Parse a for-each loop: for <var> in <expr> { <body> }
-    fn parse_for(&self) -> Result<ExprTree> {
+    fn parse_for(&self) -> Result<Node> {
         self.expect_token(Token::For)?;
         self.advance();
 
@@ -342,7 +340,7 @@ impl Parser {
     }
 
     /// Parse a variable
-    fn parse_variable(&self) -> Result<ExprTree> {
+    fn parse_variable(&self) -> Result<Node> {
         match self.current_token() {
             Token::Identifier(name) => {
                 self.expect_not_reserved(&name)?;
@@ -355,7 +353,7 @@ impl Parser {
     }
 
     /// Parse a string
-    fn parse_string(&self) -> Result<ExprTree> {
+    fn parse_string(&self) -> Result<Node> {
         match self.current_token() {
             Token::String(string) => {
                 self.advance();
@@ -366,7 +364,7 @@ impl Parser {
     }
 
     /// Parse an assign expression
-    fn parse_assign(&self, lhs: ExprTree) -> Result<ExprTree> {
+    fn parse_assign(&self, lhs: Node) -> Result<Node> {
         self.expect_token(Token::Assign)?;
         self.advance();
         let rhs = self.parse_expr()?;
@@ -375,7 +373,7 @@ impl Parser {
         Ok(Box::new(Node::Assign(vec![lhs, rhs])))
     }
 
-    fn parse_compound_assign(&self, lhs: ExprTree) -> Result<ExprTree> {
+    fn parse_compound_assign(&self, lhs: Node) -> Result<Node> {
         let op = self.current_token();
         self.advance();
         let rhs = self.parse_expr()?;
@@ -392,7 +390,7 @@ impl Parser {
     }
 
     /// Parse a constant
-    fn parse_constant(&self) -> Result<ExprTree> {
+    fn parse_constant(&self) -> Result<Node> {
         match self.current_token() {
             Token::Value(value, boolean) => {
                 self.advance();
@@ -410,7 +408,7 @@ impl Parser {
     }
 
     /// Parse a condition
-    fn parse_conditions(&self) -> Result<Vec<ExprTree>> {
+    fn parse_conditions(&self) -> Result<Vec<Node>> {
         let mut conditions = Vec::new();
         let mut condition = self.parse_condition_element()?;
 
@@ -430,7 +428,7 @@ impl Parser {
     }
 
     /// Parse a condition element
-    fn parse_condition_element(&self) -> Result<ExprTree> {
+    fn parse_condition_element(&self) -> Result<Node> {
         let lhs = self.parse_expr_l2()?;
 
         let comparator = self.current_token();
@@ -465,7 +463,7 @@ impl Parser {
     }
 
     /// Parse a comparison expression used outside of conditions
-    fn parse_comparison(&self) -> Result<ExprTree> {
+    fn parse_comparison(&self) -> Result<Node> {
         let mut lhs = self.parse_expr_l2()?;
 
         while matches!(
@@ -495,7 +493,7 @@ impl Parser {
     }
 
     /// Parse a function arguments
-    fn parse_function_args(&self) -> Result<Vec<ExprTree>> {
+    fn parse_function_args(&self) -> Result<Vec<Node>> {
         self.expect_token(Token::OpenParen)?;
         self.advance();
         let mut args = Vec::new();
@@ -512,7 +510,7 @@ impl Parser {
     }
 
     /// Parse a list literal
-    fn parse_list(&self) -> Result<ExprTree> {
+    fn parse_list(&self) -> Result<Node> {
         self.expect_token(Token::OpenBracket)?;
         self.advance();
         let mut elements = Vec::new();
@@ -531,7 +529,7 @@ impl Parser {
     }
 
     /// Parse a variable, constant, parentheses or function
-    fn parse_var_const_func(&self) -> Result<ExprTree> {
+    fn parse_var_const_func(&self) -> Result<Node> {
         // Parenthesised expression
         if self.current_token() == Token::OpenParen {
             self.advance();
@@ -637,7 +635,7 @@ impl Parser {
 
             if matches!(expr, Some(Node::Cvg(_))) {
                 if let [a, b, c] = &args[..] {
-                    let get_str = |n: &ExprTree| match n.as_ref() {
+                    let get_str = |n: &Node| match n.as_ref() {
                         Node::String(s) => Ok(s.clone()),
                         _ => Err(self.invalid_syntax_err("Invalid argument, expected string")),
                     };
@@ -665,7 +663,7 @@ impl Parser {
         self.parse_postfix(var)
     }
 
-    fn parse_postfix(&self, mut expr: ExprTree) -> Result<ExprTree> {
+    fn parse_postfix(&self, mut expr: Node) -> Result<Node> {
         loop {
             if self.current_token() == Token::Dot {
                 self.advance();
@@ -714,7 +712,7 @@ impl Parser {
     }
 
     /// Parse a spot expression
-    fn parse_spot(&self) -> Result<ExprTree> {
+    fn parse_spot(&self) -> Result<Node> {
         self.expect_token(Token::Identifier("Spot".to_string()))?;
         self.advance();
         self.expect_token(Token::OpenParen)?;
@@ -753,7 +751,7 @@ impl Parser {
         Ok(Box::new(Node::Spot(first, second, date, OnceLock::new())))
     }
 
-    fn parse_df(&self) -> Result<ExprTree> {
+    fn parse_df(&self) -> Result<Node> {
         self.expect_token(Token::Identifier("Df".to_string()))?;
         self.advance();
         self.expect_token(Token::OpenParen)?;
@@ -777,7 +775,7 @@ impl Parser {
         Ok(Box::new(Node::Df(date, curve, OnceLock::new())))
     }
 
-    fn parse_rate_index(&self) -> Result<ExprTree> {
+    fn parse_rate_index(&self) -> Result<Node> {
         self.expect_token(Token::Identifier("RateIndex".to_string()))?;
         self.advance();
         self.expect_token(Token::OpenParen)?;
@@ -811,7 +809,7 @@ impl Parser {
     }
 
     /// Parse an expression
-    fn parse_expr(&self) -> Result<ExprTree> {
+    fn parse_expr(&self) -> Result<Node> {
         let mut lhs = self.parse_comparison()?;
 
         while self.current_token() == Token::Plus
@@ -841,7 +839,7 @@ impl Parser {
     }
 
     /// Parse an expression
-    fn parse_expr_l2(&self) -> Result<ExprTree> {
+    fn parse_expr_l2(&self) -> Result<Node> {
         let mut lhs = self.parse_expr_l3()?;
 
         while self.current_token() == Token::Multiply
@@ -867,7 +865,7 @@ impl Parser {
     }
 
     /// Parse an expression
-    fn parse_expr_l3(&self) -> Result<ExprTree> {
+    fn parse_expr_l3(&self) -> Result<Node> {
         let mut lhs = self.parse_var_const_func()?;
 
         while self.current_token() == Token::Power && self.current_token() != Token::EOF {
@@ -883,7 +881,7 @@ impl Parser {
         Ok(lhs)
     }
 
-    // fn parse_expr_l4(&self) -> Result<ExprTree> {
+    // fn parse_expr_l4(&self) -> Result<Node> {
     //     match self.current_token() {
     //         Token::Plus => {
     //             self.advance();
@@ -899,20 +897,20 @@ impl Parser {
     // }
 }
 
-impl TryFrom<String> for ExprTree {
+impl TryFrom<String> for Node {
     type Error = ScriptingError;
 
-    fn try_from(script: String) -> Result<ExprTree> {
+    fn try_from(script: String) -> Result<Node> {
         let tokens = script.tokenize()?;
         let parser = Parser::new(tokens);
         parser.parse()
     }
 }
 
-impl TryFrom<&str> for ExprTree {
+impl TryFrom<&str> for Node {
     type Error = ScriptingError;
 
-    fn try_from(script: &str) -> Result<ExprTree> {
+    fn try_from(script: &str) -> Result<Node> {
         let tokens = script.to_string().tokenize()?;
         let parser = Parser::new(tokens);
         parser.parse()
