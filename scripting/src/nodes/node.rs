@@ -6,6 +6,47 @@ use crate::prelude::*;
 
 pub type ExprTree = Box<Node>;
 
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct NodeData {
+    pub children: Vec<ExprTree>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct BoolData {
+    pub always_true: bool,
+    pub always_false: bool,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct CompData {
+    pub bool_sub_node: BoolData,
+    pub discrete: bool,
+    pub eps: f64,
+    pub lb: f64,
+    pub rb: f64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct ExprData {
+    pub sub_node: NodeData,
+    pub is_constant: bool,
+    pub const_value: f64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct VarData {
+    pub name: String,
+    pub id: OnceLock<usize>,
+    pub expr_data: ExprData,
+    pub bool_data: BoolData,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct IfData {
+    pub first_else: Option<usize>,
+    pub affected_vars: OnceLock<Vec<usize>>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {
     Base(Vec<ExprTree>),
