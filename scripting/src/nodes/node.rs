@@ -66,7 +66,7 @@ pub enum Node {
     If(
         Vec<ExprTree>,
         Option<usize>,
-        Option<OnceLock<Vec<usize>>>, // check
+        OnceLock<Vec<usize>>, // check
         Option<bool>,
         Option<bool>,
     ),
@@ -187,7 +187,7 @@ impl Node {
     }
 
     pub fn new_if() -> Node {
-        Node::If(Vec::new(), None, None, None, None)
+        Node::If(Vec::new(), None, OnceLock::new(), None, None)
     }
 
     pub fn new_unary_plus() -> Node {
@@ -353,6 +353,7 @@ impl ConstVisitable for Box<Node> {
 
 #[cfg(test)]
 mod ai_gen_tests {
+
     use super::*;
 
     #[test]
@@ -523,7 +524,10 @@ mod ai_gen_tests {
     fn test_new_if() {
         // Test the creation of a new if node
         let node = Node::new_if();
-        assert_eq!(node, Node::If(Vec::new(), None, None, None, None));
+        assert_eq!(
+            node,
+            Node::If(Vec::new(), None, OnceLock::new(), None, None)
+        );
     }
 
     #[test]

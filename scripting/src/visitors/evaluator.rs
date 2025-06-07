@@ -1026,6 +1026,8 @@ impl<'a> EventStreamEvaluator<'a> {
 #[cfg(test)]
 mod general_tests {
 
+    use std::sync::OnceLock;
+
     use super::*;
 
     #[test]
@@ -1436,7 +1438,7 @@ mod general_tests {
                     ])),
                 ],
                 None,
-                None,
+                OnceLock::new(),
                 None,
                 None,
             )),

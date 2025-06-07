@@ -289,7 +289,13 @@ impl Parser {
         let mut nodes = condition;
         nodes.append(&mut if_body);
 
-        Ok(Box::new(Node::If(nodes, else_index, None, None, None)))
+        Ok(Box::new(Node::If(
+            nodes,
+            else_index,
+            OnceLock::new(),
+            None,
+            None,
+        )))
     }
 
     /// Parse a for-each loop: for <var> in <expr> { <body> }
@@ -1208,7 +1214,7 @@ fn test_if_statement() {
             ])),
         ],
         None,
-        None,
+        OnceLock::new(),
         None,
         None,
     ))]));
@@ -1248,7 +1254,7 @@ fn test_if_else_statement() {
             ])),
         ],
         Some(1),
-        None,
+        OnceLock::new(),
         None,
         None,
     ))]));
@@ -1298,7 +1304,7 @@ fn test_nested_if_else_statement() {
                     ])),
                 ],
                 Some(1),
-                None,
+                OnceLock::new(),
                 None,
                 None,
             )),
@@ -1308,7 +1314,7 @@ fn test_nested_if_else_statement() {
             ])),
         ],
         Some(1),
-        None,
+        OnceLock::new(),
         None,
         None,
     ))]));
@@ -1369,7 +1375,7 @@ fn test_nested_if_else_statement_with_multiple_statements() {
                     ])),
                 ],
                 Some(2),
-                None,
+                OnceLock::new(),
                 None,
                 None,
             )),
@@ -1383,7 +1389,7 @@ fn test_nested_if_else_statement_with_multiple_statements() {
             ])),
         ],
         Some(1),
-        None,
+        OnceLock::new(),
         None,
         None,
     ))]));
@@ -1424,7 +1430,7 @@ fn test_if_multiple_conditions() {
             ])),
         ],
         None,
-        None,
+        OnceLock::new(),
         None,
         None,
     ))]));
@@ -1461,7 +1467,7 @@ fn test_if_multiple_conditions() {
             ])),
         ],
         None,
-        None,
+        OnceLock::new(),
         None,
         None,
     ))]));
@@ -1507,7 +1513,7 @@ fn test_if_new_variable() {
                 ])),
             ],
             None,
-            None,
+            OnceLock::new(),
             None,
             None,
         )),
@@ -1554,7 +1560,7 @@ fn test_bool_variables_with_if() {
                 ])),
             ],
             None,
-            None,
+            OnceLock::new(),
             None,
             None,
         )),
