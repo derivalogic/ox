@@ -63,7 +63,13 @@ pub enum Node {
     InferiorOrEqual(Vec<ExprTree>),
 
     // control flow
-    If(Vec<ExprTree>, Option<usize>),
+    If(
+        Vec<ExprTree>,
+        Option<usize>,
+        Option<OnceLock<Vec<usize>>>, // check
+        Option<bool>,
+        Option<bool>,
+    ),
     ForEach(String, ExprTree, Vec<ExprTree>, OnceLock<usize>),
 
     // iterable
@@ -181,7 +187,7 @@ impl Node {
     }
 
     pub fn new_if() -> Node {
-        Node::If(Vec::new(), None)
+        Node::If(Vec::new(), None, None, None, None)
     }
 
     pub fn new_unary_plus() -> Node {
@@ -209,13 +215,7 @@ impl Node {
     }
 
     pub fn new_pays() -> Node {
-        Node::Pays(
-            Vec::new(),
-            None,
-            None,
-            OnceLock::new(),
-            OnceLock::new(),
-        )
+        Node::Pays(Vec::new(), None, None, OnceLock::new(), OnceLock::new())
     }
 
     pub fn new_spot(first: Currency, second: Currency, date: Option<Date>) -> Node {
@@ -259,7 +259,7 @@ impl Node {
             Node::SuperiorOrEqual(children) => children.push(child),
             Node::InferiorOrEqual(children) => children.push(child),
             Node::Equal(children) => children.push(child),
-            Node::If(children, _) => children.push(child),
+            Node::If(children, ..) => children.push(child),
             Node::UnaryPlus(children) => children.push(child),
             Node::UnaryMinus(children) => children.push(child),
             Node::Min(children) => children.push(child),
@@ -305,7 +305,7 @@ impl Node {
             Node::SuperiorOrEqual(children) => children,
             Node::InferiorOrEqual(children) => children,
             Node::Equal(children) => children,
-            Node::If(children, _) => children,
+            Node::If(children, ..) => children,
             Node::UnaryPlus(children) => children,
             Node::UnaryMinus(children) => children,
             Node::Min(children) => children,
@@ -523,7 +523,7 @@ mod ai_gen_tests {
     fn test_new_if() {
         // Test the creation of a new if node
         let node = Node::new_if();
-        assert_eq!(node, Node::If(Vec::new(), None));
+        assert_eq!(node, Node::If(Vec::new(), None, None, None, None));
     }
 
     #[test]
@@ -574,13 +574,7 @@ mod ai_gen_tests {
         let node = Node::new_pays();
         assert_eq!(
             node,
-            Node::Pays(
-                Vec::new(),
-                None,
-                None,
-                OnceLock::new(),
-                OnceLock::new()
-            )
+            Node::Pays(Vec::new(), None, None, OnceLock::new(), OnceLock::new())
         );
     }
 

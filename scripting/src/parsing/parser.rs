@@ -289,7 +289,7 @@ impl Parser {
         let mut nodes = condition;
         nodes.append(&mut if_body);
 
-        Ok(Box::new(Node::If(nodes, else_index)))
+        Ok(Box::new(Node::If(nodes, else_index, None, None, None)))
     }
 
     /// Parse a for-each loop: for <var> in <expr> { <body> }
@@ -1208,6 +1208,9 @@ fn test_if_statement() {
             ])),
         ],
         None,
+        None,
+        None,
+        None,
     ))]));
     assert_eq!(result, expected);
 }
@@ -1245,6 +1248,9 @@ fn test_if_else_statement() {
             ])),
         ],
         Some(1),
+        None,
+        None,
+        None,
     ))]));
 
     assert_eq!(result, expected);
@@ -1292,6 +1298,9 @@ fn test_nested_if_else_statement() {
                     ])),
                 ],
                 Some(1),
+                None,
+                None,
+                None,
             )),
             Box::new(Node::Assign(vec![
                 Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
@@ -1299,6 +1308,9 @@ fn test_nested_if_else_statement() {
             ])),
         ],
         Some(1),
+        None,
+        None,
+        None,
     ))]));
 
     assert_eq!(result, expected);
@@ -1357,6 +1369,9 @@ fn test_nested_if_else_statement_with_multiple_statements() {
                     ])),
                 ],
                 Some(2),
+                None,
+                None,
+                None,
             )),
             Box::new(Node::Assign(vec![
                 Box::new(Node::Variable(Vec::new(), "c".to_string(), OnceLock::new())),
@@ -1368,6 +1383,9 @@ fn test_nested_if_else_statement_with_multiple_statements() {
             ])),
         ],
         Some(1),
+        None,
+        None,
+        None,
     ))]));
 
     assert_eq!(result, expected);
@@ -1406,6 +1424,9 @@ fn test_if_multiple_conditions() {
             ])),
         ],
         None,
+        None,
+        None,
+        None,
     ))]));
 
     assert_eq!(result, expected);
@@ -1439,6 +1460,9 @@ fn test_if_multiple_conditions() {
                 Box::new(Node::Constant(NumericType::new(3.0))),
             ])),
         ],
+        None,
+        None,
+        None,
         None,
     ))]));
 
@@ -1483,6 +1507,9 @@ fn test_if_new_variable() {
                 ])),
             ],
             None,
+            None,
+            None,
+            None,
         )),
     ]));
 
@@ -1526,6 +1553,9 @@ fn test_bool_variables_with_if() {
                     Box::new(Node::Constant(NumericType::new(3.0))),
                 ])),
             ],
+            None,
+            None,
+            None,
             None,
         )),
     ]));

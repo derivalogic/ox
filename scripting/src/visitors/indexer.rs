@@ -43,7 +43,7 @@ impl NodeVisitor for EventIndexer {
             | Node::Inferior(children)
             | Node::SuperiorOrEqual(children)
             | Node::InferiorOrEqual(children)
-            | Node::If(children, _) => {
+            | Node::If(children, ..) => {
                 children.iter().try_for_each(|child| self.visit(child))?;
                 Ok(())
             }
@@ -190,22 +190,20 @@ impl NodeVisitor for EventIndexer {
                 match df_idx.get() {
                     Some(_) => {}
                     None => {
-                        let event_date = match pay_date {
-                            Some(d) => *d,
-                            None => self
-                                .event_date
-                                .borrow()
-                                .ok_or(ScriptingError::InvalidSyntax(
-                                    "Event date is not set".to_string(),
-                                ))?,
-                        };
+                        let event_date =
+                            match pay_date {
+                                Some(d) => *d,
+                                None => self.event_date.borrow().ok_or(
+                                    ScriptingError::InvalidSyntax(
+                                        "Event date is not set".to_string(),
+                                    ),
+                                )?,
+                            };
                         let size = {
                             let mut mr = self.market_requests.borrow_mut();
-                            let last = mr
-                                .last_mut()
-                                .ok_or(ScriptingError::NotFoundError(
-                                    "No market requests found".to_string(),
-                                ))?;
+                            let last = mr.last_mut().ok_or(ScriptingError::NotFoundError(
+                                "No market requests found".to_string(),
+                            ))?;
                             let size = last.dfs().len();
                             last.push_df(DiscountFactorRequest::new(
                                 "local".to_string(),
@@ -221,28 +219,24 @@ impl NodeVisitor for EventIndexer {
                     match fx_idx.get() {
                         Some(_) => {}
                         None => {
-                            let dom = self
-                                .local_currency
-                                .borrow()
-                                .ok_or(ScriptingError::InvalidSyntax(
+                            let dom = self.local_currency.borrow().ok_or(
+                                ScriptingError::InvalidSyntax(
                                     "Local currency is not set".to_string(),
-                                ))?;
+                                ),
+                            )?;
                             let event_date = match pay_date {
                                 Some(d) => *d,
-                                None => self
-                                    .event_date
-                                    .borrow()
-                                    .ok_or(ScriptingError::InvalidSyntax(
+                                None => self.event_date.borrow().ok_or(
+                                    ScriptingError::InvalidSyntax(
                                         "Event date is not set".to_string(),
-                                    ))?,
+                                    ),
+                                )?,
                             };
                             let size = {
                                 let mut mr = self.market_requests.borrow_mut();
-                                let last = mr
-                                    .last_mut()
-                                    .ok_or(ScriptingError::NotFoundError(
-                                        "No market requests found".to_string(),
-                                    ))?;
+                                let last = mr.last_mut().ok_or(ScriptingError::NotFoundError(
+                                    "No market requests found".to_string(),
+                                ))?;
                                 let size = last.fxs().len();
                                 last.push_fx(ExchangeRateRequest::new(dom, *ccy, event_date));
                                 size

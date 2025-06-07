@@ -782,7 +782,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 }
                 Ok(())
             }
-            Node::If(children, first_else) => {
+            Node::If(children, first_else, ..) => {
                 // Evaluate the condition
                 children.get(0).unwrap().const_accept(self);
                 // Pop the condition result
@@ -1435,6 +1435,9 @@ mod general_tests {
                         Box::new(Node::Constant(NumericType::new(4.0))),
                     ])),
                 ],
+                None,
+                None,
+                None,
                 None,
             )),
         ]));

@@ -1,10 +1,13 @@
 use rustatlas::prelude::*;
-use std::{cell::RefCell, collections::{BTreeMap, HashMap}};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+};
 
 use crate::prelude::*;
 use crate::utils::errors::{Result, ScriptingError};
 
-use super::evaluator::{Value};
+use super::evaluator::Value;
 
 /// Visitor that collects undiscounted cashflows per currency for a single scenario.
 pub struct SingleScenarioCashflowCollector<'a> {
@@ -73,7 +76,9 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
     fn const_visit(&self, node: Box<Node>) -> Self::Output {
         let eval: Result<()> = match node.as_ref() {
             Node::Base(children) => {
-                children.iter().try_for_each(|child| self.const_visit(child.clone()))?;
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
                 Ok(())
             }
             Node::Variable(_, name, index) => {
@@ -163,7 +168,9 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
                 Ok(())
             }
             Node::Pays(children, pay_date, currency, df_index, fx_index) => {
-                children.iter().try_for_each(|child| self.const_visit(child.clone()))?;
+                children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
 
                 let market_data = self
                     .scenario
@@ -177,23 +184,16 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
                     .clone();
 
                 let current_value = self.digit_stack.borrow_mut().pop().unwrap();
-                let df_id = df_index
-                    .get()
-                    .ok_or(ScriptingError::EvaluationError(
-                        "Pays not indexed".to_string(),
-                    ))?;
+                let df_id = df_index.get().ok_or(ScriptingError::EvaluationError(
+                    "Pays not indexed".to_string(),
+                ))?;
                 let df = market_data.get_df(*df_id)?;
                 let numerarie = market_data.numerarie();
 
                 // accumulate undiscounted cashflow
-                let pay_date = pay_date.unwrap_or(
-                    self
-                        .current_event_date
-                        .borrow()
-                        .ok_or(ScriptingError::EvaluationError(
-                            "Event date not set".to_string(),
-                        ))?,
-                );
+                let pay_date = pay_date.unwrap_or(self.current_event_date.borrow().ok_or(
+                    ScriptingError::EvaluationError("Event date not set".to_string()),
+                )?);
                 let ccy = currency.unwrap_or(self.local_currency);
                 {
                     let mut map = self.cashflows.borrow_mut();
@@ -203,11 +203,9 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
                 }
 
                 let value: NumericType = if let Some(_) = currency {
-                    let fx_id = fx_index
-                        .get()
-                        .ok_or(ScriptingError::EvaluationError(
-                            "Pays FX not indexed".to_string(),
-                        ))?;
+                    let fx_id = fx_index.get().ok_or(ScriptingError::EvaluationError(
+                        "Pays FX not indexed".to_string(),
+                    ))?;
                     let fx = market_data.get_fx(*fx_id)?;
                     ((current_value * df * fx) / numerarie).into()
                 } else {
@@ -707,7 +705,7 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
                 }
                 Ok(())
             }
-            Node::If(children, first_else) => {
+            Node::If(children, first_else, ..) => {
                 // Evaluate the condition
                 children.get(0).unwrap().const_accept(self);
                 // Pop the condition result
@@ -743,7 +741,10 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
 }
 
 impl<'a> SingleScenarioCashflowCollector<'a> {
-    pub fn visit_events(&self, events: &EventStream) -> Result<HashMap<Currency, BTreeMap<Date, NumericType>>> {
+    pub fn visit_events(
+        &self,
+        events: &EventStream,
+    ) -> Result<HashMap<Currency, BTreeMap<Date, NumericType>>> {
         events.events().iter().enumerate().try_for_each(|(i, ev)| {
             self.set_current_event(i, ev.event_date());
             self.const_visit(ev.expr().clone())
@@ -760,10 +761,17 @@ pub struct ExpectedCashflows<'a> {
 
 impl<'a> ExpectedCashflows<'a> {
     pub fn new(n_vars: usize, scenarios: &'a Vec<Scenario>, local_currency: Currency) -> Self {
-        Self { n_vars, scenarios, local_currency }
+        Self {
+            n_vars,
+            scenarios,
+            local_currency,
+        }
     }
 
-    pub fn visit_events(&self, events: &EventStream) -> Result<HashMap<Currency, BTreeMap<Date, NumericType>>> {
+    pub fn visit_events(
+        &self,
+        events: &EventStream,
+    ) -> Result<HashMap<Currency, BTreeMap<Date, NumericType>>> {
         let mut agg: HashMap<Currency, BTreeMap<Date, NumericType>> = HashMap::new();
         for scenario in self.scenarios {
             let collector = SingleScenarioCashflowCollector::new(self.local_currency)
@@ -787,4 +795,3 @@ impl<'a> ExpectedCashflows<'a> {
         Ok(agg)
     }
 }
-

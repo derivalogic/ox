@@ -36,7 +36,7 @@ impl NodeVisitor for CheckLinearity {
 
     fn visit(&self, node: &Box<Node>) {
         match node.as_ref() {
-            Node::If(_, _) | Node::Min(_) | Node::Max(_) => {
+            Node::If(..) | Node::Min(_) | Node::Max(_) => {
                 self.linear.set(false);
             }
             _ => {}
@@ -71,7 +71,7 @@ impl NodeVisitor for CheckLinearity {
             | Node::Inferior(children)
             | Node::SuperiorOrEqual(children)
             | Node::InferiorOrEqual(children)
-            | Node::If(children, _)
+            | Node::If(children, ..)
             | Node::Pays(children, _, _, _, _)
             | Node::Range(children)
             | Node::List(children)
