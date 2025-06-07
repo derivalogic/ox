@@ -58,7 +58,9 @@ impl Parser {
             let expr = self.parse_expression()?;
             expressions.push(expr);
         }
-        Ok(Node::Base(NodeData { children: expressions }))
+        Ok(Node::Base(NodeData {
+            children: expressions,
+        }))
     }
 }
 
@@ -182,7 +184,9 @@ impl Parser {
                             let rhs = Node::Add(NodeData {
                                 children: vec![lhs.clone(), pays_expr],
                             });
-                            Ok(Node::Assign(NodeData { children: vec![lhs, rhs] }))
+                            Ok(Node::Assign(NodeData {
+                                children: vec![lhs, rhs],
+                            }))
                         }
                         _ => {
                             let expr = self.parse_expr()?;
@@ -219,7 +223,7 @@ impl Parser {
         let mut pay_date = None;
         if self.current_token() == Token::On {
             self.advance();
-            let date_str = match *self.parse_string()? {
+            let date_str = match self.parse_string()? {
                 Node::String(s) => s,
                 _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
             };
@@ -232,7 +236,7 @@ impl Parser {
         let mut currency = None;
         if self.current_token() == Token::In {
             self.advance();
-            let ccy_str = match *self.parse_string()? {
+            let ccy_str = match self.parse_string()? {
                 Node::String(s) => s,
                 _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
             };
@@ -316,7 +320,7 @@ impl Parser {
             _ => return Err(self.invalid_syntax_err("Expected 'in' after variable")),
         }
 
-        let iter_expr = self.parse_expr()?;
+        let iter_expr = Box::new(self.parse_expr()?);
 
         self.expect_token(Token::OpenCurlyParen)?;
         self.advance();
@@ -331,12 +335,7 @@ impl Parser {
         }
         self.advance();
 
-        Ok(Box::new(Node::ForEach(
-            var_name,
-            iter_expr,
-            body,
-            OnceLock::new(),
-        )))
+        Ok(Node::new_for_each(var_name, iter_expr, body))
     }
 
     /// Parse a variable
@@ -345,7 +344,7 @@ impl Parser {
             Token::Identifier(name) => {
                 self.expect_not_reserved(&name)?;
                 self.advance();
-                Ok(Box::new(Node::Variable(Vec::new(), name, OnceLock::new())))
+                Ok(Node::new_variable(name))
             }
             _ => Err(self
                 .unexpected_token_err(Token::Identifier("Any".to_string()), self.current_token())),
@@ -357,7 +356,7 @@ impl Parser {
         match self.current_token() {
             Token::String(string) => {
                 self.advance();
-                Ok(Box::new(Node::String(string)))
+                Ok(Node::new_string(string))
             }
             _ => Err(self.invalid_syntax_err("Invalid string, expected string literal")),
         }
@@ -370,7 +369,7 @@ impl Parser {
         let rhs = self.parse_expr()?;
         self.expect_token(Token::Semicolon)?;
         self.advance();
-        Ok(Box::new(Node::Assign(vec![lhs, rhs])))
+        Ok(Node::new_asign_with_values(lhs, rhs))
     }
 
     fn parse_compound_assign(&self, lhs: Node) -> Result<Node> {
@@ -380,13 +379,13 @@ impl Parser {
         self.expect_token(Token::Semicolon)?;
         self.advance();
         let rhs_expr = match op {
-            Token::PlusAssign => Box::new(Node::Add(vec![lhs.clone(), rhs])),
-            Token::MinusAssign => Box::new(Node::Subtract(vec![lhs.clone(), rhs])),
-            Token::MultiplyAssign => Box::new(Node::Multiply(vec![lhs.clone(), rhs])),
-            Token::DivideAssign => Box::new(Node::Divide(vec![lhs.clone(), rhs])),
+            Token::PlusAssign => Node::new_add_with_values(lhs, rhs),
+            Token::MinusAssign => Node::new_subtract_with_values(lhs, rhs),
+            Token::MultiplyAssign => Node::new_multiply_with_values(lhs, rhs),
+            Token::DivideAssign => Node::new_divide_with_values(lhs, rhs),
             _ => unreachable!(),
         };
-        Ok(Box::new(Node::Assign(vec![lhs, rhs_expr])))
+        Ok(Node::new_asign_with_values(lhs, rhs_expr))
     }
 
     /// Parse a constant
@@ -395,10 +394,10 @@ impl Parser {
             Token::Value(value, boolean) => {
                 self.advance();
                 match boolean {
-                    Some(true) => Ok(Box::new(Node::True)),
-                    Some(false) => Ok(Box::new(Node::False)),
+                    Some(true) => Ok(Node::True),
+                    Some(false) => Ok(Node::False),
                     None => match value {
-                        Some(v) => Ok(Box::new(Node::Constant(NumericType::new(v)))),
+                        Some(v) => Ok(Node::new_constant(v)),
                         None => Err(self.invalid_syntax_err("Invalid constant")),
                     },
                 }
@@ -418,8 +417,8 @@ impl Parser {
 
             let rhs = self.parse_condition_element()?;
             condition = match operator {
-                Token::And => Box::new(Node::And(vec![condition, rhs])),
-                Token::Or => Box::new(Node::Or(vec![condition, rhs])),
+                Token::And => Node::new_and_with_values(condition, rhs),
+                Token::Or => Node::new_or_with_values(condition, rhs),
                 _ => return Err(self.invalid_syntax_err("Invalid operator")),
             };
         }
@@ -427,7 +426,7 @@ impl Parser {
         Ok(conditions)
     }
 
-    /// Parse a condition element
+    /// Repeated??
     fn parse_condition_element(&self) -> Result<Node> {
         let lhs = self.parse_expr_l2()?;
 
@@ -440,16 +439,14 @@ impl Parser {
             | Token::SuperiorOrEqual
             | Token::InferiorOrEqual => {
                 self.advance();
-
                 let rhs = self.parse_expr_l2()?;
-
                 let comparison_node = match comparator {
-                    Token::Equal => Box::new(Node::Equal(vec![lhs, rhs])),
-                    Token::NotEqual => Box::new(Node::NotEqual(vec![lhs, rhs])),
-                    Token::Superior => Box::new(Node::Superior(vec![lhs, rhs])),
-                    Token::Inferior => Box::new(Node::Inferior(vec![lhs, rhs])),
-                    Token::SuperiorOrEqual => Box::new(Node::SuperiorOrEqual(vec![lhs, rhs])),
-                    Token::InferiorOrEqual => Box::new(Node::InferiorOrEqual(vec![lhs, rhs])),
+                    Token::Equal => Node::new_equal_with_values(lhs, rhs),
+                    Token::NotEqual => Node::new_not_equal_with_values(lhs, rhs),
+                    Token::Superior => Node::new_superior_with_values(lhs, rhs),
+                    Token::Inferior => Node::new_inferior_with_values(lhs, rhs),
+                    Token::SuperiorOrEqual => Node::new_superior_or_equal_with_values(lhs, rhs),
+                    Token::InferiorOrEqual => Node::new_inferior_or_equal_with_values(lhs, rhs),
                     _ => return Err(self.invalid_syntax_err("Invalid comparison operator")),
                 };
 
@@ -462,35 +459,35 @@ impl Parser {
         }
     }
 
-    /// Parse a comparison expression used outside of conditions
-    fn parse_comparison(&self) -> Result<Node> {
-        let mut lhs = self.parse_expr_l2()?;
+    // /// Parse a comparison expression used outside of conditions
+    // fn parse_comparison(&self) -> Result<Node> {
+    //     let mut lhs = self.parse_expr_l2()?;
 
-        while matches!(
-            self.current_token(),
-            Token::Equal
-                | Token::NotEqual
-                | Token::Superior
-                | Token::Inferior
-                | Token::SuperiorOrEqual
-                | Token::InferiorOrEqual
-        ) {
-            let comparator = self.current_token();
-            self.advance();
-            let rhs = self.parse_expr_l2()?;
-            lhs = match comparator {
-                Token::Equal => Box::new(Node::Equal(vec![lhs, rhs])),
-                Token::NotEqual => Box::new(Node::NotEqual(vec![lhs, rhs])),
-                Token::Superior => Box::new(Node::Superior(vec![lhs, rhs])),
-                Token::Inferior => Box::new(Node::Inferior(vec![lhs, rhs])),
-                Token::SuperiorOrEqual => Box::new(Node::SuperiorOrEqual(vec![lhs, rhs])),
-                Token::InferiorOrEqual => Box::new(Node::InferiorOrEqual(vec![lhs, rhs])),
-                _ => unreachable!(),
-            };
-        }
+    //     while matches!(
+    //         self.current_token(),
+    //         Token::Equal
+    //             | Token::NotEqual
+    //             | Token::Superior
+    //             | Token::Inferior
+    //             | Token::SuperiorOrEqual
+    //             | Token::InferiorOrEqual
+    //     ) {
+    //         let comparator = self.current_token();
+    //         self.advance();
+    //         let rhs = self.parse_expr_l2()?;
+    //         lhs = match comparator {
+    //             Token::Equal => Node::new_equal_with_values(lhs, rhs),
+    //             Token::NotEqual => Node::new_not_equal_with_values(lhs, rhs),
+    //             Token::Superior => Node::new_superior_with_values(lhs, rhs),
+    //             Token::Inferior => Node::new_inferior_with_values(lhs, rhs),
+    //             Token::SuperiorOrEqual => Node::new_superior_or_equal_with_values(lhs, rhs),
+    //             Token::InferiorOrEqual => Node::new_inferior_or_equal_with_values(lhs, rhs),
+    //             _ => return Err(self.invalid_syntax_err("Invalid comparison operator")),
+    //         };
+    //     }
 
-        Ok(lhs)
-    }
+    //     Ok(lhs)
+    // }
 
     /// Parse a function arguments
     fn parse_function_args(&self) -> Result<Vec<Node>> {
@@ -525,7 +522,7 @@ impl Parser {
         }
         self.expect_token(Token::CloseBracket)?;
         self.advance();
-        Ok(Box::new(Node::List(elements)))
+        Ok(Node::new_list_with_values(elements))
     }
 
     /// Parse a variable, constant, parentheses or function
@@ -635,13 +632,13 @@ impl Parser {
 
             if matches!(expr, Some(Node::Cvg(_))) {
                 if let [a, b, c] = &args[..] {
-                    let get_str = |n: &Node| match n.as_ref() {
+                    let get_str = |n: Node| match n {
                         Node::String(s) => Ok(s.clone()),
                         _ => Err(self.invalid_syntax_err("Invalid argument, expected string")),
                     };
-                    let s1 = get_str(a)?;
-                    let s2 = get_str(b)?;
-                    let s3 = get_str(c)?;
+                    let s1 = get_str(*a)?;
+                    let s2 = get_str(*b)?;
+                    let s3 = get_str(*c)?;
                     Date::from_str(&s1, "%Y-%m-%d")
                         .map_err(|_| self.invalid_syntax_err("Invalid date"))?;
                     Date::from_str(&s2, "%Y-%m-%d")
@@ -655,7 +652,7 @@ impl Parser {
 
             args.iter()
                 .for_each(|arg| expr.as_mut().unwrap().add_child(arg.clone()));
-            return Ok(Box::new(expr.unwrap()));
+            return Ok(expr.unwrap());
         }
 
         // Check if the current token is a variable
@@ -682,19 +679,19 @@ impl Parser {
                         if args.len() != 1 {
                             return Err(self.invalid_syntax_err("append expects one argument"));
                         }
-                        Box::new(Node::Append(vec![expr, args[0].clone()]))
+                        Node::new_append_with_values(expr, args[0])
                     }
                     "mean" => {
                         if !args.is_empty() {
                             return Err(self.invalid_syntax_err("mean expects no arguments"));
                         }
-                        Box::new(Node::Mean(vec![expr]))
+                        Node::new_mean_with_values(expr)
                     }
                     "std" => {
                         if !args.is_empty() {
                             return Err(self.invalid_syntax_err("std expects no arguments"));
                         }
-                        Box::new(Node::Std(vec![expr]))
+                        Node::new_std_with_values(expr)
                     }
                     _ => return Err(self.invalid_syntax_err("Unknown method")),
                 };
@@ -703,7 +700,7 @@ impl Parser {
                 let idx = self.parse_expr()?;
                 self.expect_token(Token::CloseBracket)?;
                 self.advance();
-                expr = Box::new(Node::Index(vec![expr, idx]));
+                expr = Node::new_index_with_values(vec![expr], idx);
             } else {
                 break;
             }
@@ -717,7 +714,7 @@ impl Parser {
         self.advance();
         self.expect_token(Token::OpenParen)?;
         self.advance();
-        let first = match *self.parse_string()? {
+        let first = match self.parse_string()? {
             Node::String(s) => {
                 Currency::try_from(s).map_err(|_| self.invalid_syntax_err("Invalid currency"))?
             }
@@ -727,7 +724,7 @@ impl Parser {
         let mut date: Option<Date> = None;
         if self.current_token() == Token::Comma {
             self.advance();
-            match *self.parse_string()? {
+            match self.parse_string()? {
                 Node::String(s) => {
                     second = Currency::try_from(s)
                         .map_err(|_| self.invalid_syntax_err("Invalid currency"))?;
@@ -736,7 +733,7 @@ impl Parser {
             }
             if self.current_token() == Token::Comma {
                 self.advance();
-                let date_str = match *self.parse_string()? {
+                let date_str = match self.parse_string()? {
                     Node::String(s) => s,
                     _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
                 };
@@ -748,7 +745,7 @@ impl Parser {
         }
         self.expect_token(Token::CloseParen)?;
         self.advance();
-        Ok(Box::new(Node::Spot(first, second, date, OnceLock::new())))
+        Ok(Node::new_spot(first, second, date))
     }
 
     fn parse_df(&self) -> Result<Node> {
@@ -756,7 +753,7 @@ impl Parser {
         self.advance();
         self.expect_token(Token::OpenParen)?;
         self.advance();
-        let date_str = match *self.parse_string()? {
+        let date_str = match self.parse_string()? {
             Node::String(s) => s,
             _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
         };
@@ -765,14 +762,14 @@ impl Parser {
         let mut curve: Option<String> = None;
         if self.current_token() == Token::Comma {
             self.advance();
-            match *self.parse_string()? {
+            match self.parse_string()? {
                 Node::String(s) => curve = Some(s),
                 _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
             }
         }
         self.expect_token(Token::CloseParen)?;
         self.advance();
-        Ok(Box::new(Node::Df(date, curve, OnceLock::new())))
+        Ok(Node::new_df(date, curve))
     }
 
     fn parse_rate_index(&self) -> Result<Node> {
@@ -781,19 +778,19 @@ impl Parser {
         self.expect_token(Token::OpenParen)?;
         self.advance();
 
-        let name = match *self.parse_string()? {
+        let name = match self.parse_string()? {
             Node::String(s) => s,
             _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
         };
         self.expect_token(Token::Comma)?;
         self.advance();
-        let start_str = match *self.parse_string()? {
+        let start_str = match self.parse_string()? {
             Node::String(s) => s,
             _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
         };
         self.expect_token(Token::Comma)?;
         self.advance();
-        let end_str = match *self.parse_string()? {
+        let end_str = match self.parse_string()? {
             Node::String(s) => s,
             _ => return Err(self.invalid_syntax_err("Invalid argument, expected string")),
         };
@@ -805,12 +802,13 @@ impl Parser {
         let end = Date::from_str(&end_str, "%Y-%m-%d")
             .map_err(|_| self.invalid_syntax_err("Invalid date"))?;
 
-        Ok(Box::new(Node::RateIndex(name, start, end, OnceLock::new())))
+        Ok(Node::new_rate_index(name, start, end))
     }
 
     /// Parse an expression
     fn parse_expr(&self) -> Result<Node> {
-        let mut lhs = self.parse_comparison()?;
+        // let mut lhs = self.parse_comparison()?;
+        let mut lhs = self.parse_condition_element()?;
 
         while self.current_token() == Token::Plus
             || self.current_token() == Token::Minus
@@ -822,12 +820,12 @@ impl Parser {
             match self.current_token() {
                 Token::EOF => return Err(self.invalid_syntax_err("Unexpected end of expression")),
                 _ => {
-                    let rhs = self.parse_comparison()?;
+                    let rhs = self.parse_condition_element()?;
                     lhs = match token {
-                        Token::Plus => Box::new(Node::Add(vec![lhs, rhs])),
-                        Token::Minus => Box::new(Node::Subtract(vec![lhs, rhs])),
-                        Token::And => Box::new(Node::And(vec![lhs, rhs])),
-                        Token::Or => Box::new(Node::Or(vec![lhs, rhs])),
+                        Token::Plus => Node::new_add_with_values(lhs, rhs),
+                        Token::Minus => Node::new_subtract_with_values(lhs, rhs),
+                        Token::And => Node::new_and_with_values(lhs, rhs),
+                        Token::Or => Node::new_or_with_values(lhs, rhs),
                         _ => {
                             return Err(self.invalid_syntax_err("Invalid operator"));
                         }
@@ -852,8 +850,8 @@ impl Parser {
                 _ => {
                     let rhs = self.parse_expr_l3()?;
                     lhs = match token {
-                        Token::Multiply => Box::new(Node::Multiply(vec![lhs, rhs])),
-                        Token::Divide => Box::new(Node::Divide(vec![lhs, rhs])),
+                        Token::Multiply => Node::new_multiply_with_values(lhs, rhs),
+                        Token::Divide => Node::new_divide_with_values(lhs, rhs),
                         _ => {
                             return Err(self.invalid_syntax_err("Invalid operator"));
                         }
@@ -874,7 +872,7 @@ impl Parser {
                 Token::EOF => return Err(self.invalid_syntax_err("Unexpected end of expression")),
                 _ => {
                     let rhs = self.parse_var_const_func()?;
-                    lhs = Box::new(Node::Pow(vec![lhs, rhs]));
+                    lhs = Node::new_pow_with_values(lhs, rhs);
                 }
             }
         }

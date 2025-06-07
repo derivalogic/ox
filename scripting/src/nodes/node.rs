@@ -16,7 +16,8 @@ pub struct BoolData {
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct CompData {
-    pub bool_sub_node: BoolData,
+    pub always_true: bool,
+    pub always_false: bool,
     pub discrete: bool,
     pub eps: f64,
     pub lb: f64,
@@ -34,8 +35,11 @@ pub struct ExprData {
 pub struct VarData {
     pub name: String,
     pub id: Option<usize>,
-    pub expr_data: ExprData,
-    pub bool_data: BoolData,
+    pub children: Vec<Node>,
+    pub is_constant: bool,
+    pub const_value: f64,
+    pub always_true: bool,
+    pub always_false: bool,
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -80,8 +84,14 @@ pub struct PaysData {
 pub struct ForEachData {
     pub var: String,
     pub id: Option<usize>,
+    pub iter: Vec<Node>,
     pub node: Box<Node>,
-    pub iter: Box<Vec<Node>>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct IndexData {
+    pub children: Vec<Node>,
+    pub index: Box<Node>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -115,7 +125,7 @@ pub enum Node {
     Append(NodeData),
     Mean(NodeData),
     Std(NodeData),
-    Index(NodeData),
+    Index(IndexData),
 
     // unary
     UnaryPlus(NodeData),
@@ -166,12 +176,51 @@ impl Node {
         Node::Divide(NodeData::default())
     }
 
+    pub fn new_string(value: String) -> Node {
+        Node::String(value)
+    }
+
+    pub fn new_asign_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::Assign(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
+    pub fn new_add_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::Add(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+    pub fn new_subtract_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::Subtract(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+    pub fn new_multiply_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::Multiply(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+    pub fn new_divide_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::Divide(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
     pub fn new_variable(name: String) -> Node {
         Node::Variable(VarData {
             name,
             id: None,
-            expr_data: ExprData::default(),
-            bool_data: BoolData::default(),
+            is_constant: false,
+            const_value: 0.0,
+            children: Vec::new(),
+            always_true: false,
+            always_false: false,
         })
     }
 
@@ -179,8 +228,11 @@ impl Node {
         Node::Variable(VarData {
             name,
             id: Some(id),
-            expr_data: ExprData::default(),
-            bool_data: BoolData::default(),
+            is_constant: false,
+            const_value: 0.0,
+            children: Vec::new(),
+            always_true: false,
+            always_false: false,
         })
     }
 
@@ -225,20 +277,112 @@ impl Node {
     }
 
     pub fn new_index() -> Node {
-        Node::Index(NodeData::default())
+        Node::Index(IndexData::default())
     }
 
-    pub fn new_constant(value: NumericType) -> Node {
+    pub fn new_index_with_values(children: Vec<Node>, index: Node) -> Node {
+        Node::Index(IndexData {
+            children,
+            index: Box::new(index),
+        })
+    }
+
+    pub fn new_constant(value: f64) -> Node {
         Node::Constant(VarData {
             name: value.to_string(),
             id: None,
-            expr_data: ExprData {
-                children: Vec::new(),
-                is_constant: true,
-                const_value: value.value(),
-            },
-            bool_data: BoolData::default(),
+            is_constant: true,
+            const_value: value,
+            children: Vec::new(),
+            always_true: false,
+            always_false: false,
         })
+    }
+
+    pub fn new_and_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::And(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
+    pub fn new_or_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::Or(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
+    pub fn new_not_with_value(value: Node) -> Node {
+        let mut node = Node::Not(NodeData::default());
+        node.add_child(value);
+        node
+    }
+
+    pub fn new_equal_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::Equal(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
+    pub fn new_not_equal_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::NotEqual(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
+    pub fn new_superior_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::Superior(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
+    pub fn new_inferior_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::Inferior(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
+    pub fn new_superior_or_equal_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::SuperiorOrEqual(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
+    pub fn new_inferior_or_equal_with_values(left: Node, right: Node) -> Node {
+        let mut node = Node::InferiorOrEqual(NodeData::default());
+        node.add_child(left);
+        node.add_child(right);
+        node
+    }
+
+    pub fn new_list_with_values(values: Vec<Node>) -> Node {
+        let node = Node::List(NodeData { children: values });
+        node
+    }
+
+    pub fn new_append_with_values(list: Node, value: Node) -> Node {
+        let mut node = Node::Append(NodeData::default());
+        node.add_child(list);
+        node.add_child(value);
+        node
+    }
+
+    pub fn new_mean_with_values(values: Node) -> Node {
+        let mut node = Node::Mean(NodeData::default());
+        node.add_child(values);
+        node
+    }
+
+    pub fn new_std_with_values(values: Node) -> Node {
+        let mut node = Node::Std(NodeData::default());
+        node.add_child(values);
+        node
     }
 
     pub fn new_assign() -> Node {
@@ -331,6 +475,13 @@ impl Node {
         })
     }
 
+    pub fn new_pow_with_values(base: Node, exponent: Node) -> Node {
+        let mut node = Node::Pow(NodeData::default());
+        node.add_child(base);
+        node.add_child(exponent);
+        node
+    }
+
     pub fn new_range() -> Node {
         Node::Range(NodeData::default())
     }
@@ -339,7 +490,7 @@ impl Node {
         Node::List(NodeData::default())
     }
 
-    pub fn new_for_each(var: String, node: Box<Node>, iter: Box<Vec<Node>>) -> Node {
+    pub fn new_for_each(var: String, node: Box<Node>, iter: Vec<Node>) -> Node {
         Node::ForEach(ForEachData {
             var,
             iter: iter,
@@ -355,7 +506,7 @@ impl Node {
             Node::Subtract(data) => data.children.push(child),
             Node::Multiply(data) => data.children.push(child),
             Node::Divide(data) => data.children.push(child),
-            Node::Variable(data) => data.expr_data.children.push(child),
+            Node::Variable(data) => data.children.push(child),
             Node::Assign(data) => data.children.push(child),
             Node::And(data) => data.children.push(child),
             Node::Or(data) => data.children.push(child),
@@ -401,7 +552,7 @@ impl Node {
             Node::Subtract(data) => &data.children,
             Node::Multiply(data) => &data.children,
             Node::Divide(data) => &data.children,
-            Node::Variable(data) => &data.expr_data.children,
+            Node::Variable(data) => &data.children,
             Node::Assign(data) => &data.children,
             Node::And(data) => &data.children,
             Node::Or(data) => &data.children,

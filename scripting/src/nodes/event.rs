@@ -30,11 +30,11 @@ impl CodedEvent {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Event {
     event_date: Date,
-    expr: ExprTree,
+    expr: Node,
 }
 
 impl Event {
-    pub fn new(event_date: Date, expr: ExprTree) -> Event {
+    pub fn new(event_date: Date, expr: Node) -> Event {
         Event { event_date, expr }
     }
 
@@ -42,7 +42,7 @@ impl Event {
         self.event_date
     }
 
-    pub fn expr(&self) -> &ExprTree {
+    pub fn expr(&self) -> &Node {
         &self.expr
     }
 }
@@ -51,7 +51,7 @@ impl TryFrom<CodedEvent> for Event {
     type Error = ScriptingError;
 
     fn try_from(event: CodedEvent) -> Result<Event> {
-        let expr = match ExprTree::try_from(event.script().clone()) {
+        let expr = match Node::try_from(event.script().clone()) {
             Ok(expr) => expr,
             Err(e) => {
                 return Err(ScriptingError::InvalidSyntax(format!(
