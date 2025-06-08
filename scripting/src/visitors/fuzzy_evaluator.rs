@@ -1,4 +1,5 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+
 
 use crate::prelude::*;
 use crate::visitors::evaluator::{SingleScenarioEvaluator, Value};
@@ -12,9 +13,13 @@ use rustatlas::prelude::*;
 /// blocks are weighted by these probabilities.
 pub struct FuzzyEvaluator<'a> {
     base: SingleScenarioEvaluator<'a>,
-    dt_stack: RefCell<Vec<NumericType>>,    // condition truth values in [0,1]
-    weight_stack: RefCell<Vec<NumericType>>, // multiplicative weights
+    dt_stack: RefCell<Vec<NumericType>>, // condition truth values in [0,1]
     eps: f64,
+    var_store0: RefCell<Vec<Vec<Value>>>,
+    var_store1: RefCell<Vec<Vec<Value>>>,
+    nested_if_lvl: Cell<usize>,
+    max_nested_ifs: Cell<usize>,
+
 }
 
 impl<'a> FuzzyEvaluator<'a> {
@@ -23,8 +28,12 @@ impl<'a> FuzzyEvaluator<'a> {
         Self {
             base: SingleScenarioEvaluator::new(),
             dt_stack: RefCell::new(Vec::new()),
-            weight_stack: RefCell::new(vec![NumericType::one()]),
             eps: 1e-12,
+            var_store0: RefCell::new(Vec::new()),
+            var_store1: RefCell::new(Vec::new()),
+            nested_if_lvl: Cell::new(0),
+            max_nested_ifs: Cell::new(0),
+
         }
     }
 
@@ -37,6 +46,43 @@ impl<'a> FuzzyEvaluator<'a> {
     /// Pre-allocate variable storage.
     pub fn with_variables(mut self, n: usize) -> Self {
         self.base = self.base.with_variables(n);
+
+        let depth = self.max_nested_ifs.get();
+        {
+            let mut s0 = self.var_store0.borrow_mut();
+            s0.resize_with(depth, || vec![Value::Null; n]);
+            for vec in s0.iter_mut() {
+                vec.resize(n, Value::Null);
+            }
+        }
+        {
+            let mut s1 = self.var_store1.borrow_mut();
+            s1.resize_with(depth, || vec![Value::Null; n]);
+            for vec in s1.iter_mut() {
+                vec.resize(n, Value::Null);
+            }
+        }
+        self
+    }
+
+    /// Configure maximum nested `if` depth for variable storage.
+    pub fn with_max_nested_ifs(mut self, depth: usize) -> Self {
+        self.max_nested_ifs.set(depth);
+        let n = self.base.variables.borrow().len();
+        {
+            let mut s0 = self.var_store0.borrow_mut();
+            s0.resize_with(depth, || vec![Value::Null; n]);
+            for vec in s0.iter_mut() {
+                vec.resize(n, Value::Null);
+            }
+        }
+        {
+            let mut s1 = self.var_store1.borrow_mut();
+            s1.resize_with(depth, || vec![Value::Null; n]);
+            for vec in s1.iter_mut() {
+                vec.resize(n, Value::Null);
+            }
+        }
         self
     }
 
@@ -48,19 +94,6 @@ impl<'a> FuzzyEvaluator<'a> {
     /// Access numeric stack (mainly for tests).
     pub fn digit_stack(&self) -> Vec<NumericType> {
         self.base.digit_stack()
-    }
-
-    fn push_weight(&self, w: NumericType) {
-        let current = *self.weight_stack.borrow().last().unwrap();
-        self.weight_stack.borrow_mut().push((current * w).into());
-    }
-
-    fn pop_weight(&self) {
-        self.weight_stack.borrow_mut().pop();
-    }
-
-    fn current_weight(&self) -> NumericType {
-        *self.weight_stack.borrow().last().unwrap()
     }
 
     fn fif(&self, x: NumericType, a: NumericType, b: NumericType) -> NumericType {
@@ -173,82 +206,89 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 let dt = self.dt_stack.borrow_mut().pop().unwrap();
                 let last = data.first_else.unwrap_or(data.children.len());
 
-                // then branch
-                self.push_weight(dt);
-                for c in data.children.iter().skip(1).take(last - 1) {
-                    self.const_visit(c)?;
-                }
-                self.pop_weight();
+                let lvl = self.nested_if_lvl.get();
+                self.nested_if_lvl.set(lvl + 1);
 
-                // else branch
-                if let Some(idx) = data.first_else {
-                    self.push_weight((-dt + 1.0).into());
-                    for c in data.children.iter().skip(idx) {
+                if dt.value() >= 1.0 - self.eps {
+                    for c in data.children.iter().skip(1).take(last - 1) {
                         self.const_visit(c)?;
                     }
-                    self.pop_weight();
-                }
-                Ok(())
-            }
-            Node::Assign(data) => {
-                *self.base.is_lhs_variable.borrow_mut() = true;
-                self.const_visit(&data.children[0])?;
-                *self.base.is_lhs_variable.borrow_mut() = false;
-                self.const_visit(&data.children[1])?;
-                let v = self.base.lhs_variable.borrow_mut().clone().unwrap();
-                let variable = v;
-                match variable {
-                    Node::Variable(var_data) => match var_data.id {
-                        None => {
-                            return Err(ScriptingError::EvaluationError(format!(
-                                "Variable {} not indexed",
-                                var_data.name
-                            )));
+                } else if dt.value() <= self.eps {
+                    if let Some(start) = data.first_else {
+                        for c in data.children.iter().skip(start) {
+                            self.const_visit(c)?;
                         }
-                        Some(id) => {
-                            let mut variables = self.base.variables.borrow_mut();
-                            let weight = self.current_weight();
-                            if !self.base.boolean_stack.borrow().is_empty() {
-                                let value = self.base.boolean_stack.borrow_mut().pop().unwrap();
-                                if weight.value() >= 1.0 - f64::EPSILON {
-                                    variables[id] = Value::Bool(value);
+                    }
+                } else {
+                    {
+                        let vars = self.base.variables.borrow();
+                        let mut store = self.var_store0.borrow_mut();
+                        if lvl >= store.len() {
+                            let n = vars.len();
+                            store.resize_with(lvl + 1, || vec![Value::Null; n]);
+                        }
+                        for &idx in &data.affected_vars {
+                            if idx >= store[lvl].len() {
+                                store[lvl].resize(idx + 1, Value::Null);
+                            }
+                            store[lvl][idx] = vars[idx].clone();
+                        }
+                    }
+
+                    for c in data.children.iter().skip(1).take(last - 1) {
+                        self.const_visit(c)?;
+                    }
+
+                    {
+                        let mut vars = self.base.variables.borrow_mut();
+                        let s0 = self.var_store0.borrow();
+                        let mut s1 = self.var_store1.borrow_mut();
+                        if lvl >= s1.len() {
+                            let n = vars.len();
+                            s1.resize_with(lvl + 1, || vec![Value::Null; n]);
+                        }
+                        for &idx in &data.affected_vars {
+                            if idx >= s1[lvl].len() {
+                                s1[lvl].resize(idx + 1, Value::Null);
+                            }
+                            s1[lvl][idx] = vars[idx].clone();
+                            vars[idx] = s0[lvl][idx].clone();
+                        }
+                    }
+
+                    if let Some(start) = data.first_else {
+                        for c in data.children.iter().skip(start) {
+                            self.const_visit(c)?;
+                        }
+                    }
+
+                    {
+                        let mut vars = self.base.variables.borrow_mut();
+                        let s1 = self.var_store1.borrow();
+                        for &idx in &data.affected_vars {
+                            let true_v = s1[lvl][idx].clone();
+                            let false_v = vars[idx].clone();
+                            vars[idx] = match (true_v, false_v) {
+                                (Value::Number(a), Value::Number(b)) => {
+                                    let new_val = a * dt + b * (NumericType::one() - dt);
+                                    Value::Number(new_val.into())
                                 }
-                            } else if !self.base.string_stack.borrow().is_empty() {
-                                let value = self.base.string_stack.borrow_mut().pop().unwrap();
-                                if weight.value() >= 1.0 - f64::EPSILON {
-                                    variables[id] = Value::String(value);
-                                }
-                            } else if !self.base.array_stack.borrow().is_empty() {
-                                let value = self.base.array_stack.borrow_mut().pop().unwrap();
-                                if weight.value() >= 1.0 - f64::EPSILON {
-                                    variables[id] = Value::Array(value);
-                                }
-                            } else {
-                                let value = self.base.digit_stack.borrow_mut().pop().unwrap();
-                                if weight.value() >= 1.0 - f64::EPSILON {
-                                    variables[id] = Value::Number(value);
-                                } else {
-                                    let existing = variables
-                                        .get(id)
-                                        .cloned()
-                                        .unwrap_or(Value::Number(NumericType::zero()));
-                                    if let Value::Number(old) = existing {
-                                        let new_val =
-                                            old * (NumericType::one() - weight) + value * weight;
-                                        variables[id] = Value::Number(new_val.into());
+                                (t, f) => {
+                                    if dt.value() >= 0.5 {
+                                        t
                                     } else {
-                                        variables[id] = Value::Number((value * weight).into());
+                                        f
                                     }
                                 }
-                            }
-                            Ok(())
+                            };
                         }
-                    },
-                    _ => Err(ScriptingError::EvaluationError(
-                        "Invalid variable assignment".to_string(),
-                    )),
+                    }
                 }
+
+                self.nested_if_lvl.set(lvl);
+                Ok(())
             }
+            Node::Assign(_) => self.base.const_visit(node),
             _ => self.base.const_visit(node),
         }
     }
@@ -257,6 +297,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::visitors::ifprocessor::IfProcessor;
 
     #[test]
     fn test_basic_assignment() {
@@ -267,7 +308,13 @@ mod tests {
         let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
-        let evaluator = FuzzyEvaluator::new().with_variables(indexer.get_variables_size());
+        let processor = IfProcessor::new();
+        processor.visit(&mut nodes).unwrap();
+
+        let evaluator = FuzzyEvaluator::new()
+            .with_variables(indexer.get_variables_size())
+            .with_max_nested_ifs(processor.max_nested_ifs());
+
         evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
@@ -288,7 +335,13 @@ mod tests {
         let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
-        let evaluator = FuzzyEvaluator::new().with_variables(indexer.get_variables_size());
+        let processor = IfProcessor::new();
+        processor.visit(&mut nodes).unwrap();
+
+        let evaluator = FuzzyEvaluator::new()
+            .with_variables(indexer.get_variables_size())
+            .with_max_nested_ifs(processor.max_nested_ifs());
+
         evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
