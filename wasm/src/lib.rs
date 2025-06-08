@@ -20,11 +20,11 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     let data: SimulationData =
         serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let store: HistoricalData = create_historical_data(&data.market_data);
-    let events = EventStream::try_from(data.script_data.events.clone())
+    let mut events = EventStream::try_from(data.script_data.events.clone())
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let indexer = EventIndexer::new().with_local_currency(data.market_data.local_currency);
+    let indexer = VarIndexer::new().with_local_currency(data.market_data.local_currency);
     indexer
-        .visit_events(&events)
+        .visit_events(&mut events)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     let requests = indexer.get_request();
@@ -120,7 +120,9 @@ pub mod tests {
     fn test_run_simulation() {
         // Load `data.json` located next to this example. Skip test if not present.
         let path = Path::new("wasm/src/data.json");
-        let Ok(mut file) = File::open(&path) else { return }; 
+        let Ok(mut file) = File::open(&path) else {
+            return;
+        };
         let mut json = String::new();
         file.read_to_string(&mut json).unwrap();
 

@@ -1473,7 +1473,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1508,7 +1508,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1545,7 +1545,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1586,7 +1586,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1622,7 +1622,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1656,7 +1656,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1700,7 +1700,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1730,7 +1730,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1753,7 +1753,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1775,7 +1775,7 @@ mod expr_evaluator_tests {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let mut nodes = Parser::new(tokens).parse().unwrap();
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
@@ -1802,7 +1802,7 @@ mod event_stream_evaluator_tests {
         let event = Event::new(event_date, expr);
         let mut events = EventStream::new().with_events(vec![event]);
         // Index expressions and initialize evaluator (adjust according to your actual logic)
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit_events(&mut events).unwrap();
         let var_map = indexer.get_variable_indexes();
 
@@ -1838,7 +1838,7 @@ mod event_stream_evaluator_tests {
         let event = Event::new(event_date, expr);
         let mut events = EventStream::new().with_events(vec![event]);
         // Index expressions and initialize evaluator (adjust according to your actual logic)
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit_events(&mut events).unwrap();
 
         let var_map = indexer.get_variable_indexes();
@@ -2043,7 +2043,7 @@ mod ai_gen_tests {
             Vec::new(),
         )];
 
-        let indexer = EventIndexer::new().with_event_date(event_date);
+        let indexer = VarIndexer::new().with_event_date(event_date);
         let event = Event::new(event_date, base.clone());
         let mut events = EventStream::new().with_events(vec![event]);
         indexer.visit_events(&mut events).unwrap();
@@ -2079,7 +2079,7 @@ mod ai_gen_tests {
             Vec::new(),
         )];
 
-        let indexer = EventIndexer::new()
+        let indexer = VarIndexer::new()
             .with_event_date(event_date)
             .with_local_currency(Currency::USD);
         let event = Event::new(event_date, base.clone());
@@ -2117,7 +2117,7 @@ mod ai_gen_tests {
     //         NumericType::new(2.0),
     //     )];
 
-    //     let indexer = EventIndexer::new();
+    //     let indexer = VarIndexer::new();
     //     indexer.visit(&base).unwrap();
 
     //     let evaluator = SingleScenarioEvaluator::new().with_scenario(&scenario);
@@ -2146,7 +2146,7 @@ mod ai_gen_tests {
     //         NumericType::new(2.0),
     //     )];
 
-    //     let indexer = EventIndexer::new();
+    //     let indexer = VarIndexer::new();
     //     indexer.visit(&base).unwrap();
 
     //     let evaluator = SingleScenarioEvaluator::new().with_scenario(&scenario);
@@ -2174,7 +2174,7 @@ mod ai_gen_tests {
     //         NumericType::new(1.0),
     //     )];
 
-    //     let indexer = EventIndexer::new();
+    //     let indexer = VarIndexer::new();
     //     indexer.visit(&base).unwrap();
 
     //     let evaluator = SingleScenarioEvaluator::new().with_scenario(&scenario);
@@ -2403,7 +2403,7 @@ mod ai_gen_tests {
     fn test_for_each_range_loop() {
         let script = "total = 0; for i in range(1,3) { total = total + i; }";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&expr).unwrap();
@@ -2419,7 +2419,7 @@ mod ai_gen_tests {
     fn test_for_each_list_loop() {
         let script = "sum = 0; for x in [1,2,3] { sum = sum + x; }";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&expr).unwrap();
@@ -2435,7 +2435,7 @@ mod ai_gen_tests {
     fn test_list_assignment() {
         let script = "a = [1,2];";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&expr).unwrap();
@@ -2451,7 +2451,7 @@ mod ai_gen_tests {
     fn test_list_with_variable_values() {
         let script = "x = 1; a = [x, 2];";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&expr).unwrap();
@@ -2471,7 +2471,7 @@ mod ai_gen_tests {
     fn test_array_indexing() {
         let script = "arr = [1,2,3]; x = arr[1];";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&expr).unwrap();
@@ -2487,7 +2487,7 @@ mod ai_gen_tests {
     fn test_array_indexing_out_of_bounds() {
         let script = "arr = [1,2,3]; x = arr[5];";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         let result = evaluator.const_visit(&expr);
@@ -2498,7 +2498,7 @@ mod ai_gen_tests {
     fn test_for_each_variable_loop() {
         let script = "arr = [1,2,3]; sum = 0; for v in arr { sum = sum + v; }";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&expr).unwrap();
@@ -2514,7 +2514,7 @@ mod ai_gen_tests {
     fn test_compound_assignments() {
         let script = "x = 1; x += 2; x -= 1; x *= 3; x /= 2;";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&expr).unwrap();
@@ -2530,7 +2530,7 @@ mod ai_gen_tests {
     fn test_append_and_statistics() {
         let script = "arr = [1,2]; arr.append(3); mean_val = arr.mean(); std_val = arr.std();";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&expr).unwrap();
@@ -2558,7 +2558,7 @@ mod ai_gen_tests {
     fn test_mean_on_literal_list() {
         let script = "avg = [1,2,3].mean();";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&expr).unwrap();

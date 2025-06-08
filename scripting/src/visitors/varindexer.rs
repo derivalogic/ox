@@ -1,19 +1,18 @@
-use crate::data::simulationdatarequest::DiscountFactorRequest;
 use crate::prelude::*;
 use crate::utils::errors::{Result, ScriptingError};
 use rustatlas::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-/// # EventIndexer
-/// The EventIndexer is a visitor that traverses the expression tree and indexes all the variables, market requests and numerarie requests.
-pub struct EventIndexer {
+/// # VarIndexer
+/// The VarIndexer is a visitor that traverses the expression tree and indexes all the variables, market requests and numerarie requests.
+pub struct VarIndexer {
     variables: RefCell<HashMap<String, usize>>,
     market_requests: RefCell<Vec<SimulationDataRequest>>,
     event_date: RefCell<Option<Date>>,
     local_currency: RefCell<Option<Currency>>,
 }
 
-impl NodeVisitor for EventIndexer {
+impl NodeVisitor for VarIndexer {
     type Output = Result<()>;
     fn visit(&self, node: &mut Node) -> Self::Output {
         match node {
@@ -442,9 +441,9 @@ impl NodeVisitor for EventIndexer {
     }
 }
 
-impl EventIndexer {
+impl VarIndexer {
     pub fn new() -> Self {
-        EventIndexer {
+        VarIndexer {
             variables: RefCell::new(HashMap::new()),
             market_requests: RefCell::new(Vec::new()),
             event_date: RefCell::new(None),
@@ -453,7 +452,7 @@ impl EventIndexer {
     }
 
     /// # with_event_date
-    /// Set the event date of the EventIndexer
+    /// Set the event date of the VarIndexer
     pub fn with_event_date(self, date: Date) -> Self {
         *self.event_date.borrow_mut() = Some(date);
         self
@@ -529,7 +528,7 @@ mod tests {
 
     #[test]
     fn test_expression_indexer() {
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         let mut node = Node::new_variable("x".to_string());
         indexer.visit(&mut node).unwrap();
         let variables = indexer.get_variable_indexes();
@@ -539,7 +538,7 @@ mod tests {
 
     #[test]
     fn test_expression_indexer_multiple() {
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         let mut node = Node::new_variable("x".to_string());
         indexer.visit(&mut node).unwrap();
         let mut node = Node::new_variable("y".to_string());
@@ -558,14 +557,14 @@ mod ai_gen_tests {
     fn test_event_indexer_with_event_date() {
         // Test setting the event date and retrieving it
         let date = Date::empty();
-        let indexer = EventIndexer::new().with_event_date(date);
+        let indexer = VarIndexer::new().with_event_date(date);
         assert_eq!(indexer.current_event_date(), Some(date));
     }
 
     #[test]
     fn test_get_variable_index() {
         // Test retrieving the index of a variable
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         let mut node = Node::new_variable("x".to_string());
         indexer.visit(&mut node).unwrap();
         assert_eq!(indexer.get_variable_index("x"), Some(0));
@@ -574,7 +573,7 @@ mod ai_gen_tests {
     #[test]
     fn test_get_variable_name() {
         // Test retrieving the name of a variable by its index
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         let mut node = Node::new_variable("x".to_string());
         indexer.visit(&mut node).unwrap();
         assert_eq!(indexer.get_variable_name(0), Some("x".to_string()));
@@ -583,7 +582,7 @@ mod ai_gen_tests {
     #[test]
     fn test_get_variables() {
         // Test retrieving all variable names
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         let mut node = Node::new_variable("x".to_string());
         indexer.visit(&mut node).unwrap();
         let mut node = Node::new_variable("y".to_string());
@@ -596,7 +595,7 @@ mod ai_gen_tests {
     #[test]
     fn test_get_variable_indexes() {
         // Test retrieving all variable indexes
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         let mut node = Node::new_variable("x".to_string());
         indexer.visit(&mut node).unwrap();
         let mut node = Node::new_variable("y".to_string());
@@ -609,7 +608,7 @@ mod ai_gen_tests {
     #[test]
     fn test_get_variables_size() {
         // Test retrieving the size of the variables hashmap
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         let mut node = Node::new_variable("x".to_string());
         indexer.visit(&mut node).unwrap();
         let mut node = Node::new_variable("y".to_string());
@@ -621,7 +620,7 @@ mod ai_gen_tests {
     fn test_visit_index_node() {
         let script = "arr = [1,2,3]; x = arr[1];";
         let mut expr = Node::try_from(script).unwrap();
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit(&mut expr).unwrap();
         let variable_indexes = indexer.get_variable_indexes();
         assert_eq!(variable_indexes.get("arr"), Some(&0));
@@ -635,7 +634,7 @@ mod ai_gen_tests {
         let event = Event::new(Date::new(2025, 1, 1), expr);
         let mut events = EventStream::new().with_events(vec![event]);
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit_events(&mut events).unwrap();
 
         let req = indexer.get_request();
@@ -653,7 +652,7 @@ mod ai_gen_tests {
         let event = Event::new(event_date, expr);
         let mut events = EventStream::new().with_events(vec![event]);
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit_events(&mut events).unwrap();
 
         let req = indexer.get_request();
@@ -668,7 +667,7 @@ mod ai_gen_tests {
         let event = Event::new(Date::new(2025, 1, 1), expr);
         let mut events = EventStream::new().with_events(vec![event]);
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit_events(&mut events).unwrap();
 
         let req = indexer.get_request();
@@ -685,7 +684,7 @@ mod ai_gen_tests {
         let event = Event::new(event_date, expr);
         let mut events = EventStream::new().with_events(vec![event]);
 
-        let indexer = EventIndexer::new();
+        let indexer = VarIndexer::new();
         indexer.visit_events(&mut events).unwrap();
 
         let req = indexer.get_request();
