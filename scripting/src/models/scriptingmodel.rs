@@ -280,7 +280,7 @@ impl<'a> FxModel for BlackScholesModel<'a> {
         let s0_2 = self.spot_in_local(request.second_currency())?;
 
         // time step (dt)
-        let t: ADNumber = (self.time_step(request.date()) - self.time_handle).into();
+        let t: NumericType = (self.time_step(request.date()) - self.time_handle).into();
 
         let vol1 = self.fx_vol(request.first_currency())?;
         let vol2 = self.fx_vol(request.second_currency())?;

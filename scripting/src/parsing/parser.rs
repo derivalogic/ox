@@ -1584,6 +1584,41 @@ pub mod tests_if {
     }
 
     #[test]
+    fn test_func_in_if_statement() {
+        let tokens = Lexer::new(
+            "
+                if a-1 == 1 {
+                    b = 2;
+                }"
+            .to_string(),
+        )
+        .tokenize()
+        .unwrap();
+        let parser = Parser::new(tokens);
+        let result = parser.parse().unwrap();
+        let expected = Node::Base(NodeData {
+            children: vec![Node::If(IfData {
+                children: vec![
+                    Node::new_equal_with_values(
+                        Node::new_subtract_with_values(
+                            Node::new_variable("a".to_string()),
+                            Node::new_constant(1.0),
+                        ),
+                        Node::new_constant(1.0),
+                    ),
+                    Node::new_asign_with_values(
+                        Node::new_variable("b".to_string()),
+                        Node::new_constant(2.0),
+                    ),
+                ],
+                first_else: None,
+                affected_vars: Vec::new(),
+            })],
+        });
+        assert_eq!(result, expected);
+    }
+
+    #[test]
     fn test_if_new_variable() {
         let tokens = Lexer::new(
             "

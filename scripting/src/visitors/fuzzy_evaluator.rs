@@ -1,5 +1,6 @@
 use std::cell::{Cell, RefCell};
 
+
 use crate::prelude::*;
 use crate::visitors::evaluator::{SingleScenarioEvaluator, Value};
 use rustatlas::prelude::*;
@@ -18,6 +19,7 @@ pub struct FuzzyEvaluator<'a> {
     var_store1: RefCell<Vec<Vec<Value>>>,
     nested_if_lvl: Cell<usize>,
     max_nested_ifs: Cell<usize>,
+
 }
 
 impl<'a> FuzzyEvaluator<'a> {
@@ -31,6 +33,7 @@ impl<'a> FuzzyEvaluator<'a> {
             var_store1: RefCell::new(Vec::new()),
             nested_if_lvl: Cell::new(0),
             max_nested_ifs: Cell::new(0),
+
         }
     }
 
@@ -311,6 +314,7 @@ mod tests {
         let evaluator = FuzzyEvaluator::new()
             .with_variables(indexer.get_variables_size())
             .with_max_nested_ifs(processor.max_nested_ifs());
+
         evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
@@ -337,6 +341,7 @@ mod tests {
         let evaluator = FuzzyEvaluator::new()
             .with_variables(indexer.get_variables_size())
             .with_max_nested_ifs(processor.max_nested_ifs());
+
         evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
@@ -344,5 +349,4 @@ mod tests {
             vec![Value::Number(NumericType::new(2.0))]
         );
     }
-
 }
