@@ -133,6 +133,16 @@ impl<'a> SingleScenarioEvaluator<'a> {
         self
     }
 
+    pub fn current_market_data(&self) -> Result<&SimulationData> {
+        let scenario = self.scenario.ok_or(ScriptingError::EvaluationError(
+            "No scenario set".to_string(),
+        ))?;
+        scenario.get(*self.current_event.borrow())
+            .ok_or(ScriptingError::EvaluationError(
+                "Event not found".to_string(),
+            ))
+    }
+
     pub fn current_event(&self) -> usize {
         *self.current_event.borrow_mut()
     }
