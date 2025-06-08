@@ -98,7 +98,7 @@ pub struct SingleScenarioEvaluator<'a> {
     pub string_stack: RefCell<Vec<String>>,
     pub array_stack: RefCell<Vec<Vec<Value>>>,
     pub is_lhs_variable: RefCell<bool>,
-    pub lhs_variable: RefCell<Option<Box<Node>>>,
+    pub lhs_variable: RefCell<Option<Node>>,
     scenario: Option<&'a Scenario>,
     current_event: RefCell<usize>,
 }
@@ -164,12 +164,12 @@ impl<'a> SingleScenarioEvaluator<'a> {
 
 impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
     type Output = Result<()>;
-    fn const_visit(&self, node: Box<Node>) -> Self::Output {
-        let eval: Result<()> = match node.as_ref() {
+    fn const_visit(&self, node: &Node) -> Self::Output {
+        let eval: Result<()> = match node {
             Node::Base(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
                 Ok(())
             }
             Node::Variable(data) => {
@@ -254,113 +254,13 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                         "RateIndex not found".to_string(),
                     ))?;
 
-                self.digit_stack
-                    .borrow_mut()
-                    .push(market_data.get_fwd(id)?);
+                self.digit_stack.borrow_mut().push(market_data.get_fwd(id)?);
                 Ok(())
             }
             Node::Pays(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
-
-                let market_data = self
-                    .scenario
-                    .ok_or(ScriptingError::EvaluationError(
-                        "No scenario set".to_string(),
-                    ))?
-                    .get(*self.current_event.borrow_mut())
-                    .ok_or(ScriptingError::EvaluationError(
-                        "Event not found".to_string(),
-                    ))?
-                    .clone();
-
-                let current_value = self.digit_stack.borrow_mut().pop().unwrap();
-                let df_id = data.df_id.ok_or(ScriptingError::EvaluationError(
-                    "Pays not indexed".to_string(),
-                ))?;
-                let df = market_data.get_df(df_id)?;
-                let numerarie = market_data.numerarie();
-
-                let value: NumericType = if data.currency.is_some() {
-                    let fx_id = data.spot_id.ok_or(ScriptingError::EvaluationError(
-                        "Pays FX not indexed".to_string(),
-                    ))?;
-                    let fx = market_data.get_fx(fx_id)?;
-                    ((current_value * df * fx) / numerarie).into()
-                } else {
-                    ((current_value * df) / numerarie).into()
-                };
-
-                self.digit_stack.borrow_mut().push(value);
-                Ok(())
-            }
-            Node::Constant(data) => {
-                self.digit_stack.borrow_mut().push(data.const_value.into());
-                Ok(())
-            }
-            Node::String(value) => {
-                self.string_stack.borrow_mut().push(value.clone());
-                Ok(())
-            }
-            Node::Spot(data) => {
-                let id = data.id.ok_or(ScriptingError::EvaluationError(
-                    "Spot not indexed".to_string(),
-                ))?;
-
-                let market_data = self
-                    .scenario
-                    .ok_or(ScriptingError::EvaluationError(
-                        "No scenario set".to_string(),
-                    ))?
-                    .get(*self.current_event.borrow_mut())
-                    .ok_or(ScriptingError::EvaluationError(
-                        "Spot not found".to_string(),
-                    ))?;
-
-                self.digit_stack.borrow_mut().push(market_data.get_fx(id)?);
-                Ok(())
-            }
-            Node::Df(data) => {
-                let id = data.id.ok_or(ScriptingError::EvaluationError(
-                    "Df not indexed".to_string(),
-                ))?;
-
-                let market_data = self
-                    .scenario
-                    .ok_or(ScriptingError::EvaluationError(
-                        "No scenario set".to_string(),
-                    ))?
-                    .get(*self.current_event.borrow_mut())
-                    .ok_or(ScriptingError::EvaluationError("Df not found".to_string()))?;
-
-                self.digit_stack.borrow_mut().push(market_data.get_df(id)?);
-                Ok(())
-            }
-            Node::RateIndex(data) => {
-                let id = data.id.ok_or(ScriptingError::EvaluationError(
-                    "RateIndex not indexed".to_string(),
-                ))?;
-
-                let market_data = self
-                    .scenario
-                    .ok_or(ScriptingError::EvaluationError(
-                        "No scenario set".to_string(),
-                    ))?
-                    .get(*self.current_event.borrow_mut())
-                    .ok_or(ScriptingError::EvaluationError(
-                        "RateIndex not found".to_string(),
-                    ))?;
-
-                self.digit_stack
-                    .borrow_mut()
-                    .push(market_data.get_fwd(id)?);
-                Ok(())
-            }
-            Node::Pays(data) => {
-                data.children
-                    .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let market_data = self
                     .scenario
@@ -404,7 +304,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Add(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -414,7 +314,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Subtract(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -424,7 +324,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Multiply(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -434,7 +334,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Divide(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -443,13 +343,13 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             }
             Node::Assign(data) => {
                 *self.is_lhs_variable.borrow_mut() = true;
-                self.const_visit(data.children.get(0).unwrap().clone())?;
+                self.const_visit(data.children.get(0).unwrap())?;
 
                 *self.is_lhs_variable.borrow_mut() = false;
-                self.const_visit(data.children.get(1).unwrap().clone())?;
+                self.const_visit(data.children.get(1).unwrap())?;
 
                 let v = self.lhs_variable.borrow_mut().clone().unwrap();
-                let variable = v.as_ref();
+                let variable = v;
                 match variable {
                     Node::Variable(data) => match data.id {
                         None => {
@@ -489,7 +389,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::NotEqual(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -502,7 +402,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::And(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.boolean_stack.borrow_mut().pop().unwrap();
                 let left = self.boolean_stack.borrow_mut().pop().unwrap();
@@ -513,7 +413,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Or(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.boolean_stack.borrow_mut().pop().unwrap();
                 let left = self.boolean_stack.borrow_mut().pop().unwrap();
@@ -524,7 +424,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Not(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let value = self.boolean_stack.borrow_mut().pop().unwrap();
                 self.boolean_stack.borrow_mut().push(!value);
@@ -534,7 +434,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Superior(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -545,7 +445,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Inferior(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -556,7 +456,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::SuperiorOrEqual(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -567,7 +467,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::InferiorOrEqual(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -586,7 +486,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Equal(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -600,14 +500,14 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::UnaryPlus(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 Ok(())
             }
             Node::UnaryMinus(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let top = self.digit_stack.borrow_mut().pop().unwrap();
                 self.digit_stack.borrow_mut().push((-top).into());
@@ -617,7 +517,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Min(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -628,7 +528,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Max(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -641,7 +541,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Pow(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -655,7 +555,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Pow(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let right = self.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.digit_stack.borrow_mut().pop().unwrap();
@@ -670,7 +570,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Ln(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let top = self.digit_stack.borrow_mut().pop().unwrap();
                 self.digit_stack.borrow_mut().push(top.ln().into());
@@ -680,7 +580,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Fif(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let eps = self.digit_stack.borrow_mut().pop().unwrap();
                 let b = self.digit_stack.borrow_mut().pop().unwrap();
@@ -697,7 +597,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Exp(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let top = self.digit_stack.borrow_mut().pop().unwrap();
                 self.digit_stack.borrow_mut().push(top.exp().into());
@@ -706,7 +606,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Cvg(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
 
                 let basis_str = self.string_stack.borrow_mut().pop().unwrap();
                 let end_str = self.string_stack.borrow_mut().pop().unwrap();
@@ -721,12 +621,12 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             }
             Node::Append(data) => {
                 *self.is_lhs_variable.borrow_mut() = true;
-                self.const_visit(data.children.get(0).unwrap().clone())?;
+                self.const_visit(data.children.get(0).unwrap())?;
                 *self.is_lhs_variable.borrow_mut() = false;
-                self.const_visit(data.children.get(1).unwrap().clone())?;
+                self.const_visit(data.children.get(1).unwrap())?;
 
                 let var_node = self.lhs_variable.borrow_mut().clone().unwrap();
-                if let Node::Variable(data) = var_node.as_ref() {
+                if let Node::Variable(data) = var_node {
                     let id = data.id.ok_or(ScriptingError::EvaluationError(format!(
                         "Variable {} not indexed",
                         data.name
@@ -741,10 +641,10 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     } else {
                         Value::Number(self.digit_stack.borrow_mut().pop().unwrap())
                     };
-                    match vars.get_mut(*id).unwrap() {
+                    match vars.get_mut(id).unwrap() {
                         Value::Array(ref mut arr) => arr.push(val),
                         Value::Null => {
-                            *vars.get_mut(*id).unwrap() = Value::Array(vec![val]);
+                            *vars.get_mut(id).unwrap() = Value::Array(vec![val]);
                         }
                         _ => {
                             return Err(ScriptingError::EvaluationError(
@@ -762,7 +662,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Mean(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
                 let mut sum = NumericType::new(0.0);
                 let mut count = 0.0;
@@ -783,7 +683,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Std(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
                 let mut sum = NumericType::new(0.0);
                 let mut count = 0.0;
@@ -813,7 +713,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Range(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
                 let end = self.digit_stack.borrow_mut().pop().unwrap();
                 let start = self.digit_stack.borrow_mut().pop().unwrap();
                 let mut vec = Vec::new();
@@ -828,7 +728,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::List(data) => {
                 let mut array = Vec::new();
                 for child in &data.children {
-                    self.const_visit(child.clone())?;
+                    self.const_visit(child)?;
                     if !self.boolean_stack.borrow().is_empty() {
                         let v = self.boolean_stack.borrow_mut().pop().unwrap();
                         array.push(Value::Bool(v));
@@ -849,7 +749,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             Node::Index(data) => {
                 data.children
                     .iter()
-                    .try_for_each(|child| self.const_visit(child.clone()))?;
+                    .try_for_each(|child| self.const_visit(child))?;
                 data.index.const_accept(self);
                 let idx_val = self.digit_stack.borrow_mut().pop().unwrap();
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
@@ -929,7 +829,7 @@ impl<'a> SingleScenarioEvaluator<'a> {
             .enumerate()
             .try_for_each(|(i, event)| -> Result<()> {
                 self.set_current_event(i);
-                self.const_visit(event.expr().clone())?;
+                self.const_visit(event.expr())?;
                 Ok(())
             })?;
         let v = self.variables.borrow_mut().clone();
@@ -1064,7 +964,7 @@ impl<'a> EventStreamEvaluator<'a> {
             .events()
             .iter()
             .try_for_each(|event| -> Result<()> {
-                evaluator.const_visit(event.expr().clone())?;
+                evaluator.const_visit(event.expr())?;
                 Ok(())
             })?;
 
@@ -1088,7 +988,7 @@ impl<'a> EventStreamEvaluator<'a> {
                 .events()
                 .iter()
                 .try_for_each(|event| -> Result<()> {
-                    evaluator.const_visit(event.expr().clone())?;
+                    evaluator.const_visit(event.expr())?;
                     Ok(())
                 })?;
 
@@ -1126,97 +1026,95 @@ impl<'a> EventStreamEvaluator<'a> {
 #[cfg(test)]
 mod general_tests {
 
-    use std::sync::OnceLock;
-
     use super::*;
 
     #[test]
     fn test_add_node() {
-        let mut base = Box::new(Node::new_base());
-        let mut add = Box::new(Node::new_add());
+        let mut base = Node::new_base();
+        let mut add = Node::new_add();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(1.0);
 
         add.add_child(c1);
         add.add_child(c2);
         base.add_child(add);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 2.0);
     }
 
     #[test]
     fn test_subtract_node() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
         let mut subtract = Node::new_subtract();
 
-        let c1 = Node::new_constant(NumericType::new(1.0));
-        let c2 = Node::new_constant(NumericType::new(1.0));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(1.0);
 
-        subtract.add_child(Box::new(c1));
-        subtract.add_child(Box::new(c2));
-        base.add_child(Box::new(subtract));
+        subtract.add_child(c1);
+        subtract.add_child(c2);
+        base.add_child(subtract);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 0.0);
     }
 
     #[test]
     fn test_multiply_node() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
         let mut multiply = Node::new_multiply();
 
-        let c1 = Node::new_constant(NumericType::new(1.0));
-        let c2 = Node::new_constant(NumericType::new(2.0));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(2.0);
 
-        multiply.add_child(Box::new(c1));
-        multiply.add_child(Box::new(c2));
-        base.add_child(Box::new(multiply));
+        multiply.add_child(c1);
+        multiply.add_child(c2);
+        base.add_child(multiply);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 2.0);
     }
 
     #[test]
     fn test_divide_node() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
         let mut divide = Node::new_divide();
 
-        let c1 = Node::new_constant(NumericType::new(4.0));
-        let c2 = Node::new_constant(NumericType::new(2.0));
+        let c1 = Node::new_constant(4.0);
+        let c2 = Node::new_constant(2.0);
 
-        divide.add_child(Box::new(c1));
-        divide.add_child(Box::new(c2));
-        base.add_child(Box::new(divide));
+        divide.add_child(c1);
+        divide.add_child(c2);
+        base.add_child(divide);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 2.0);
     }
 
     #[test]
     fn test_variable_assign_node() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let v1 = Box::new(Node::new_variable_with_id("x".to_string(), 0));
+        let c1 = Node::new_constant(1.0);
+        let v1 = Node::new_variable_with_id("x".to_string(), 0);
 
-        let mut assign = Box::new(Node::new_assign());
+        let mut assign = Node::new_assign();
         assign.add_child(v1);
         assign.add_child(c1);
 
         base.add_child(assign);
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(1);
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(
             evaluator.variables().pop().unwrap(),
             Value::Number(NumericType::new(1.0))
@@ -1225,73 +1123,72 @@ mod general_tests {
 
     #[test]
     fn test_assign_boolean() {
-        let base = Box::new(Node::Base(vec![
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "x".to_string(), 0.into())),
-                Box::new(Node::True),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "y".to_string(), 1.into())),
-                Box::new(Node::False),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "z".to_string(), 2.into())),
-                Box::new(Node::And(vec![
-                    Box::new(Node::Variable(Vec::new(), "x".to_string(), 0.into())),
-                    Box::new(Node::Variable(Vec::new(), "y".to_string(), 1.into())),
-                ])),
-            ])),
-        ]));
+        let mut base = Node::new_base();
+
+        let mut assign_x = Node::new_assign();
+        assign_x.add_child(Node::new_variable_with_id("x".to_string(), 0));
+        assign_x.add_child(Node::True);
+
+        let mut assign_y = Node::new_assign();
+        assign_y.add_child(Node::new_variable_with_id("y".to_string(), 1));
+        assign_y.add_child(Node::False);
+
+        let mut and_node = Node::new_and();
+        and_node.add_child(Node::new_variable_with_id("x".to_string(), 0));
+        and_node.add_child(Node::new_variable_with_id("y".to_string(), 1));
+
+        let mut assign_z = Node::new_assign();
+        assign_z.add_child(Node::new_variable_with_id("z".to_string(), 2));
+        assign_z.add_child(and_node);
+
+        base.add_child(assign_x);
+        base.add_child(assign_y);
+        base.add_child(assign_z);
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(3);
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.variables().get(0).unwrap(), &Value::Bool(true));
-        assert_eq!(evaluator.variables().get(1).unwrap(), &Value::Bool(false));
-        assert_eq!(evaluator.variables().get(2).unwrap(), &Value::Bool(false));
     }
 
     #[test]
     fn test_variable_use_node() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let v1 = Box::new(Node::new_variable_with_id("x".to_string(), 0));
+        let c1 = Node::new_constant(1.0);
+        let v1 = Node::new_variable_with_id("x".to_string(), 0);
 
-        let mut add = Box::new(Node::new_add());
+        let mut add = Node::new_add();
         add.add_child(v1);
         add.add_child(c1);
 
         base.add_child(add);
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(1);
-        assert!(evaluator.const_visit(base).is_err());
+        assert!(evaluator.const_visit(&base).is_err());
     }
 
     #[test]
     fn test_nested_expression() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(2.0)));
-        let x = Box::new(Node::new_variable_with_id("x".to_string(), 0));
-        let y = Box::new(Node::new_variable_with_id("y".to_string(), 1));
-        let z = Box::new(Node::new_variable_with_id("z".to_string(), 2));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(2.0);
 
-        let mut assign_x = Box::new(Node::new_assign());
-        assign_x.add_child(x.clone());
+        let mut assign_x = Node::new_assign();
+        assign_x.add_child(Node::new_variable_with_id("x".to_string(), 0));
         assign_x.add_child(c1);
 
-        let mut assign_y = Box::new(Node::new_assign());
-        assign_y.add_child(y.clone());
+        let mut assign_y = Node::new_assign();
+        assign_y.add_child(Node::new_variable_with_id("y".to_string(), 1));
         assign_y.add_child(c2);
 
-        let mut add = Box::new(Node::new_add());
-        add.add_child(x.clone());
-        add.add_child(y.clone());
+        let mut add = Node::new_add();
+        add.add_child(Node::new_variable_with_id("x".to_string(), 0));
+        add.add_child(Node::new_variable_with_id("y".to_string(), 1));
 
-        let mut assign_z = Box::new(Node::new_assign());
-        assign_z.add_child(z);
+        let mut assign_z = Node::new_assign();
+        assign_z.add_child(Node::new_variable_with_id("z".to_string(), 2));
         assign_z.add_child(add);
 
         base.add_child(assign_x);
@@ -1299,7 +1196,7 @@ mod general_tests {
         base.add_child(assign_z);
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(3);
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(
             evaluator.variables().pop().unwrap(),
             Value::Number(NumericType::new(3.0))
@@ -1308,111 +1205,111 @@ mod general_tests {
 
     #[test]
     fn test_equal() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(1.0);
 
-        let mut equal = Box::new(Node::new_equal());
+        let mut equal = Node::new_equal();
         equal.add_child(c1);
         equal.add_child(c2);
 
         base.add_child(equal);
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(1);
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(evaluator.boolean_stack().pop().unwrap(), true);
     }
 
     #[test]
     fn test_superior() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(2.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c1 = Node::new_constant(2.0);
+        let c2 = Node::new_constant(1.0);
 
-        let mut and = Box::new(Node::new_superior());
+        let mut and = Node::new_superior();
         and.add_child(c1);
         and.add_child(c2);
 
         base.add_child(and);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(evaluator.boolean_stack().pop().unwrap(), true);
     }
 
     #[test]
     fn test_inferior() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(2.0)));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(2.0);
 
-        let mut and = Box::new(Node::new_inferior());
+        let mut and = Node::new_inferior();
         and.add_child(c1);
         and.add_child(c2);
 
         base.add_child(and);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.boolean_stack().pop().unwrap(), true);
     }
 
     #[test]
     fn test_superior_or_equal() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(2.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c1 = Node::new_constant(2.0);
+        let c2 = Node::new_constant(1.0);
 
-        let mut and = Box::new(Node::new_superior_or_equal());
+        let mut and = Node::new_superior_or_equal();
         and.add_child(c1);
         and.add_child(c2);
 
         base.add_child(and);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(evaluator.boolean_stack().pop().unwrap(), true);
     }
 
     #[test]
     fn test_inferior_or_equal() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(2.0)));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(2.0);
 
-        let mut and = Box::new(Node::new_inferior_or_equal());
+        let mut and = Node::new_inferior_or_equal();
         and.add_child(c1);
         and.add_child(c2);
 
         base.add_child(and);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(evaluator.boolean_stack().pop().unwrap(), true);
     }
 
     #[test]
     fn test_and() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(1.0);
 
-        let mut equal_1 = Box::new(Node::new_equal());
+        let mut equal_1 = Node::new_equal();
         equal_1.add_child(c1.clone());
         equal_1.add_child(c2.clone());
 
-        let mut equal_2 = Box::new(Node::new_equal());
+        let mut equal_2 = Node::new_equal();
         equal_2.add_child(c1.clone());
         equal_2.add_child(c2.clone());
 
-        let mut and = Box::new(Node::new_and());
+        let mut and = Node::new_and();
         and.add_child(equal_1.clone());
         and.add_child(equal_2.clone());
 
@@ -1421,26 +1318,26 @@ mod general_tests {
         base.add_child(and);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(evaluator.boolean_stack().pop().unwrap(), true);
     }
 
     #[test]
     fn test_or() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(1.0);
 
-        let mut equal_1 = Box::new(Node::new_equal());
+        let mut equal_1 = Node::new_equal();
         equal_1.add_child(c1.clone());
         equal_1.add_child(c2.clone());
 
-        let mut equal_2 = Box::new(Node::new_equal());
+        let mut equal_2 = Node::new_equal();
         equal_2.add_child(c1.clone());
         equal_2.add_child(c2.clone());
 
-        let mut or = Box::new(Node::new_or());
+        let mut or = Node::new_or();
         or.add_child(equal_1.clone());
         or.add_child(equal_2.clone());
 
@@ -1449,66 +1346,66 @@ mod general_tests {
         base.add_child(or);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(evaluator.boolean_stack().pop().unwrap(), true);
     }
 
     #[test]
     fn test_not() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
-        let c2 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(1.0);
 
-        let mut equal = Box::new(Node::new_equal());
-        equal.add_child(c1.clone());
-        equal.add_child(c2.clone());
+        let mut equal = Node::new_equal();
+        equal.add_child(c1);
+        equal.add_child(c2);
 
-        let mut not = Box::new(Node::new_not());
+        let mut not = Node::new_not();
         not.add_child(equal.clone());
 
-        base.add_child(equal.clone());
-        base.add_child(not.clone());
+        base.add_child(equal);
+        base.add_child(not);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(evaluator.boolean_stack().pop().unwrap(), false);
     }
 
     #[test]
     fn test_if() {
-        let mut base = Box::new(Node::new_base());
+        let mut base = Node::new_base();
 
-        let x = Box::new(Node::new_variable_with_id("x".to_string(), 0));
-        let c1 = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let x = Node::new_variable_with_id("x".to_string(), 0);
+        let c1 = Node::new_constant(1.0);
 
-        let mut assing_x = Box::new(Node::new_assign());
+        let mut assing_x = Node::new_assign();
         assing_x.add_child(x.clone());
         assing_x.add_child(c1.clone());
 
-        let mut if_node = Box::new(Node::new_if());
+        let mut if_node = Node::new_if();
 
-        let mut equal = Box::new(Node::new_equal());
+        let mut equal = Node::new_equal();
 
         equal.add_child(x.clone());
         equal.add_child(c1.clone());
 
-        if_node.add_child(equal.clone());
+        if_node.add_child(equal);
 
-        let mut add = Box::new(Node::new_add());
+        let mut add = Node::new_add();
         add.add_child(x.clone());
         add.add_child(c1.clone());
-        let mut assing_x_2 = Box::new(Node::new_assign());
+        let mut assing_x_2 = Node::new_assign();
         assing_x_2.add_child(x);
         assing_x_2.add_child(add);
 
-        if_node.add_child(assing_x_2.clone());
+        if_node.add_child(assing_x_2);
 
         base.add_child(assing_x);
         base.add_child(if_node);
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(1);
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
         assert_eq!(
             evaluator.variables().pop().unwrap(),
             Value::Number(NumericType::new(2.0))
@@ -1517,35 +1414,39 @@ mod general_tests {
 
     #[test]
     fn test_if_new_variable() {
-        let base = Box::new(Node::Base(vec![
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(Vec::new(), "x".to_string(), 0.into())),
-                Box::new(Node::Constant(NumericType::new(2.0))),
-            ])),
-            Box::new(Node::If(
-                vec![
-                    Box::new(Node::Equal(vec![
-                        Box::new(Node::Variable(Vec::new(), "x".to_string(), 0.into())),
-                        Box::new(Node::Constant(NumericType::new(1.0))),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "z".to_string(), 1.into())),
-                        Box::new(Node::Constant(NumericType::new(3.0))),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::Variable(Vec::new(), "w".to_string(), 2.into())),
-                        Box::new(Node::Constant(NumericType::new(4.0))),
-                    ])),
-                ],
-                None,
-                OnceLock::new(),
-                None,
-                None,
-            )),
-        ]));
+        let mut base = Node::new_base();
+
+        // x = 2
+        let mut assign_x = Node::new_assign();
+        assign_x.add_child(Node::new_variable_with_id("x".to_string(), 0));
+        assign_x.add_child(Node::new_constant(2.0));
+
+        // if x == 1 { z = 3; w = 4; }
+        let mut if_node = Node::new_if();
+
+        // x == 1 condition
+        let mut equal = Node::new_equal();
+        equal.add_child(Node::new_variable_with_id("x".to_string(), 0));
+        equal.add_child(Node::new_constant(1.0));
+        if_node.add_child(equal);
+
+        // z = 3
+        let mut assign_z = Node::new_assign();
+        assign_z.add_child(Node::new_variable_with_id("z".to_string(), 1));
+        assign_z.add_child(Node::new_constant(3.0));
+        if_node.add_child(assign_z);
+
+        // w = 4
+        let mut assign_w = Node::new_assign();
+        assign_w.add_child(Node::new_variable_with_id("w".to_string(), 2));
+        assign_w.add_child(Node::new_constant(4.0));
+        if_node.add_child(assign_w);
+
+        base.add_child(assign_x);
+        base.add_child(if_node);
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(3);
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(
             evaluator.variables().get(0).unwrap(),
@@ -1570,13 +1471,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
             *evaluator.variables().get(0).unwrap(),
@@ -1605,13 +1506,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
             *evaluator.variables().get(0).unwrap(),
@@ -1642,13 +1543,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
             *evaluator.variables().get(0).unwrap(),
@@ -1683,13 +1584,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
             *evaluator.variables().get(0).unwrap(),
@@ -1719,13 +1620,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
             *evaluator.variables().get(0).unwrap(),
@@ -1753,13 +1654,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
             *evaluator.variables().get(0).unwrap(),
@@ -1797,13 +1698,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
             *evaluator.variables().get(0).unwrap(),
@@ -1827,13 +1728,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
             *evaluator.variables().get(0).unwrap(),
@@ -1850,13 +1751,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
             *evaluator.variables().get(0).unwrap(),
@@ -1872,13 +1773,13 @@ mod expr_evaluator_tests {
         .to_string();
 
         let tokens = Lexer::new(script).tokenize().unwrap();
-        let nodes = Parser::new(tokens).parse().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
 
         let indexer = EventIndexer::new();
-        indexer.visit(&nodes).unwrap();
+        indexer.visit(&mut nodes).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(nodes).unwrap();
+        evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(*evaluator.variables().get(0).unwrap(), Value::Bool(true));
     }
@@ -1899,10 +1800,10 @@ mod event_stream_evaluator_tests {
         let event_date = Date::new(2021, 1, 1);
         let expr = event.try_into().unwrap();
         let event = Event::new(event_date, expr);
-        let events = EventStream::new().with_events(vec![event]);
+        let mut events = EventStream::new().with_events(vec![event]);
         // Index expressions and initialize evaluator (adjust according to your actual logic)
         let indexer = EventIndexer::new();
-        indexer.visit_events(&events).unwrap();
+        indexer.visit_events(&mut events).unwrap();
         let var_map = indexer.get_variable_indexes();
 
         let scenarios = vec![Scenario::new()];
@@ -1935,10 +1836,10 @@ mod event_stream_evaluator_tests {
         let event_date = Date::new(2021, 1, 1);
         let expr = event.try_into().unwrap();
         let event = Event::new(event_date, expr);
-        let events = EventStream::new().with_events(vec![event]);
+        let mut events = EventStream::new().with_events(vec![event]);
         // Index expressions and initialize evaluator (adjust according to your actual logic)
         let indexer = EventIndexer::new();
-        indexer.visit_events(&events).unwrap();
+        indexer.visit_events(&mut events).unwrap();
 
         let var_map = indexer.get_variable_indexes();
 
@@ -1969,16 +1870,16 @@ mod ai_gen_tests {
     #[test]
     fn test_unary_plus_node() {
         // Test the UnaryPlus node to ensure it correctly processes the value without changing it.
-        let mut base = Box::new(Node::new_base());
-        let mut unary_plus = Box::new(Node::new_unary_plus());
+        let mut base = Node::new_base();
+        let mut unary_plus = Node::new_unary_plus();
 
-        let c1 = Node::new_constant(NumericType::new(1.0));
+        let c1 = Node::new_constant(1.0);
 
-        unary_plus.add_child(Box::new(c1));
+        unary_plus.add_child(c1);
         base.add_child(unary_plus);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 1.0);
     }
@@ -1986,16 +1887,16 @@ mod ai_gen_tests {
     #[test]
     fn test_unary_minus_node() {
         // Test the UnaryMinus node to ensure it correctly negates the value.
-        let mut base = Box::new(Node::new_base());
-        let mut unary_minus = Box::new(Node::new_unary_minus());
+        let mut base = Node::new_base();
+        let mut unary_minus = Node::new_unary_minus();
 
-        let c1 = Node::new_constant(NumericType::new(1.0));
+        let c1 = Node::new_constant(1.0);
 
-        unary_minus.add_child(Box::new(c1));
+        unary_minus.add_child(c1);
         base.add_child(unary_minus);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), -1.0);
     }
@@ -2003,18 +1904,18 @@ mod ai_gen_tests {
     #[test]
     fn test_min_node() {
         // Test the Min node to ensure it correctly finds the minimum value between two constants.
-        let mut base = Box::new(Node::new_base());
-        let mut min = Box::new(Node::new_min());
+        let mut base = Node::new_base();
+        let mut min = Node::new_min();
 
-        let c1 = Node::new_constant(NumericType::new(1.0));
-        let c2 = Node::new_constant(NumericType::new(2.0));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(2.0);
 
-        min.add_child(Box::new(c1));
-        min.add_child(Box::new(c2));
+        min.add_child(c1);
+        min.add_child(c2);
         base.add_child(min);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 1.0);
     }
@@ -2022,17 +1923,17 @@ mod ai_gen_tests {
     #[test]
     fn test_max_node() {
         // Test the Max node to ensure it correctly finds the maximum value between two constants.
-        let mut base = Box::new(Node::new_base());
-        let mut max = Box::new(Node::new_max());
+        let mut base = Node::new_base();
+        let mut max = Node::new_max();
 
-        let c1 = Node::new_constant(NumericType::new(1.0));
-        let c2 = Node::new_constant(NumericType::new(2.0));
-        max.add_child(Box::new(c1));
-        max.add_child(Box::new(c2));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(2.0);
+        max.add_child(c1);
+        max.add_child(c2);
         base.add_child(max);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 2.0);
     }
@@ -2040,18 +1941,18 @@ mod ai_gen_tests {
     #[test]
     fn test_fif_node() {
         // Test the Fif node to ensure it correctly computes the functional if.
-        let mut base = Box::new(Node::new_base());
-        let mut fif = Box::new(Node::new_fif());
+        let mut base = Node::new_base();
+        let mut fif = Node::new_fif();
 
-        fif.add_child(Box::new(Node::new_constant(NumericType::new(0.0))));
-        fif.add_child(Box::new(Node::new_constant(NumericType::new(1.0))));
-        fif.add_child(Box::new(Node::new_constant(NumericType::new(0.0))));
-        fif.add_child(Box::new(Node::new_constant(NumericType::new(1.0))));
+        fif.add_child(Node::new_constant(0.0));
+        fif.add_child(Node::new_constant(1.0));
+        fif.add_child(Node::new_constant(0.0));
+        fif.add_child(Node::new_constant(1.0));
 
         base.add_child(fif);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         let res = evaluator.digit_stack().pop().unwrap();
         assert!((res - 0.5).abs() < 1e-12);
@@ -2060,18 +1961,18 @@ mod ai_gen_tests {
     #[test]
     fn test_pow_node() {
         // Test the Pow node to ensure it correctly calculates the power of one constant to another.
-        let mut base = Box::new(Node::new_base());
-        let mut pow = Box::new(Node::new_pow());
+        let mut base = Node::new_base();
+        let mut pow = Node::new_pow();
 
-        let c1 = Node::new_constant(NumericType::new(2.0));
-        let c2 = Node::new_constant(NumericType::new(3.0));
+        let c1 = Node::new_constant(2.0);
+        let c2 = Node::new_constant(3.0);
 
-        pow.add_child(Box::new(c1));
-        pow.add_child(Box::new(c2));
+        pow.add_child(c1);
+        pow.add_child(c2);
         base.add_child(pow);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.digit_stack().pop().unwrap(), 8.0);
     }
@@ -2079,16 +1980,16 @@ mod ai_gen_tests {
     #[test]
     fn test_ln_node() {
         // Test the Ln node to ensure it correctly calculates the natural logarithm of a constant.
-        let mut base = Box::new(Node::new_base());
-        let mut ln = Box::new(Node::new_ln());
+        let mut base = Node::new_base();
+        let mut ln = Node::new_ln();
 
-        let c1 = Node::new_constant(NumericType::new(2.718281828459045));
+        let c1 = Node::new_constant(2.718281828459045);
 
-        ln.add_child(Box::new(c1));
+        ln.add_child(c1);
         base.add_child(ln);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert!((evaluator.digit_stack().pop().unwrap() - 1.0).abs() < f64::EPSILON);
     }
@@ -2096,31 +1997,31 @@ mod ai_gen_tests {
     #[test]
     fn test_exp_node() {
         // Test the Exp node to ensure it correctly calculates the exponential of a constant.
-        let mut base = Box::new(Node::new_base());
-        let mut exp = Box::new(Node::new_exp());
+        let mut base = Node::new_base();
+        let mut exp = Node::new_exp();
 
-        let c1 = Node::new_constant(NumericType::new(1.0));
+        let c1 = Node::new_constant(1.0);
 
-        exp.add_child(Box::new(c1));
+        exp.add_child(c1);
         base.add_child(exp);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert!((evaluator.digit_stack().pop().unwrap() - 2.718281828459045).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_cvg_node() {
-        let mut base = Box::new(Node::new_base());
-        let mut cvg = Box::new(Node::new_cvg());
-        cvg.add_child(Box::new(Node::String("2020-01-01".to_string())));
-        cvg.add_child(Box::new(Node::String("2020-06-01".to_string())));
-        cvg.add_child(Box::new(Node::String("Actual360".to_string())));
+        let mut base = Node::new_base();
+        let mut cvg = Node::new_cvg();
+        cvg.add_child(Node::String("2020-01-01".to_string()));
+        cvg.add_child(Node::String("2020-06-01".to_string()));
+        cvg.add_child(Node::String("Actual360".to_string()));
         base.add_child(cvg);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert!((evaluator.digit_stack().pop().unwrap() - (152.0 / 360.0)).abs() < f64::EPSILON);
     }
@@ -2128,9 +2029,9 @@ mod ai_gen_tests {
     #[test]
     fn test_pays_node_discount() {
         // Pays should apply the discount factor fetched from the scenario
-        let mut base = Box::new(Node::new_base());
-        let mut pays = Box::new(Node::new_pays());
-        pays.add_child(Box::new(Node::new_constant(NumericType::new(100.0))));
+        let mut base = Node::new_base();
+        let mut pays = Node::new_pays();
+        pays.add_child(Node::new_constant(100.0));
         base.add_child(pays);
 
         let event_date = Date::new(2024, 1, 1);
@@ -2144,14 +2045,14 @@ mod ai_gen_tests {
 
         let indexer = EventIndexer::new().with_event_date(event_date);
         let event = Event::new(event_date, base.clone());
-        let events = EventStream::new().with_events(vec![event]);
-        indexer.visit_events(&events).unwrap();
+        let mut events = EventStream::new().with_events(vec![event]);
+        indexer.visit_events(&mut events).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new()
             .with_scenario(&scenario)
             .with_variables(indexer.get_variables_size());
-        let expr = events.events().first().unwrap().expr().clone();
-        evaluator.const_visit(expr).unwrap();
+        let expr = events.events().first().unwrap().expr();
+        evaluator.const_visit(&expr).unwrap();
 
         assert!((evaluator.digit_stack().pop().unwrap() - 50.0).abs() < f64::EPSILON);
     }
@@ -2159,13 +2060,13 @@ mod ai_gen_tests {
     #[test]
     fn test_pays_node_discount_and_fx() {
         // Pays should apply discount and fx conversion
-        let mut base = Box::new(Node::new_base());
-        let mut pays = Box::new(Node::new_pays());
-        pays.add_child(Box::new(Node::new_constant(NumericType::new(100.0))));
+        let mut base = Node::new_base();
+        let mut pays = Node::new_pays();
+        pays.add_child(Node::new_constant(100.0));
         // set currency EUR
-        if let Node::Pays(_, ref mut date, ref mut ccy, _, _) = *pays {
-            *date = Some(Date::new(2024, 1, 1));
-            *ccy = Some(Currency::EUR);
+        if let Node::Pays(ref mut data) = pays {
+            data.date = Some(Date::new(2024, 1, 1));
+            data.currency = Some(Currency::EUR);
         }
         base.add_child(pays);
 
@@ -2182,14 +2083,14 @@ mod ai_gen_tests {
             .with_event_date(event_date)
             .with_local_currency(Currency::USD);
         let event = Event::new(event_date, base.clone());
-        let events = EventStream::new().with_events(vec![event]);
-        indexer.visit_events(&events).unwrap();
+        let mut events = EventStream::new().with_events(vec![event]);
+        indexer.visit_events(&mut events).unwrap();
 
         let evaluator = SingleScenarioEvaluator::new()
             .with_scenario(&scenario)
             .with_variables(indexer.get_variables_size());
-        let expr = events.events().first().unwrap().expr().clone();
-        evaluator.const_visit(expr).unwrap();
+        let expr = events.events().first().unwrap().expr();
+        evaluator.const_visit(&expr).unwrap();
 
         // 100 * 0.5 * 0.8 / 2 = 20
         assert!((evaluator.digit_stack().pop().unwrap() - 20.0).abs() < f64::EPSILON);
@@ -2197,7 +2098,7 @@ mod ai_gen_tests {
 
     // #[test]
     // fn test_cvg_with_pays() {
-    //     let mut base = Box::new(Node::new_base());
+    //     let mut base = Node::new_base();
     //     let mut pays = Box::new(Node::new_pays());
     //     let mut cvg = Box::new(Node::new_cvg());
     //     cvg.add_child(Box::new(Node::String("2020-01-01".to_string())));
@@ -2220,7 +2121,7 @@ mod ai_gen_tests {
     //     indexer.visit(&base).unwrap();
 
     //     let evaluator = SingleScenarioEvaluator::new().with_scenario(&scenario);
-    //     evaluator.const_visit(base).unwrap();
+    //     evaluator.const_visit(&base).unwrap();
 
     //     assert!(
     //         (evaluator.digit_stack().pop().unwrap() - (152.0 / 360.0) / 2.0).abs() < f64::EPSILON
@@ -2230,7 +2131,7 @@ mod ai_gen_tests {
     // #[test]
     // fn test_pays_node_discount() {
     //     // Pays should discount the evaluated value by the scenario numerarie
-    //     let mut base = Box::new(Node::new_base());
+    //     let mut base = Node::new_base();
     //     let mut pays = Box::new(Node::new_pays());
     //     pays.add_child(Box::new(Node::new_constant(NumericType::new(100.0))));
     //     base.add_child(pays);
@@ -2249,14 +2150,14 @@ mod ai_gen_tests {
     //     indexer.visit(&base).unwrap();
 
     //     let evaluator = SingleScenarioEvaluator::new().with_scenario(&scenario);
-    //     evaluator.const_visit(base).unwrap();
+    //     evaluator.const_visit(&base).unwrap();
 
     //     assert_eq!(evaluator.digit_stack().pop().unwrap(), 50.0);
     // }
 
     // #[test]
     // fn test_rate_index_eval() {
-    //     let mut base = Box::new(Node::new_base());
+    //     let mut base = Node::new_base();
     //     let rate = Node::new_rate_index(
     //         "0".to_string(),
     //         Date::new(2024, 1, 1),
@@ -2277,7 +2178,7 @@ mod ai_gen_tests {
     //     indexer.visit(&base).unwrap();
 
     //     let evaluator = SingleScenarioEvaluator::new().with_scenario(&scenario);
-    //     evaluator.const_visit(base).unwrap();
+    //     evaluator.const_visit(&base).unwrap();
 
     //     assert!((evaluator.digit_stack().pop().unwrap() - 0.05).abs() < f64::EPSILON);
     // }
@@ -2285,18 +2186,18 @@ mod ai_gen_tests {
     #[test]
     fn test_not_equal_node() {
         // Test the NotEqual node to ensure it correctly evaluates the inequality of two constants.
-        let mut base = Box::new(Node::new_base());
-        let mut not_equal = Box::new(Node::new_not_equal());
+        let mut base = Node::new_base();
+        let mut not_equal = Node::new_not_equal();
 
-        let c1 = Node::new_constant(NumericType::new(1.0));
-        let c2 = Node::new_constant(NumericType::new(2.0));
+        let c1 = Node::new_constant(1.0);
+        let c2 = Node::new_constant(2.0);
 
-        not_equal.add_child(Box::new(c1));
-        not_equal.add_child(Box::new(c2));
+        not_equal.add_child(c1);
+        not_equal.add_child(c2);
         base.add_child(not_equal);
 
         let evaluator = SingleScenarioEvaluator::new();
-        evaluator.const_visit(base).unwrap();
+        evaluator.const_visit(&base).unwrap();
 
         assert_eq!(evaluator.boolean_stack().pop().unwrap(), true);
     }
@@ -2493,7 +2394,7 @@ mod ai_gen_tests {
     fn test_expr_evaluator_lhs_variable() {
         // Test the SingleScenarioEvaluator to ensure it correctly sets and gets the lhs_variable.
         let evaluator = SingleScenarioEvaluator::new();
-        let node = Box::new(Node::new_constant(NumericType::new(1.0)));
+        let node = Node::new_constant(1.0);
         *evaluator.lhs_variable.borrow_mut() = Some(node.clone());
         assert_eq!(*evaluator.lhs_variable.borrow_mut(), Some(node));
     }
@@ -2501,11 +2402,11 @@ mod ai_gen_tests {
     #[test]
     fn test_for_each_range_loop() {
         let script = "total = 0; for i in range(1,3) { total = total + i; }";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(expr).unwrap();
+        evaluator.const_visit(&expr).unwrap();
         let idx = indexer.get_variable_index("total").unwrap();
         if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
             assert_eq!(*v, NumericType::new(6.0));
@@ -2517,11 +2418,11 @@ mod ai_gen_tests {
     #[test]
     fn test_for_each_list_loop() {
         let script = "sum = 0; for x in [1,2,3] { sum = sum + x; }";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(expr).unwrap();
+        evaluator.const_visit(&expr).unwrap();
         let idx = indexer.get_variable_index("sum").unwrap();
         if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
             assert_eq!(*v, NumericType::new(6.0));
@@ -2533,11 +2434,11 @@ mod ai_gen_tests {
     #[test]
     fn test_list_assignment() {
         let script = "a = [1,2];";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(expr).unwrap();
+        evaluator.const_visit(&expr).unwrap();
         let idx = indexer.get_variable_index("a").unwrap();
         if let Value::Array(arr) = evaluator.variables().get(idx).unwrap() {
             assert_eq!(arr.len(), 2);
@@ -2549,11 +2450,11 @@ mod ai_gen_tests {
     #[test]
     fn test_list_with_variable_values() {
         let script = "x = 1; a = [x, 2];";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(expr).unwrap();
+        evaluator.const_visit(&expr).unwrap();
         let idx = indexer.get_variable_index("a").unwrap();
         if let Value::Array(arr) = evaluator.variables().get(idx).unwrap() {
             assert_eq!(arr.len(), 2);
@@ -2569,11 +2470,11 @@ mod ai_gen_tests {
     #[test]
     fn test_array_indexing() {
         let script = "arr = [1,2,3]; x = arr[1];";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(expr).unwrap();
+        evaluator.const_visit(&expr).unwrap();
         let idx = indexer.get_variable_index("x").unwrap();
         if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
             assert_eq!(*v, NumericType::new(2.0));
@@ -2585,22 +2486,22 @@ mod ai_gen_tests {
     #[test]
     fn test_array_indexing_out_of_bounds() {
         let script = "arr = [1,2,3]; x = arr[5];";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        let result = evaluator.const_visit(expr);
+        let result = evaluator.const_visit(&expr);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_for_each_variable_loop() {
         let script = "arr = [1,2,3]; sum = 0; for v in arr { sum = sum + v; }";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(expr).unwrap();
+        evaluator.const_visit(&expr).unwrap();
         let idx = indexer.get_variable_index("sum").unwrap();
         if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
             assert_eq!(*v, NumericType::new(6.0));
@@ -2612,11 +2513,11 @@ mod ai_gen_tests {
     #[test]
     fn test_compound_assignments() {
         let script = "x = 1; x += 2; x -= 1; x *= 3; x /= 2;";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(expr).unwrap();
+        evaluator.const_visit(&expr).unwrap();
         let idx = indexer.get_variable_index("x").unwrap();
         if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
             assert_eq!(*v, NumericType::new(3.0));
@@ -2628,11 +2529,11 @@ mod ai_gen_tests {
     #[test]
     fn test_append_and_statistics() {
         let script = "arr = [1,2]; arr.append(3); mean_val = arr.mean(); std_val = arr.std();";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(expr).unwrap();
+        evaluator.const_visit(&expr).unwrap();
         let arr_idx = indexer.get_variable_index("arr").unwrap();
         if let Value::Array(arr) = evaluator.variables().get(arr_idx).unwrap() {
             assert_eq!(arr.len(), 3);
@@ -2656,11 +2557,11 @@ mod ai_gen_tests {
     #[test]
     fn test_mean_on_literal_list() {
         let script = "avg = [1,2,3].mean();";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(expr).unwrap();
+        evaluator.const_visit(&expr).unwrap();
         let idx = indexer.get_variable_index("avg").unwrap();
         if let Value::Number(v) = evaluator.variables().get(idx).unwrap() {
             assert!((v.value() - 2.0).abs() < 1e-8);

@@ -572,7 +572,7 @@ impl Node {
             Node::SuperiorOrEqual(data) => data.children.push(child),
             Node::InferiorOrEqual(data) => data.children.push(child),
             Node::Equal(data) => data.children.push(child),
-            Node::If(_) => panic!("Cannot add child to if node directly"),
+            Node::If(data) => data.children.push(child),
             Node::UnaryPlus(data) => data.children.push(child),
             Node::UnaryMinus(data) => data.children.push(child),
             Node::Min(data) => data.children.push(child),
