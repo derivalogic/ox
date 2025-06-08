@@ -1705,6 +1705,40 @@ pub mod tests_if {
     }
 
     #[test]
+    fn test_single_if() {
+        let script = "
+                x = true;
+                if x {
+                    b = 2;
+                }
+            "
+        .to_string();
+
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let result = parser.parse().unwrap();
+
+        let expected = Node::Base(NodeData {
+            children: vec![
+                Node::new_asign_with_values(Node::new_variable("x".to_string()), Node::True),
+                Node::If(IfData {
+                    children: vec![
+                        Node::new_variable("x".to_string()),
+                        Node::new_asign_with_values(
+                            Node::new_variable("b".to_string()),
+                            Node::new_constant(2.0),
+                        ),
+                    ],
+                    first_else: None,
+                    affected_vars: Vec::new(),
+                }),
+            ],
+        });
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
     fn test_if_inf() {
         let s1 = "
                 if a < 1 {
