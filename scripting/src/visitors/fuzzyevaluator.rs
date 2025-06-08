@@ -144,6 +144,7 @@ impl<'a> FuzzyEvaluator<'a> {
             (NumericType::one() - x / lb).into()
         } else {
             (NumericType::one() - x / rb).into()
+
         }
     }
 }
@@ -199,6 +200,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let diff = (left - right).into();
                 let dt = self.bfly(diff, self.eps);
+
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -209,6 +211,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 let diff = (left - right).into();
                 let dt = NumericType::one() - self.bfly(diff, self.eps);
                 self.dt_stack.borrow_mut().push(dt.into());
+
                 Ok(())
             }
             Node::And(data) => {
