@@ -166,18 +166,19 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
     type Output = Result<()>;
     fn const_visit(&self, node: Box<Node>) -> Self::Output {
         let eval: Result<()> = match node.as_ref() {
-            Node::Base(children) => {
-                children
+            Node::Base(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
                 Ok(())
             }
-            Node::Variable(_, name, index) => {
+            Node::Variable(data) => {
+                let name = &data.name;
                 if *self.is_lhs_variable.borrow_mut() {
                     *self.lhs_variable.borrow_mut() = Some(node.clone());
                     Ok(())
                 } else {
-                    match index.get() {
+                    match data.id {
                         None => {
                             return Err(ScriptingError::EvaluationError(format!(
                                 "Variable {} not indexed",
@@ -186,7 +187,7 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                         }
                         Some(id) => {
                             let vars = self.variables.borrow_mut();
-                            let value = vars.get(*id).unwrap();
+                            let value = vars.get(id).unwrap();
                             match value {
                                 Value::Number(v) => self.digit_stack.borrow_mut().push(*v),
                                 Value::Bool(v) => self.boolean_stack.borrow_mut().push(*v),
@@ -204,8 +205,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     }
                 }
             }
-            Node::Spot(_, _, _, index) => {
-                let id = index.get().ok_or(ScriptingError::EvaluationError(
+            Node::Spot(data) => {
+                let id = data.id.ok_or(ScriptingError::EvaluationError(
                     "Spot not indexed".to_string(),
                 ))?;
 
@@ -219,11 +220,11 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                         "Spot not found".to_string(),
                     ))?;
 
-                self.digit_stack.borrow_mut().push(market_data.get_fx(*id)?);
+                self.digit_stack.borrow_mut().push(market_data.get_fx(id)?);
                 Ok(())
             }
-            Node::Df(_, _, index) => {
-                let id = index.get().ok_or(ScriptingError::EvaluationError(
+            Node::Df(data) => {
+                let id = data.id.ok_or(ScriptingError::EvaluationError(
                     "Df not indexed".to_string(),
                 ))?;
 
@@ -235,11 +236,11 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     .get(*self.current_event.borrow_mut())
                     .ok_or(ScriptingError::EvaluationError("Df not found".to_string()))?;
 
-                self.digit_stack.borrow_mut().push(market_data.get_df(*id)?);
+                self.digit_stack.borrow_mut().push(market_data.get_df(id)?);
                 Ok(())
             }
-            Node::RateIndex(_, _, _, index) => {
-                let id = index.get().ok_or(ScriptingError::EvaluationError(
+            Node::RateIndex(data) => {
+                let id = data.id.ok_or(ScriptingError::EvaluationError(
                     "RateIndex not indexed".to_string(),
                 ))?;
 
@@ -255,11 +256,11 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 self.digit_stack
                     .borrow_mut()
-                    .push(market_data.get_fwd(*id)?);
+                    .push(market_data.get_fwd(id)?);
                 Ok(())
             }
-            Node::Pays(children, _, currency, df_index, fx_index) => {
-                children
+            Node::Pays(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -275,17 +276,17 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     .clone();
 
                 let current_value = self.digit_stack.borrow_mut().pop().unwrap();
-                let df_id = df_index.get().ok_or(ScriptingError::EvaluationError(
+                let df_id = data.df_id.ok_or(ScriptingError::EvaluationError(
                     "Pays not indexed".to_string(),
                 ))?;
-                let df = market_data.get_df(*df_id)?;
+                let df = market_data.get_df(df_id)?;
                 let numerarie = market_data.numerarie();
 
-                let value: NumericType = if let Some(_) = currency {
-                    let fx_id = fx_index.get().ok_or(ScriptingError::EvaluationError(
+                let value: NumericType = if data.currency.is_some() {
+                    let fx_id = data.spot_id.ok_or(ScriptingError::EvaluationError(
                         "Pays FX not indexed".to_string(),
                     ))?;
-                    let fx = market_data.get_fx(*fx_id)?;
+                    let fx = market_data.get_fx(fx_id)?;
                     ((current_value * df * fx) / numerarie).into()
                 } else {
                     ((current_value * df) / numerarie).into()
@@ -294,16 +295,114 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push(value);
                 Ok(())
             }
-            Node::Constant(value) => {
-                self.digit_stack.borrow_mut().push(*value);
+            Node::Constant(data) => {
+                self.digit_stack.borrow_mut().push(data.const_value.into());
                 Ok(())
             }
             Node::String(value) => {
                 self.string_stack.borrow_mut().push(value.clone());
                 Ok(())
             }
-            Node::Add(children) => {
-                children
+            Node::Spot(data) => {
+                let id = data.id.ok_or(ScriptingError::EvaluationError(
+                    "Spot not indexed".to_string(),
+                ))?;
+
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError(
+                        "No scenario set".to_string(),
+                    ))?
+                    .get(*self.current_event.borrow_mut())
+                    .ok_or(ScriptingError::EvaluationError(
+                        "Spot not found".to_string(),
+                    ))?;
+
+                self.digit_stack.borrow_mut().push(market_data.get_fx(id)?);
+                Ok(())
+            }
+            Node::Df(data) => {
+                let id = data.id.ok_or(ScriptingError::EvaluationError(
+                    "Df not indexed".to_string(),
+                ))?;
+
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError(
+                        "No scenario set".to_string(),
+                    ))?
+                    .get(*self.current_event.borrow_mut())
+                    .ok_or(ScriptingError::EvaluationError("Df not found".to_string()))?;
+
+                self.digit_stack.borrow_mut().push(market_data.get_df(id)?);
+                Ok(())
+            }
+            Node::RateIndex(data) => {
+                let id = data.id.ok_or(ScriptingError::EvaluationError(
+                    "RateIndex not indexed".to_string(),
+                ))?;
+
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError(
+                        "No scenario set".to_string(),
+                    ))?
+                    .get(*self.current_event.borrow_mut())
+                    .ok_or(ScriptingError::EvaluationError(
+                        "RateIndex not found".to_string(),
+                    ))?;
+
+                self.digit_stack
+                    .borrow_mut()
+                    .push(market_data.get_fwd(id)?);
+                Ok(())
+            }
+            Node::Pays(data) => {
+                data.children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child.clone()))?;
+
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError(
+                        "No scenario set".to_string(),
+                    ))?
+                    .get(*self.current_event.borrow_mut())
+                    .ok_or(ScriptingError::EvaluationError(
+                        "Event not found".to_string(),
+                    ))?
+                    .clone();
+
+                let current_value = self.digit_stack.borrow_mut().pop().unwrap();
+                let df_id = data.df_id.ok_or(ScriptingError::EvaluationError(
+                    "Pays not indexed".to_string(),
+                ))?;
+                let df = market_data.get_df(df_id)?;
+                let numerarie = market_data.numerarie();
+
+                let value: NumericType = if data.currency.is_some() {
+                    let fx_id = data.spot_id.ok_or(ScriptingError::EvaluationError(
+                        "Pays FX not indexed".to_string(),
+                    ))?;
+                    let fx = market_data.get_fx(fx_id)?;
+                    ((current_value * df * fx) / numerarie).into()
+                } else {
+                    ((current_value * df) / numerarie).into()
+                };
+
+                self.digit_stack.borrow_mut().push(value);
+                Ok(())
+            }
+            Node::Constant(data) => {
+                self.digit_stack.borrow_mut().push(data.const_value.into());
+                Ok(())
+            }
+            Node::String(value) => {
+                self.string_stack.borrow_mut().push(value.clone());
+                Ok(())
+            }
+            Node::Add(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -312,8 +411,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push((left + right).into());
                 Ok(())
             }
-            Node::Subtract(children) => {
-                children
+            Node::Subtract(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -322,8 +421,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push((left - right).into());
                 Ok(())
             }
-            Node::Multiply(children) => {
-                children
+            Node::Multiply(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -332,8 +431,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push((left * right).into());
                 Ok(())
             }
-            Node::Divide(children) => {
-                children
+            Node::Divide(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -342,40 +441,40 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push((left / right).into());
                 Ok(())
             }
-            Node::Assign(children) => {
+            Node::Assign(data) => {
                 *self.is_lhs_variable.borrow_mut() = true;
-                self.const_visit(children.get(0).unwrap().clone())?;
+                self.const_visit(data.children.get(0).unwrap().clone())?;
 
                 *self.is_lhs_variable.borrow_mut() = false;
-                self.const_visit(children.get(1).unwrap().clone())?;
+                self.const_visit(data.children.get(1).unwrap().clone())?;
 
                 let v = self.lhs_variable.borrow_mut().clone().unwrap();
                 let variable = v.as_ref();
                 match variable {
-                    Node::Variable(_, name, index) => match index.get() {
+                    Node::Variable(data) => match data.id {
                         None => {
                             return Err(ScriptingError::EvaluationError(format!(
                                 "Variable {} not indexed",
-                                name
+                                data.name
                             )))
                         }
                         Some(id) => {
                             let mut variables = self.variables.borrow_mut();
                             if !self.boolean_stack.borrow_mut().is_empty() {
                                 let value = self.boolean_stack.borrow_mut().pop().unwrap();
-                                variables[*id] = Value::Bool(value);
+                                variables[id] = Value::Bool(value);
                                 Ok(())
                             } else if !self.string_stack.borrow_mut().is_empty() {
                                 let value = self.string_stack.borrow_mut().pop().unwrap();
-                                variables[*id] = Value::String(value);
+                                variables[id] = Value::String(value);
                                 Ok(())
                             } else if !self.array_stack.borrow_mut().is_empty() {
                                 let value = self.array_stack.borrow_mut().pop().unwrap();
-                                variables[*id] = Value::Array(value);
+                                variables[id] = Value::Array(value);
                                 Ok(())
                             } else {
                                 let value = self.digit_stack.borrow_mut().pop().unwrap();
-                                variables[*id] = Value::Number(value);
+                                variables[id] = Value::Number(value);
                                 Ok(())
                             }
                         }
@@ -387,8 +486,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     }
                 }
             }
-            Node::NotEqual(children) => {
-                children
+            Node::NotEqual(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -400,8 +499,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::And(children) => {
-                children
+            Node::And(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -411,8 +510,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::Or(children) => {
-                children
+            Node::Or(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -422,8 +521,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::Not(children) => {
-                children
+            Node::Not(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -432,8 +531,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::Superior(children) => {
-                children
+            Node::Superior(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -443,8 +542,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::Inferior(children) => {
-                children
+            Node::Inferior(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -454,8 +553,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::SuperiorOrEqual(children) => {
-                children
+            Node::SuperiorOrEqual(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -465,8 +564,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::InferiorOrEqual(children) => {
-                children
+            Node::InferiorOrEqual(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -484,8 +583,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.boolean_stack.borrow_mut().push(false);
                 Ok(())
             }
-            Node::Equal(children) => {
-                children
+            Node::Equal(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -498,15 +597,15 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::UnaryPlus(children) => {
-                children
+            Node::UnaryPlus(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
                 Ok(())
             }
-            Node::UnaryMinus(children) => {
-                children
+            Node::UnaryMinus(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -515,8 +614,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::Min(children) => {
-                children
+            Node::Min(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -526,8 +625,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::Max(children) => {
-                children
+            Node::Max(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -539,8 +638,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
             }
 
             #[cfg(feature = "adnumber")]
-            Node::Pow(children) => {
-                children
+            Node::Pow(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -553,8 +652,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 Ok(())
             }
             #[cfg(feature = "f64")]
-            Node::Pow(children) => {
-                children
+            Node::Pow(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -568,8 +667,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 Ok(())
             }
 
-            Node::Ln(children) => {
-                children
+            Node::Ln(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -578,8 +677,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::Fif(children) => {
-                children
+            Node::Fif(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -595,8 +694,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
 
                 Ok(())
             }
-            Node::Exp(children) => {
-                children
+            Node::Exp(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -604,8 +703,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push(top.exp().into());
                 Ok(())
             }
-            Node::Cvg(children) => {
-                children
+            Node::Cvg(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
 
@@ -620,17 +719,17 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push(yf);
                 Ok(())
             }
-            Node::Append(children) => {
+            Node::Append(data) => {
                 *self.is_lhs_variable.borrow_mut() = true;
-                self.const_visit(children.get(0).unwrap().clone())?;
+                self.const_visit(data.children.get(0).unwrap().clone())?;
                 *self.is_lhs_variable.borrow_mut() = false;
-                self.const_visit(children.get(1).unwrap().clone())?;
+                self.const_visit(data.children.get(1).unwrap().clone())?;
 
                 let var_node = self.lhs_variable.borrow_mut().clone().unwrap();
-                if let Node::Variable(_, name, idx) = var_node.as_ref() {
-                    let id = idx.get().ok_or(ScriptingError::EvaluationError(format!(
+                if let Node::Variable(data) = var_node.as_ref() {
+                    let id = data.id.ok_or(ScriptingError::EvaluationError(format!(
                         "Variable {} not indexed",
-                        name
+                        data.name
                     )))?;
                     let mut vars = self.variables.borrow_mut();
                     let val = if !self.boolean_stack.borrow().is_empty() {
@@ -660,8 +759,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                     ))
                 }
             }
-            Node::Mean(children) => {
-                children
+            Node::Mean(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
@@ -681,8 +780,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push((sum / count).into());
                 Ok(())
             }
-            Node::Std(children) => {
-                children
+            Node::Std(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
@@ -711,8 +810,8 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.digit_stack.borrow_mut().push(std.into());
                 Ok(())
             }
-            Node::Range(children) => {
-                children
+            Node::Range(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
                 let end = self.digit_stack.borrow_mut().pop().unwrap();
@@ -726,9 +825,9 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.array_stack.borrow_mut().push(vec);
                 Ok(())
             }
-            Node::List(children) => {
+            Node::List(data) => {
                 let mut array = Vec::new();
-                for child in children {
+                for child in &data.children {
                     self.const_visit(child.clone())?;
                     if !self.boolean_stack.borrow().is_empty() {
                         let v = self.boolean_stack.borrow_mut().pop().unwrap();
@@ -747,10 +846,11 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 self.array_stack.borrow_mut().push(array);
                 Ok(())
             }
-            Node::Index(children) => {
-                children
+            Node::Index(data) => {
+                data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child.clone()))?;
+                data.index.const_accept(self);
                 let idx_val = self.digit_stack.borrow_mut().pop().unwrap();
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
                 let idx = idx_val.value().round() as usize;
@@ -768,23 +868,23 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 }
                 Ok(())
             }
-            Node::ForEach(_, iter, body, index) => {
-                iter.const_accept(self);
+            Node::ForEach(data) => {
+                data.node.const_accept(self);
                 let array = self.array_stack.borrow_mut().pop().unwrap_or_default();
-                let idx = index.get().ok_or(ScriptingError::EvaluationError(
+                let idx = data.id.ok_or(ScriptingError::EvaluationError(
                     "Loop variable not indexed".to_string(),
                 ))?;
                 for val in array {
-                    self.set_variable(*idx, val);
-                    for child in body {
+                    self.set_variable(idx, val);
+                    for child in &data.children {
                         child.const_accept(self);
                     }
                 }
                 Ok(())
             }
-            Node::If(children, first_else, ..) => {
+            Node::If(data) => {
                 // Evaluate the condition
-                children.get(0).unwrap().const_accept(self);
+                data.children.get(0).unwrap().const_accept(self);
                 // Pop the condition result
                 let is_true = self.boolean_stack.borrow_mut().pop().unwrap();
 
@@ -792,22 +892,22 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 if is_true {
                     // then, the following expressions are either conditions or
                     // the logic block
-                    let last_condition = if first_else.is_none() {
-                        children.len()
+                    let last_condition = if data.first_else.is_none() {
+                        data.children.len()
                     } else {
-                        first_else.unwrap()
+                        data.first_else.unwrap()
                     };
 
                     // Evaluate the conditions
                     for i in 1..last_condition {
-                        children.get(i).unwrap().const_accept(self);
+                        data.children.get(i).unwrap().const_accept(self);
                     }
                 }
                 // Evaluate the else block
-                else if first_else.is_some() {
+                else if data.first_else.is_some() {
                     // the following conditions are the else block
-                    for i in first_else.unwrap()..children.len() {
-                        children.get(i).unwrap().const_accept(self);
+                    for i in data.first_else.unwrap()..data.children.len() {
+                        data.children.get(i).unwrap().const_accept(self);
                     }
                 }
                 Ok(())
