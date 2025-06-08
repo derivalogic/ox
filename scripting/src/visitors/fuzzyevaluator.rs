@@ -1,6 +1,5 @@
 use std::cell::{Cell, RefCell};
 
-
 use crate::prelude::*;
 use crate::visitors::evaluator::{SingleScenarioEvaluator, Value};
 use rustatlas::prelude::*;
@@ -19,7 +18,6 @@ pub struct FuzzyEvaluator<'a> {
     var_store1: RefCell<Vec<Vec<Value>>>,
     nested_if_lvl: Cell<usize>,
     max_nested_ifs: Cell<usize>,
-
 }
 
 impl<'a> FuzzyEvaluator<'a> {
@@ -33,8 +31,12 @@ impl<'a> FuzzyEvaluator<'a> {
             var_store1: RefCell::new(Vec::new()),
             nested_if_lvl: Cell::new(0),
             max_nested_ifs: Cell::new(0),
-
         }
+    }
+
+    pub fn with_eps(mut self, eps: f64) -> Self {
+        self.eps = eps;
+        self
     }
 
     /// Set market scenario for market-data dependent nodes.
@@ -123,7 +125,11 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif((left - right).into(), NumericType::one(), NumericType::zero());
+                let dt = self.fif(
+                    (left - right).into(),
+                    NumericType::one(),
+                    NumericType::zero(),
+                );
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -131,7 +137,11 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif((right - left).into(), NumericType::one(), NumericType::zero());
+                let dt = self.fif(
+                    (right - left).into(),
+                    NumericType::one(),
+                    NumericType::zero(),
+                );
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -139,7 +149,11 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif((left - right).into(), NumericType::one(), NumericType::zero());
+                let dt = self.fif(
+                    (left - right).into(),
+                    NumericType::one(),
+                    NumericType::zero(),
+                );
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -147,7 +161,11 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif((right - left).into(), NumericType::one(), NumericType::zero());
+                let dt = self.fif(
+                    (right - left).into(),
+                    NumericType::one(),
+                    NumericType::zero(),
+                );
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -348,5 +366,62 @@ mod tests {
             evaluator.variables(),
             vec![Value::Number(NumericType::new(2.0))]
         );
+    }
+
+    #[test]
+    fn test_fuzzy_case() {
+        Tape::start_recording();
+
+        let script1 = "x = 0; y=0; if x > 0 { y = 1; } else { y = 0; }".to_string();
+        let tokens = Lexer::new(script1).tokenize().unwrap();
+        let mut script1_nodes = Parser::new(tokens).parse().unwrap();
+
+        let script2 = "x = 0; y = fif(x,1,0,1);".to_string();
+        let tokens2 = Lexer::new(script2).tokenize().unwrap();
+        let mut script2_nodes = Parser::new(tokens2).parse().unwrap();
+
+        let indexer = VarIndexer::new();
+        indexer.visit(&mut script1_nodes).unwrap();
+
+        let if_processor = IfProcessor::new();
+        if_processor.visit(&mut script1_nodes).unwrap();
+        let doman_processor = DomainProcessor::new(indexer.get_variables_size());
+        doman_processor.visit(&mut script1_nodes).unwrap();
+        let fuzzy_evaluator = FuzzyEvaluator::new()
+            .with_variables(indexer.get_variables_size())
+            .with_eps(1.0);
+        fuzzy_evaluator.const_visit(&script1_nodes).unwrap();
+
+        let eval_vars = fuzzy_evaluator.variables();
+        match eval_vars.get(1).unwrap() {
+            Value::Number(n) => {
+                n.backward().unwrap();
+            }
+            _ => panic!("Expected y to be a number"),
+        }
+
+        let result = match eval_vars.get(0).unwrap() {
+            Value::Number(n) => n.adjoint().unwrap(),
+            _ => panic!("Expected x to be a number"),
+        };
+
+        indexer.clear();
+        indexer.visit(&mut script2_nodes).unwrap();
+        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
+        evaluator.const_visit(&script2_nodes).unwrap();
+
+        let eval_vars2 = evaluator.variables();
+        match eval_vars2.get(1).unwrap() {
+            Value::Number(n) => {
+                n.backward().unwrap();
+            }
+            _ => panic!("Expected x to be a number"),
+        }
+        let result2 = match eval_vars2.get(0).unwrap() {
+            Value::Number(n) => n.adjoint().unwrap(),
+            _ => panic!("Expected fif result to be a number"),
+        };
+        assert!((result - result2).abs() < 1e-6, "Results do not match");
+        Tape::stop_recording();
     }
 }

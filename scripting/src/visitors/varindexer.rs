@@ -451,6 +451,12 @@ impl VarIndexer {
         }
     }
 
+    pub fn clear(&self) {
+        self.variables.borrow_mut().clear();
+        self.market_requests.borrow_mut().clear();
+        *self.event_date.borrow_mut() = None;
+        *self.local_currency.borrow_mut() = None;
+    }
     /// # with_event_date
     /// Set the event date of the VarIndexer
     pub fn with_event_date(self, date: Date) -> Self {
