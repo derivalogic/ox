@@ -4,6 +4,9 @@ use crate::prelude::*;
 use crate::visitors::evaluator::{SingleScenarioEvaluator, Value};
 use rustatlas::prelude::*;
 
+const EPS: f64 = 1.0e-12;
+const ONE_MINUS_EPS: f64 = 0.999999999999;
+
 /// Evaluator implementing a simple fuzzy logic mode using the
 /// `fIf` smoothing kernel described in `docs/AGENTS.md`.
 ///
@@ -106,6 +109,15 @@ impl<'a> FuzzyEvaluator<'a> {
         let res = b.clone() + ((a - b) / self.eps) * inner;
         res.into()
     }
+
+    fn bfly(&self, x: NumericType) -> NumericType {
+        let half = self.eps * 0.5;
+        if x.value() < -half || x.value() > half {
+            NumericType::zero()
+        } else {
+            (NumericType::from(half) - x.abs()) / half
+        }
+    }
 }
 
 impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
@@ -173,12 +185,8 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let diff = (right - left).abs();
-                let dt = if diff < f64::EPSILON {
-                    NumericType::one()
-                } else {
-                    NumericType::zero()
-                };
+                let diff = (left - right).into();
+                let dt = self.bfly(diff);
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -186,12 +194,8 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let diff = (right - left).abs();
-                let dt = if diff >= f64::EPSILON {
-                    NumericType::one()
-                } else {
-                    NumericType::zero()
-                };
+                let diff = (left - right).into();
+                let dt = NumericType::one() - self.bfly(diff);
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -227,11 +231,11 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 let lvl = self.nested_if_lvl.get();
                 self.nested_if_lvl.set(lvl + 1);
 
-                if dt.value() >= 1.0 - self.eps {
+                if dt.value() >= ONE_MINUS_EPS {
                     for c in data.children.iter().skip(1).take(last - 1) {
                         self.const_visit(c)?;
                     }
-                } else if dt.value() <= self.eps {
+                } else if dt.value() <= EPS {
                     if let Some(start) = data.first_else {
                         for c in data.children.iter().skip(start) {
                             self.const_visit(c)?;
