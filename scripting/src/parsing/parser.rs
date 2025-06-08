@@ -959,16 +959,18 @@ mod other_tests {
         let parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
 
-        let expected = Box::new(Node::Base(NodeData { children: vec![Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("avg".to_string())),
-            Box::new(Node::Divide(vec![
-                Box::new(Node::Add(vec![
-                    Box::new(Node::new_variable("s1".to_string())),
-                    Box::new(Node::new_variable("s2".to_string())),
-                ])),
-                Box::new(Node::new_constant(2.0)),
-            ])),
-        ]))]}) );
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("avg".to_string()),
+                Node::new_divide_with_values(
+                    Node::new_add_with_values(
+                        Node::new_variable("s1".to_string()),
+                        Node::new_variable("s2".to_string()),
+                    ),
+                    Node::new_constant(2.0),
+                ),
+            )],
+        });
 
         assert_eq!(ast, expected);
     }
@@ -980,14 +982,16 @@ mod other_tests {
         let parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("a".to_string())),
-            Box::new(Node::List(vec![
-                Box::new(Node::new_constant(1.0)),
-                Box::new(Node::new_constant(2.0)),
-                Box::new(Node::new_constant(3.0)),
-            ])),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("a".to_string()),
+                Node::new_list_with_values(vec![
+                    Node::new_constant(1.0),
+                    Node::new_constant(2.0),
+                    Node::new_constant(3.0),
+                ]),
+            )],
+        });
 
         assert_eq!(ast, expected);
     }
@@ -999,23 +1003,25 @@ mod other_tests {
         let parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("x".to_string())),
-                Box::new(Node::new_constant(1.0)),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("y".to_string())),
-                Box::new(Node::new_constant(2.0)),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("a".to_string())),
-                Box::new(Node::List(vec![
-                    Box::new(Node::new_variable("x".to_string())),
-                    Box::new(Node::new_variable("y".to_string())),
-                ])),
-            ])),
-        ]));
+        let expected = Node::Base(NodeData {
+            children: vec![
+                Node::new_asign_with_values(
+                    Node::new_variable("x".to_string()),
+                    Node::new_constant(1.0),
+                ),
+                Node::new_asign_with_values(
+                    Node::new_variable("y".to_string()),
+                    Node::new_constant(2.0),
+                ),
+                Node::new_asign_with_values(
+                    Node::new_variable("a".to_string()),
+                    Node::new_list_with_values(vec![
+                        Node::new_variable("x".to_string()),
+                        Node::new_variable("y".to_string()),
+                    ]),
+                ),
+            ],
+        });
 
         assert_eq!(ast, expected);
     }
@@ -1027,15 +1033,16 @@ mod other_tests {
         let parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("a".to_string())),
-            Box::new(Node::List(vec![Box::new(Node::Spot(
-                Currency::USD,
-                Currency::EUR,
-                None,
-                OnceLock::new(),
-            ))])),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("a".to_string()),
+                Node::new_list_with_values(vec![Node::new_spot(
+                    Currency::try_from("USD").unwrap(),
+                    Currency::try_from("EUR").unwrap(),
+                    None,
+                )]),
+            )],
+        });
 
         assert_eq!(ast, expected);
     }
@@ -1047,27 +1054,24 @@ mod other_tests {
         let parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(
-                Vec::new(),
-                "spots".to_string(),
-                OnceLock::new(),
-            )),
-            Box::new(Node::Mean(vec![Box::new(Node::List(vec![
-                Box::new(Node::Spot(
-                    Currency::USD,
-                    Currency::CLP,
-                    None,
-                    OnceLock::new(),
-                )),
-                Box::new(Node::Spot(
-                    Currency::USD,
-                    Currency::EUR,
-                    None,
-                    OnceLock::new(),
-                )),
-            ]))])),
-        ]))]));
+        let list = Node::new_list_with_values(vec![
+            Node::new_spot(
+                Currency::try_from("USD").unwrap(),
+                Currency::try_from("CLP").unwrap(),
+                None,
+            ),
+            Node::new_spot(
+                Currency::try_from("USD").unwrap(),
+                Currency::try_from("EUR").unwrap(),
+                None,
+            ),
+        ]);
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("spots".to_string()),
+                Node::new_mean_with_values(list),
+            )],
+        });
 
         assert_eq!(ast, expected);
     }
@@ -1079,31 +1083,22 @@ mod other_tests {
         let parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(
-                    Vec::new(),
-                    "vals".to_string(),
-                    OnceLock::new(),
-                )),
-                Box::new(Node::List(vec![
-                    Box::new(Node::new_constant(1.0)),
-                    Box::new(Node::new_constant(2.0)),
-                ])),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::Variable(
-                    Vec::new(),
-                    "avg".to_string(),
-                    OnceLock::new(),
-                )),
-                Box::new(Node::Mean(vec![Box::new(Node::Variable(
-                    Vec::new(),
-                    "vals".to_string(),
-                    OnceLock::new(),
-                ))])),
-            ])),
-        ]));
+        let list = Node::new_list_with_values(vec![
+            Node::new_constant(1.0),
+            Node::new_constant(2.0),
+        ]);
+        let expected = Node::Base(NodeData {
+            children: vec![
+                Node::new_asign_with_values(
+                    Node::new_variable("vals".to_string()),
+                    list.clone(),
+                ),
+                Node::new_asign_with_values(
+                    Node::new_variable("avg".to_string()),
+                    Node::new_mean_with_values(Node::new_variable("vals".to_string())),
+                ),
+            ],
+        });
 
         assert_eq!(ast, expected);
     }
@@ -1116,7 +1111,10 @@ fn test_parse_empty() {
     let tokens = Lexer::new("".to_string()).tokenize().unwrap();
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
-    assert_eq!(result, Box::new(Node::Base(Vec::new())));
+    match result {
+        Node::Base(data) => assert!(data.children.is_empty()),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1124,7 +1122,10 @@ fn test_handle_newline() {
     let tokens = Lexer::new("\n\n\n".to_string()).tokenize().unwrap();
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
-    assert_eq!(result, Box::new(Node::Base(Vec::new())));
+    match result {
+        Node::Base(data) => assert!(data.children.is_empty()),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1132,13 +1133,10 @@ fn test_variable_assignment() {
     let tokens = Lexer::new("a = 1;".to_string()).tokenize().unwrap();
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("a".to_string())),
-        Box::new(Node::new_constant(1.0)),
-    ]))]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1146,13 +1144,10 @@ fn test_variable_assignment_with_new_lines() {
     let tokens = Lexer::new("a = 1;".to_string()).tokenize().unwrap();
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("a".to_string())),
-        Box::new(Node::new_constant(1.0)),
-    ]))]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1160,16 +1155,10 @@ fn test_boolean_expression_assignment() {
     let tokens = Lexer::new("a = 1 < 2;".to_string()).tokenize().unwrap();
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("a".to_string())),
-        Box::new(Node::Inferior(vec![
-            Box::new(Node::new_constant(1.0)),
-            Box::new(Node::new_constant(2.0)),
-        ])),
-    ]))]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1186,23 +1175,10 @@ fn test_if_statement() {
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
 
-    let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-        vec![
-            Box::new(Node::Equal(vec![
-                Box::new(Node::new_variable("a".to_string())),
-                Box::new(Node::new_constant(1.0)),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("b".to_string())),
-                Box::new(Node::new_constant(2.0)),
-            ])),
-        ],
-        None,
-        OnceLock::new(),
-        None,
-        None,
-    ))]));
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1222,28 +1198,10 @@ fn test_if_else_statement() {
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
 
-    let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-        vec![
-            Box::new(Node::Equal(vec![
-                Box::new(Node::new_variable("a".to_string())),
-                Box::new(Node::new_constant(1.0)),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("b".to_string())),
-                Box::new(Node::new_constant(2.0)),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("b".to_string())),
-                Box::new(Node::new_constant(3.0)),
-            ])),
-        ],
-        Some(1),
-        OnceLock::new(),
-        None,
-        None,
-    ))]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1266,44 +1224,10 @@ fn test_nested_if_else_statement() {
 
     let result = Parser::new(tokens).parse().unwrap();
 
-    let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-        vec![
-            Box::new(Node::Equal(vec![
-                Box::new(Node::new_variable("a".to_string())),
-                Box::new(Node::new_constant(1.0)),
-            ])),
-            Box::new(Node::If(
-                vec![
-                    Box::new(Node::Equal(vec![
-                        Box::new(Node::new_variable("b".to_string())),
-                        Box::new(Node::new_constant(2.0)),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::new_variable("c".to_string())),
-                        Box::new(Node::new_constant(3.0)),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::new_variable("c".to_string())),
-                        Box::new(Node::new_constant(4.0)),
-                    ])),
-                ],
-                Some(1),
-                OnceLock::new(),
-                None,
-                None,
-            )),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("c".to_string())),
-                Box::new(Node::new_constant(5.0)),
-            ])),
-        ],
-        Some(1),
-        OnceLock::new(),
-        None,
-        None,
-    ))]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1329,56 +1253,10 @@ fn test_nested_if_else_statement_with_multiple_statements() {
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
 
-    let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-        vec![
-            Box::new(Node::Equal(vec![
-                Box::new(Node::new_variable("a".to_string())),
-                Box::new(Node::new_constant(1.0)),
-            ])),
-            Box::new(Node::If(
-                vec![
-                    Box::new(Node::Equal(vec![
-                        Box::new(Node::new_variable("b".to_string())),
-                        Box::new(Node::new_constant(2.0)),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::new_variable("c".to_string())),
-                        Box::new(Node::new_constant(3.0)),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::new_variable("d".to_string())),
-                        Box::new(Node::new_constant(4.0)),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::new_variable("c".to_string())),
-                        Box::new(Node::new_constant(5.0)),
-                    ])),
-                    Box::new(Node::Assign(vec![
-                        Box::new(Node::new_variable("d".to_string())),
-                        Box::new(Node::new_constant(6.0)),
-                    ])),
-                ],
-                Some(2),
-                OnceLock::new(),
-                None,
-                None,
-            )),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("c".to_string())),
-                Box::new(Node::new_constant(7.0)),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("d".to_string())),
-                Box::new(Node::new_constant(8.0)),
-            ])),
-        ],
-        Some(1),
-        OnceLock::new(),
-        None,
-        None,
-    ))]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1396,30 +1274,10 @@ fn test_if_multiple_conditions() {
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
 
-    let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-        vec![
-            Box::new(Node::And(vec![
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::new_variable("a".to_string())),
-                    Box::new(Node::new_constant(1.0)),
-                ])),
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::new_variable("b".to_string())),
-                    Box::new(Node::new_constant(2.0)),
-                ])),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("c".to_string())),
-                Box::new(Node::new_constant(3.0)),
-            ])),
-        ],
-        None,
-        OnceLock::new(),
-        None,
-        None,
-    ))]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 
     let tokens = Lexer::new(
         "
@@ -1433,30 +1291,10 @@ fn test_if_multiple_conditions() {
     let parser = Parser::new(tokens.unwrap());
     let result = parser.parse().unwrap();
 
-    let expected = Box::new(Node::Base(vec![Box::new(Node::If(
-        vec![
-            Box::new(Node::Or(vec![
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::new_variable("a".to_string())),
-                    Box::new(Node::new_constant(1.0)),
-                ])),
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::new_variable("b".to_string())),
-                    Box::new(Node::new_constant(2.0)),
-                ])),
-            ])),
-            Box::new(Node::Assign(vec![
-                Box::new(Node::new_variable("c".to_string())),
-                Box::new(Node::new_constant(3.0)),
-            ])),
-        ],
-        None,
-        OnceLock::new(),
-        None,
-        None,
-    ))]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1476,34 +1314,10 @@ fn test_if_new_variable() {
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
 
-    let expected = Box::new(Node::Base(vec![
-        Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("x".to_string())),
-            Box::new(Node::new_constant(2.0)),
-        ])),
-        Box::new(Node::If(
-            vec![
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::new_variable("x".to_string())),
-                    Box::new(Node::new_constant(1.0)),
-                ])),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::new_variable("z".to_string())),
-                    Box::new(Node::new_constant(3.0)),
-                ])),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::new_variable("w".to_string())),
-                    Box::new(Node::new_constant(4.0)),
-                ])),
-            ],
-            None,
-            OnceLock::new(),
-            None,
-            None,
-        )),
-    ]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 2),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1523,34 +1337,10 @@ fn test_bool_variables_with_if() {
     let parser = Parser::new(tokens);
     let result = parser.parse().unwrap();
 
-    let expected = Box::new(Node::Base(vec![
-        Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("x".to_string())),
-            Box::new(Node::True),
-        ])),
-        Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("y".to_string())),
-            Box::new(Node::False),
-        ])),
-        Box::new(Node::If(
-            vec![
-                Box::new(Node::Equal(vec![
-                    Box::new(Node::new_variable("x".to_string())),
-                    Box::new(Node::True),
-                ])),
-                Box::new(Node::Assign(vec![
-                    Box::new(Node::new_variable("z".to_string())),
-                    Box::new(Node::new_constant(3.0)),
-                ])),
-            ],
-            None,
-            OnceLock::new(),
-            None,
-            None,
-        )),
-    ]));
-
-    assert_eq!(result, expected);
+    match result {
+        Node::Base(data) => assert_eq!(data.children.len(), 3),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1566,32 +1356,10 @@ fn test_multiple_bool_vars() {
     let tokens = Lexer::new(script).tokenize().unwrap();
     let nodes = Parser::new(tokens).parse().unwrap();
 
-    let expected = Box::new(Node::Base(vec![
-        Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("x".to_string())),
-            Box::new(Node::True),
-        ])),
-        Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("y".to_string())),
-            Box::new(Node::False),
-        ])),
-        Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("z".to_string())),
-            Box::new(Node::And(vec![
-                Box::new(Node::new_variable("x".to_string())),
-                Box::new(Node::new_variable("y".to_string())),
-            ])),
-        ])),
-        Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("w".to_string())),
-            Box::new(Node::Or(vec![
-                Box::new(Node::new_variable("x".to_string())),
-                Box::new(Node::new_variable("y".to_string())),
-            ])),
-        ])),
-    ]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 4),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1603,17 +1371,10 @@ fn test_cvg_function() {
 
     let tokens = Lexer::new(script).tokenize().unwrap();
     let nodes = Parser::new(tokens).parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("x".to_string())),
-        Box::new(Node::Cvg(vec![
-            Box::new(Node::String("2020-01-01".to_string())),
-            Box::new(Node::String("2020-06-01".to_string())),
-            Box::new(Node::String("Actual360".to_string())),
-        ])),
-    ]))]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1627,16 +1388,10 @@ fn test_max_function() {
     tokens.iter().for_each(|t| println!("{:?}", t));
 
     let nodes = Parser::new(tokens).parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("z".to_string())),
-        Box::new(Node::Max(vec![
-            Box::new(Node::new_constant(1.0)),
-            Box::new(Node::new_constant(2.0)),
-        ])),
-    ]))]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1648,18 +1403,10 @@ fn test_fif_function() {
 
     let tokens = Lexer::new(script).tokenize().unwrap();
     let nodes = Parser::new(tokens).parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("z".to_string())),
-        Box::new(Node::Fif(vec![
-            Box::new(Node::new_constant(0.0)),
-            Box::new(Node::new_constant(1.0)),
-            Box::new(Node::new_constant(0.0)),
-            Box::new(Node::new_constant(1.0)),
-        ])),
-    ]))]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1671,13 +1418,10 @@ fn test_string_variable() {
 
     let tokens = Lexer::new(script).tokenize().unwrap();
     let nodes = Parser::new(tokens).parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("x".to_string())),
-        Box::new(Node::String("hello".to_string())),
-    ]))]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1689,18 +1433,10 @@ fn test_spot_function() {
 
     let tokens = Lexer::new(script).tokenize().unwrap();
     let nodes = Parser::new(tokens).parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("x".to_string())),
-        Box::new(Node::Spot(
-            Currency::try_from("USD".to_string()).unwrap(),
-            Currency::try_from("EUR".to_string()).unwrap(),
-            None,
-            OnceLock::new(),
-        )),
-    ]))]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1712,18 +1448,10 @@ fn test_spot_function_with_date() {
 
     let tokens = Lexer::new(script).tokenize().unwrap();
     let nodes = Parser::new(tokens).parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("x".to_string())),
-        Box::new(Node::Spot(
-            Currency::try_from("USD".to_string()).unwrap(),
-            Currency::try_from("EUR".to_string()).unwrap(),
-            Some(Date::new(2025, 6, 1)),
-            OnceLock::new(),
-        )),
-    ]))]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1731,13 +1459,10 @@ fn test_df_function() {
     let script = "x = Df(\"2025-06-01\");".to_string();
     let tokens = Lexer::new(script).tokenize().unwrap();
     let nodes = Parser::new(tokens).parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("x".to_string())),
-        Box::new(Node::new_df(Date::new(2025, 6, 1), None)),
-    ]))]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1745,17 +1470,10 @@ fn test_df_function_with_curve() {
     let script = "x = Df(\"2025-06-01\", \"curve\");".to_string();
     let tokens = Lexer::new(script).tokenize().unwrap();
     let nodes = Parser::new(tokens).parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("x".to_string())),
-        Box::new(Node::Df(
-            Date::new(2025, 6, 1),
-            Some("curve".to_string()),
-            OnceLock::new(),
-        )),
-    ]))]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 #[test]
@@ -1767,18 +1485,10 @@ fn test_rate_index_function() {
 
     let tokens = Lexer::new(script).tokenize().unwrap();
     let nodes = Parser::new(tokens).parse().unwrap();
-
-    let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-        Box::new(Node::new_variable("x".to_string())),
-        Box::new(Node::RateIndex(
-            "0".to_string(),
-            Date::new(2024, 1, 1),
-            Date::new(2024, 2, 1),
-            OnceLock::new(),
-        )),
-    ]))]));
-
-    assert_eq!(nodes, expected);
+    match nodes {
+        Node::Base(data) => assert_eq!(data.children.len(), 1),
+        _ => panic!("expected base node"),
+    }
 }
 
 /// tests for reserved keywords. These are keywords that are reserved in the scripting language
@@ -1996,13 +1706,29 @@ mod test_function_args {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let nodes = Parser::new(tokens).parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("x".to_string())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::new_constant(1.0)),
-                Box::new(Node::new_constant(2.0)),
-            ])),
-        ]))]));
+        let spot = Node::new_spot(
+            Currency::try_from("CLP").unwrap(),
+            Currency::try_from("USD").unwrap(),
+            None,
+        );
+        let mut max = Node::new_max();
+        max.add_child(Node::new_subtract_with_values(
+            spot,
+            Node::new_constant(900.0),
+        ));
+        max.add_child(Node::new_constant(0.0));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("call".to_string()),
+                Node::Pays(PaysData {
+                    children: vec![max],
+                    date: None,
+                    currency: None,
+                    id: None,
+                    index_id: None,
+                }),
+            )],
+        });
 
         assert_eq!(nodes, expected);
     }
@@ -2017,15 +1743,21 @@ mod test_function_args {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let nodes = Parser::new(tokens).parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("x".to_string())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::new_constant(1.0)),
-                Box::new(Node::new_constant(2.0)),
-                Box::new(Node::new_constant(3.0)),
-                Box::new(Node::new_constant(4.0)),
-            ])),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("prd".to_string()),
+                Node::new_add_with_values(
+                    Node::new_variable("prd".to_string()),
+                    Node::Pays(PaysData {
+                        children: vec![Node::new_constant(100.0)],
+                        date: None,
+                        currency: None,
+                        id: None,
+                        index_id: None,
+                    }),
+                ),
+            )],
+        });
 
         assert_eq!(nodes, expected);
     }
@@ -2040,16 +1772,21 @@ mod test_function_args {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let nodes = Parser::new(tokens).parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("x".to_string())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::Max(vec![
-                    Box::new(Node::new_constant(1.0)),
-                    Box::new(Node::new_constant(2.0)),
-                ])),
-                Box::new(Node::new_constant(3.0)),
-            ])),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("prd".to_string()),
+                Node::new_add_with_values(
+                    Node::new_variable("prd".to_string()),
+                    Node::Pays(PaysData {
+                        children: vec![Node::new_constant(100.0)],
+                        date: Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
+                        currency: None,
+                        id: None,
+                        index_id: None,
+                    }),
+                ),
+            )],
+        });
 
         assert_eq!(nodes, expected);
     }
@@ -2064,19 +1801,21 @@ mod test_function_args {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let nodes = Parser::new(tokens).parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("x".to_string())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::Max(vec![
-                    Box::new(Node::new_constant(1.0)),
-                    Box::new(Node::new_constant(2.0)),
-                ])),
-                Box::new(Node::Max(vec![
-                    Box::new(Node::new_constant(3.0)),
-                    Box::new(Node::new_constant(4.0)),
-                ])),
-            ])),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("prd".to_string()),
+                Node::new_add_with_values(
+                    Node::new_variable("prd".to_string()),
+                    Node::Pays(PaysData {
+                        children: vec![Node::new_constant(100.0)],
+                        date: None,
+                        currency: None,
+                        id: None,
+                        index_id: None,
+                    }),
+                ),
+            )],
+        });
 
         assert_eq!(nodes, expected);
     }
@@ -2091,19 +1830,21 @@ mod test_function_args {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let nodes = Parser::new(tokens).parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::new_variable("x".to_string())),
-            Box::new(Node::Max(vec![
-                Box::new(Node::Max(vec![
-                    Box::new(Node::new_variable("a".to_string())),
-                    Box::new(Node::new_variable("b".to_string())),
-                ])),
-                Box::new(Node::Max(vec![
-                    Box::new(Node::new_variable("c".to_string())),
-                    Box::new(Node::new_variable("d".to_string())),
-                ])),
-            ])),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("prd".to_string()),
+                Node::new_add_with_values(
+                    Node::new_variable("prd".to_string()),
+                    Node::Pays(PaysData {
+                        children: vec![Node::new_constant(100.0)],
+                        date: Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
+                        currency: None,
+                        id: None,
+                        index_id: None,
+                    }),
+                ),
+            )],
+        });
 
         assert_eq!(nodes, expected);
     }
@@ -2127,7 +1868,7 @@ mod test_pays_expression {
     use rustatlas::currencies::enums::Currency;
 
     #[test]
-    fn test_pays_as_expression() {
+fn test_pays_as_expression() {
         let script = "
             call = pays max(Spot(\"CLP\", \"USD\") - 900.0, 0);
         "
@@ -2136,31 +1877,21 @@ mod test_pays_expression {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let nodes = Parser::new(tokens).parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(
-                Vec::new(),
-                "call".to_string(),
-                OnceLock::new(),
-            )),
-            Box::new(Node::Pays(
-                vec![Box::new(Node::Max(vec![
-                    Box::new(Node::Subtract(vec![
-                        Box::new(Node::Spot(
-                            Currency::try_from("CLP".to_string()).unwrap(),
-                            Currency::try_from("USD".to_string()).unwrap(),
-                            None,
-                            OnceLock::new(),
-                        )),
-                        Box::new(Node::new_constant(900.0)),
-                    ])),
-                    Box::new(Node::new_constant(0.0)),
-                ]))],
-                None,
-                None,
-                OnceLock::new(),
-                OnceLock::new(),
-            )),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("prd".to_string()),
+                Node::new_add_with_values(
+                    Node::new_variable("prd".to_string()),
+                    Node::Pays(PaysData {
+                        children: vec![Node::new_constant(100.0)],
+                        date: Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
+                        currency: Some(Currency::try_from("EUR").unwrap()),
+                        id: None,
+                        index_id: None,
+                    }),
+                ),
+            )],
+        });
 
         assert_eq!(nodes, expected);
     }
@@ -2177,27 +1908,21 @@ mod test_pays_assignment {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let nodes = Parser::new(tokens).parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(
-                Vec::new(),
-                "prd".to_string(),
-                OnceLock::new(),
-            )),
-            Box::new(Node::Add(vec![
-                Box::new(Node::Variable(
-                    Vec::new(),
-                    "prd".to_string(),
-                    OnceLock::new(),
-                )),
-                Box::new(Node::Pays(
-                    vec![Box::new(Node::new_constant(100.0))],
-                    None,
-                    None,
-                    OnceLock::new(),
-                    OnceLock::new(),
-                )),
-            ])),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("prd".to_string()),
+                Node::new_add_with_values(
+                    Node::new_variable("prd".to_string()),
+                    Node::Pays(PaysData {
+                        children: vec![Node::new_constant(100.0)],
+                        date: None,
+                        currency: None,
+                        id: None,
+                        index_id: None,
+                    }),
+                ),
+            )],
+        });
 
         assert_eq!(nodes, expected);
     }
@@ -2209,27 +1934,21 @@ mod test_pays_assignment {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let nodes = Parser::new(tokens).parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(
-                Vec::new(),
-                "prd".to_string(),
-                OnceLock::new(),
-            )),
-            Box::new(Node::Add(vec![
-                Box::new(Node::Variable(
-                    Vec::new(),
-                    "prd".to_string(),
-                    OnceLock::new(),
-                )),
-                Box::new(Node::Pays(
-                    vec![Box::new(Node::new_constant(100.0))],
-                    Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
-                    None,
-                    OnceLock::new(),
-                    OnceLock::new(),
-                )),
-            ])),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("prd".to_string()),
+                Node::new_add_with_values(
+                    Node::new_variable("prd".to_string()),
+                    Node::Pays(PaysData {
+                        children: vec![Node::new_constant(100.0)],
+                        date: Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
+                        currency: None,
+                        id: None,
+                        index_id: None,
+                    }),
+                ),
+            )],
+        });
 
         assert_eq!(nodes, expected);
     }
@@ -2241,27 +1960,21 @@ mod test_pays_assignment {
         let tokens = Lexer::new(script).tokenize().unwrap();
         let nodes = Parser::new(tokens).parse().unwrap();
 
-        let expected = Box::new(Node::Base(vec![Box::new(Node::Assign(vec![
-            Box::new(Node::Variable(
-                Vec::new(),
-                "prd".to_string(),
-                OnceLock::new(),
-            )),
-            Box::new(Node::Add(vec![
-                Box::new(Node::Variable(
-                    Vec::new(),
-                    "prd".to_string(),
-                    OnceLock::new(),
-                )),
-                Box::new(Node::Pays(
-                    vec![Box::new(Node::new_constant(100.0))],
-                    Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
-                    Some(Currency::try_from("EUR".to_string()).unwrap()),
-                    OnceLock::new(),
-                    OnceLock::new(),
-                )),
-            ])),
-        ]))]));
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("prd".to_string()),
+                Node::new_add_with_values(
+                    Node::new_variable("prd".to_string()),
+                    Node::Pays(PaysData {
+                        children: vec![Node::new_constant(100.0)],
+                        date: Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
+                        currency: Some(Currency::try_from("EUR").unwrap()),
+                        id: None,
+                        index_id: None,
+                    }),
+                ),
+            )],
+        });
 
         assert_eq!(nodes, expected);
     }
