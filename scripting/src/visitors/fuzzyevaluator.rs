@@ -4,6 +4,9 @@ use crate::prelude::*;
 use crate::visitors::evaluator::{SingleScenarioEvaluator, Value};
 use rustatlas::prelude::*;
 
+const EPS: f64 = 1.0e-12;
+const ONE_MINUS_EPS: f64 = 0.999999999999;
+
 /// Evaluator implementing a simple fuzzy logic mode using the
 /// `fIf` smoothing kernel described in `docs/AGENTS.md`.
 ///
@@ -106,6 +109,41 @@ impl<'a> FuzzyEvaluator<'a> {
         let res = b.clone() + ((a - b) / self.eps) * inner;
         res.into()
     }
+
+    // Call spread centred on 0 with width `eps`
+    fn c_spr(&self, x: NumericType, eps: f64) -> NumericType {
+        let half = eps * 0.5;
+        (x + half)
+            .min(NumericType::from(eps))
+            .max(NumericType::zero())
+            / eps
+    }
+
+    // Call spread between explicit bounds `lb` and `rb`
+    fn c_spr_bounds(&self, x: NumericType, lb: f64, rb: f64) -> NumericType {
+        (x - NumericType::from(lb))
+            .min(NumericType::from(rb - lb))
+            .max(NumericType::zero())
+            / (rb - lb)
+    }
+
+    // Butterfly centred on 0 with width `eps`
+    fn bfly(&self, x: NumericType, eps: f64) -> NumericType {
+        let half = eps * 0.5;
+        let inner = NumericType::from(half) - x.abs();
+        inner.max(NumericType::zero()) / half
+    }
+
+    // Butterfly with explicit bounds `lb` < 0 < `rb`
+    fn bfly_bounds(&self, x: NumericType, lb: f64, rb: f64) -> NumericType {
+        if x.value() < lb || x.value() > rb {
+            NumericType::zero()
+        } else if x.value() < 0.0 {
+            NumericType::one() - x / lb
+        } else {
+            NumericType::one() - x / rb
+        }
+    }
 }
 
 impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
@@ -125,11 +163,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif(
-                    (left - right).into(),
-                    NumericType::one(),
-                    NumericType::zero(),
-                );
+                let dt = self.c_spr((left - right).into(), self.eps);
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -137,11 +171,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif(
-                    (right - left).into(),
-                    NumericType::one(),
-                    NumericType::zero(),
-                );
+                let dt = self.c_spr((right - left).into(), self.eps);
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -149,11 +179,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif(
-                    (left - right).into(),
-                    NumericType::one(),
-                    NumericType::zero(),
-                );
+                let dt = self.c_spr((left - right).into(), self.eps);
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -161,11 +187,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.fif(
-                    (right - left).into(),
-                    NumericType::one(),
-                    NumericType::zero(),
-                );
+                let dt = self.c_spr((right - left).into(), self.eps);
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -173,12 +195,8 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let diff = (right - left).abs();
-                let dt = if diff < f64::EPSILON {
-                    NumericType::one()
-                } else {
-                    NumericType::zero()
-                };
+                let diff = (left - right).into();
+                let dt = self.bfly(diff, self.eps);
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -186,12 +204,8 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 data.children.iter().try_for_each(|c| self.const_visit(c))?;
                 let right = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let diff = (right - left).abs();
-                let dt = if diff >= f64::EPSILON {
-                    NumericType::one()
-                } else {
-                    NumericType::zero()
-                };
+                let diff = (left - right).into();
+                let dt = NumericType::one() - self.bfly(diff, self.eps);
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
@@ -227,11 +241,11 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 let lvl = self.nested_if_lvl.get();
                 self.nested_if_lvl.set(lvl + 1);
 
-                if dt.value() >= 1.0 - self.eps {
+                if dt.value() >= ONE_MINUS_EPS {
                     for c in data.children.iter().skip(1).take(last - 1) {
                         self.const_visit(c)?;
                     }
-                } else if dt.value() <= self.eps {
+                } else if dt.value() <= EPS {
                     if let Some(start) = data.first_else {
                         for c in data.children.iter().skip(start) {
                             self.const_visit(c)?;
