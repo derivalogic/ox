@@ -4,7 +4,7 @@ use crate::prelude::*;
 
 /// Simplified domain representation used for constant propagation.
 #[derive(Clone, Debug, PartialEq)]
-enum Domain {
+pub enum Domain {
     Any,
     Constant(f64),
 }
@@ -56,7 +56,7 @@ impl Domain {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-enum CondProp {
+pub enum CondProp {
     AlwaysTrue,
     AlwaysFalse,
     TrueOrFalse,
@@ -65,7 +65,6 @@ enum CondProp {
 /// Minimal implementation of the C++ `DomainProcessor`.
 /// It propagates constant values and detects constant conditions.
 pub struct DomainProcessor {
-    fuzzy: bool,
     var_domains: RefCell<Vec<Domain>>,
     dom_stack: RefCell<Vec<Domain>>,
     cond_stack: RefCell<Vec<CondProp>>,
@@ -74,9 +73,8 @@ pub struct DomainProcessor {
 }
 
 impl DomainProcessor {
-    pub fn new(n_var: usize, fuzzy: bool) -> Self {
+    pub fn new(n_var: usize) -> Self {
         Self {
-            fuzzy,
             var_domains: RefCell::new(vec![Domain::Constant(0.0); n_var]),
             dom_stack: RefCell::new(Vec::new()),
             cond_stack: RefCell::new(Vec::new()),
@@ -235,8 +233,16 @@ impl NodeVisitor for DomainProcessor {
                 for c in data.children.iter_mut() {
                     self.visit(c)?;
                 }
-                let right = self.cond_stack.borrow_mut().pop().unwrap_or(CondProp::TrueOrFalse);
-                let left = self.cond_stack.borrow_mut().pop().unwrap_or(CondProp::TrueOrFalse);
+                let right = self
+                    .cond_stack
+                    .borrow_mut()
+                    .pop()
+                    .unwrap_or(CondProp::TrueOrFalse);
+                let left = self
+                    .cond_stack
+                    .borrow_mut()
+                    .pop()
+                    .unwrap_or(CondProp::TrueOrFalse);
                 let prop = if left == CondProp::AlwaysTrue && right == CondProp::AlwaysTrue {
                     CondProp::AlwaysTrue
                 } else if left == CondProp::AlwaysFalse || right == CondProp::AlwaysFalse {
@@ -251,8 +257,16 @@ impl NodeVisitor for DomainProcessor {
                 for c in data.children.iter_mut() {
                     self.visit(c)?;
                 }
-                let right = self.cond_stack.borrow_mut().pop().unwrap_or(CondProp::TrueOrFalse);
-                let left = self.cond_stack.borrow_mut().pop().unwrap_or(CondProp::TrueOrFalse);
+                let right = self
+                    .cond_stack
+                    .borrow_mut()
+                    .pop()
+                    .unwrap_or(CondProp::TrueOrFalse);
+                let left = self
+                    .cond_stack
+                    .borrow_mut()
+                    .pop()
+                    .unwrap_or(CondProp::TrueOrFalse);
                 let prop = if left == CondProp::AlwaysTrue || right == CondProp::AlwaysTrue {
                     CondProp::AlwaysTrue
                 } else if left == CondProp::AlwaysFalse && right == CondProp::AlwaysFalse {
@@ -274,7 +288,11 @@ impl NodeVisitor for DomainProcessor {
             Node::If(data) => {
                 let last_true = data.first_else.unwrap_or(data.children.len());
                 self.visit(&mut data.children[0])?; // condition
-                let prop = self.cond_stack.borrow_mut().pop().unwrap_or(CondProp::TrueOrFalse);
+                let prop = self
+                    .cond_stack
+                    .borrow_mut()
+                    .pop()
+                    .unwrap_or(CondProp::TrueOrFalse);
                 if prop == CondProp::AlwaysTrue {
                     for c in data.children.iter_mut().take(last_true).skip(1) {
                         self.visit(c)?;
@@ -376,11 +394,10 @@ mod tests {
         let ifp = IfProcessor::new();
         ifp.visit(&mut expr).unwrap();
 
-        let dp = DomainProcessor::new(2, false);
+        let dp = DomainProcessor::new(2);
         dp.visit(&mut expr).unwrap();
 
         let domains = dp.variable_domains();
         assert_eq!(domains, vec![Domain::Constant(1.0), Domain::Constant(2.0)]);
     }
 }
-

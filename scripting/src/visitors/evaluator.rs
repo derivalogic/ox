@@ -137,7 +137,8 @@ impl<'a> SingleScenarioEvaluator<'a> {
         let scenario = self.scenario.ok_or(ScriptingError::EvaluationError(
             "No scenario set".to_string(),
         ))?;
-        scenario.get(*self.current_event.borrow())
+        scenario
+            .get(*self.current_event.borrow())
             .ok_or(ScriptingError::EvaluationError(
                 "Event not found".to_string(),
             ))
