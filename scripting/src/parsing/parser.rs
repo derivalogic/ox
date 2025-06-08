@@ -1198,7 +1198,97 @@ mod other_tests {
 }
 
 #[cfg(test)]
-pub mod tests_for {}
+pub mod tests_for {
+    use super::*;
+    use crate::parsing::lexer::Lexer;
+
+    #[test]
+    fn test_range_expression() {
+        let script = "vals = range(1,3);".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let mut range_node = Node::new_range();
+        range_node.add_child(Node::new_constant(1.0));
+        range_node.add_child(Node::new_constant(3.0));
+
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_asign_with_values(
+                Node::new_variable("vals".to_string()),
+                range_node,
+            )],
+        });
+
+        assert_eq!(ast, expected);
+    }
+
+    #[test]
+    fn test_for_each_range_loop() {
+        let script = "total = 0; for i in range(1,3) { total = total + i; }";
+        let tokens = Lexer::new(script.to_string()).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let mut range_node = Node::new_range();
+        range_node.add_child(Node::new_constant(1.0));
+        range_node.add_child(Node::new_constant(3.0));
+
+        let body = vec![Node::new_asign_with_values(
+            Node::new_variable("total".to_string()),
+            Node::new_add_with_values(
+                Node::new_variable("total".to_string()),
+                Node::new_variable("i".to_string()),
+            ),
+        )];
+
+        let expected = Node::Base(NodeData {
+            children: vec![
+                Node::new_asign_with_values(
+                    Node::new_variable("total".to_string()),
+                    Node::new_constant(0.0),
+                ),
+                Node::new_for_each("i".to_string(), Box::new(range_node), body),
+            ],
+        });
+
+        assert_eq!(ast, expected);
+    }
+
+    #[test]
+    fn test_for_each_list_loop() {
+        let script = "sum = 0; for x in [1,2,3] { sum = sum + x; }";
+        let tokens = Lexer::new(script.to_string()).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let list_node = Node::new_list_with_values(vec![
+            Node::new_constant(1.0),
+            Node::new_constant(2.0),
+            Node::new_constant(3.0),
+        ]);
+
+        let body = vec![Node::new_asign_with_values(
+            Node::new_variable("sum".to_string()),
+            Node::new_add_with_values(
+                Node::new_variable("sum".to_string()),
+                Node::new_variable("x".to_string()),
+            ),
+        )];
+
+        let expected = Node::Base(NodeData {
+            children: vec![
+                Node::new_asign_with_values(
+                    Node::new_variable("sum".to_string()),
+                    Node::new_constant(0.0),
+                ),
+                Node::new_for_each("x".to_string(), Box::new(list_node), body),
+            ],
+        });
+
+        assert_eq!(ast, expected);
+    }
+}
 
 #[cfg(test)]
 pub mod tests_if {
