@@ -648,6 +648,54 @@ impl Node {
             Node::String(_) => panic!("Cannot get children from string node"),
         }
     }
+
+    pub fn children_mut(&mut self) -> &mut Vec<Node> {
+        match self {
+            Node::Base(data) => &mut data.children,
+            Node::Add(data) => &mut data.children,
+            Node::Subtract(data) => &mut data.children,
+            Node::Multiply(data) => &mut data.children,
+            Node::Divide(data) => &mut data.children,
+            Node::Variable(data) => &mut data.children,
+            Node::Assign(data) => &mut data.children,
+            Node::And(data) => &mut data.children,
+            Node::Or(data) => &mut data.children,
+            Node::Not(data) => &mut data.children,
+            Node::Superior(data) => &mut data.children,
+            Node::Inferior(data) => &mut data.children,
+            Node::SuperiorOrEqual(data) => &mut data.children,
+            Node::InferiorOrEqual(data) => &mut data.children,
+            Node::Equal(data) => &mut data.children,
+            Node::If(_) => panic!("Cannot get children from if node directly"),
+            Node::UnaryPlus(data) => &mut data.children,
+            Node::UnaryMinus(data) => &mut data.children,
+            Node::Min(data) => &mut data.children,
+            Node::Max(data) => &mut data.children,
+            Node::Exp(data) => &mut data.children,
+            Node::Ln(data) => &mut data.children,
+            Node::Fif(data) => &mut data.children,
+            Node::Pow(data) => &mut data.children,
+            Node::Cvg(data) => &mut data.children,
+            Node::Append(data) => &mut data.children,
+            Node::Mean(data) => &mut data.children,
+            Node::Std(data) => &mut data.children,
+            Node::Index(data) => &mut data.children,
+            Node::NotEqual(data) => &mut data.children,
+            Node::Pays(data) => &mut data.children,
+            Node::Range(data) => &mut data.children,
+            Node::List(data) => &mut data.children,
+            Node::ForEach(data) => &mut data.children,
+            Node::Spot(_) => panic!("Cannot get children from spot node"),
+            Node::Df(_) => panic!("Cannot get children from df node"),
+            Node::RateIndex(_) => {
+                panic!("Cannot get children from rate index node")
+            }
+            Node::True => panic!("Cannot get children from true node"),
+            Node::False => panic!("Cannot get children from false node"),
+            Node::Constant(_) => panic!("Cannot get children from constant node"),
+            Node::String(_) => panic!("Cannot get children from string node"),
+        }
+    }
 }
 
 impl Visitable for Node {

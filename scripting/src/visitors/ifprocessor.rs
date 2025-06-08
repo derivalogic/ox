@@ -1,151 +1,151 @@
-// use std::cell::{Cell, RefCell};
-// use std::collections::HashSet;
+use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
 
-// use crate::prelude::*;
+use crate::prelude::*;
 
-// /// Visitor that records, for each `if` node, the indices of variables
-// /// modified inside the `if` block (including nested `if`s). It also
-// /// keeps track of the maximum nesting depth of `if` statements.
-// pub struct IfProcessor {
-//     var_stack: RefCell<Vec<HashSet<usize>>>,
-//     nested_if_lvl: Cell<usize>,
-//     max_nested_ifs: Cell<usize>,
-// }
+/// Visitor that records, for each `if` node, the indices of variables
+/// modified inside the `if` block (including nested `if`s). It also
+/// keeps track of the maximum nesting depth of `if` statements.
+pub struct IfProcessor {
+    var_stack: RefCell<Vec<HashSet<usize>>>,
+    nested_if_lvl: Cell<usize>,
+    max_nested_ifs: Cell<usize>,
+}
 
-// impl IfProcessor {
-//     /// Create a new `IfProcessor` visitor.
-//     pub fn new() -> Self {
-//         Self {
-//             var_stack: RefCell::new(Vec::new()),
-//             nested_if_lvl: Cell::new(0),
-//             max_nested_ifs: Cell::new(0),
-//         }
-//     }
+impl IfProcessor {
+    /// Create a new `IfProcessor` visitor.
+    pub fn new() -> Self {
+        Self {
+            var_stack: RefCell::new(Vec::new()),
+            nested_if_lvl: Cell::new(0),
+            max_nested_ifs: Cell::new(0),
+        }
+    }
 
-//     /// Maximum nesting depth encountered after visiting.
-//     pub fn max_nested_ifs(&self) -> usize {
-//         self.max_nested_ifs.get()
-//     }
+    /// Maximum nesting depth encountered after visiting.
+    pub fn max_nested_ifs(&self) -> usize {
+        self.max_nested_ifs.get()
+    }
 
-//     /// Visit all events in a stream.
-//     pub fn visit_events(&self, events: &EventStream) -> Result<()> {
-//         for ev in events.events().iter() {
-//             self.visit(ev.expr())?;
-//         }
-//         Ok(())
-//     }
-// }
+    /// Visit all events in a stream.
+    pub fn visit_events(&self, events: &mut EventStream) -> Result<()> {
+        events.mut_events().iter_mut().try_for_each(|event| {
+            self.visit(event.mut_expr())?;
+            Ok(())
+        })
+    }
+}
 
-// impl NodeVisitor for IfProcessor {
-//     type Output = Result<()>;
+impl NodeVisitor for IfProcessor {
+    type Output = Result<()>;
 
-//     fn visit(&self, node: &Box<Node>) -> Self::Output {
-//         match node.as_ref() {
-//             Node::If(children, _, affected, ..) => {
-//                 let lvl = self.nested_if_lvl.get() + 1;
-//                 self.nested_if_lvl.set(lvl);
-//                 if lvl > self.max_nested_ifs.get() {
-//                     self.max_nested_ifs.set(lvl);
-//                 }
+    fn visit(&self, node: &mut Node) -> Self::Output {
+        match node {
+            Node::If(data) => {
+                let lvl = self.nested_if_lvl.get() + 1;
+                self.nested_if_lvl.set(lvl);
+                if lvl > self.max_nested_ifs.get() {
+                    self.max_nested_ifs.set(lvl);
+                }
 
-//                 self.var_stack.borrow_mut().push(HashSet::new());
+                self.var_stack.borrow_mut().push(HashSet::new());
 
-//                 for c in children.iter().skip(1) {
-//                     self.visit(c)?;
-//                 }
+                for c in data.children.iter_mut().skip(1) {
+                    self.visit(c)?;
+                }
 
-//                 let vars = self.var_stack.borrow_mut().pop().unwrap();
-//                 let mut vec: Vec<usize> = vars.iter().cloned().collect();
-//                 vec.sort_unstable();
-//                 affected.set(vec.clone()).ok();
+                let vars = self.var_stack.borrow_mut().pop().unwrap();
+                let mut vec: Vec<usize> = vars.iter().cloned().collect();
+                vec.sort_unstable();
+                data.affected_vars = vec;
 
-//                 let lvl = lvl - 1;
-//                 self.nested_if_lvl.set(lvl);
-//                 if lvl > 0 {
-//                     let mut stack = self.var_stack.borrow_mut();
-//                     if let Some(top) = stack.last_mut() {
-//                         for v in vars {
-//                             top.insert(v);
-//                         }
-//                     }
-//                 }
-//                 Ok(())
-//             }
-//             Node::Assign(children) => {
-//                 if self.nested_if_lvl.get() > 0 {
-//                     if let Some(var) = children.get(0) {
-//                         self.visit(var)?;
-//                     }
-//                 }
-//                 Ok(())
-//             }
-//             Node::Pays(children, _, _, _, _) => {
-//                 if self.nested_if_lvl.get() > 0 {
-//                     if let Some(var) = children.get(0) {
-//                         self.visit(var)?;
-//                     }
-//                 }
-//                 Ok(())
-//             }
-//             Node::Variable(_, _, idx) => {
-//                 if self.nested_if_lvl.get() > 0 {
-//                     if let Some(i) = idx.get() {
-//                         if let Some(top) = self.var_stack.borrow_mut().last_mut() {
-//                             top.insert(*i);
-//                         }
-//                     }
-//                 }
-//                 Ok(())
-//             }
-//             _ => {
-//                 let children = node.children();
-//                 for c in children.iter() {
-//                     self.visit(c)?;
-//                 }
-//                 Ok(())
-//             }
-//         }
-//     }
-// }
+                let lvl = lvl - 1;
+                self.nested_if_lvl.set(lvl);
+                if lvl > 0 {
+                    let mut stack = self.var_stack.borrow_mut();
+                    if let Some(top) = stack.last_mut() {
+                        for v in vars {
+                            top.insert(v);
+                        }
+                    }
+                }
+                Ok(())
+            }
+            Node::Assign(data) => {
+                if self.nested_if_lvl.get() > 0 {
+                    if let Some(var) = data.children.get_mut(0) {
+                        self.visit(var)?;
+                    }
+                }
+                Ok(())
+            }
+            Node::Pays(data) => {
+                if self.nested_if_lvl.get() > 0 {
+                    if let Some(var) = data.children.get_mut(0) {
+                        self.visit(var)?;
+                    }
+                }
+                Ok(())
+            }
+            Node::Variable(data) => {
+                if self.nested_if_lvl.get() > 0 {
+                    if let Some(i) = data.id {
+                        if let Some(top) = self.var_stack.borrow_mut().last_mut() {
+                            top.insert(i);
+                        }
+                    }
+                }
+                Ok(())
+            }
+            _ => {
+                let children = node.children_mut();
+                for c in children.iter_mut() {
+                    self.visit(c)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn test_if_processor_nested() {
-//         let script = "x = 0; if x == 0 { y = 1; if y == 1 { z = 2; } w = 3; }";
-//         let expr = ExprTree::try_from(script).unwrap();
+    #[test]
+    fn test_if_processor_nested() {
+        let script = "x = 0; if x == 0 { y = 1; if y == 1 { z = 2; } w = 3; }";
+        let mut expr = Node::try_from(script).unwrap();
 
-//         let indexer = EventIndexer::new();
-//         indexer.visit(&expr).unwrap();
+        let indexer = VarIndexer::new();
+        indexer.visit(&mut expr).unwrap();
 
-//         let processor = IfProcessor::new();
-//         processor.visit(&expr).unwrap();
+        let processor = IfProcessor::new();
+        processor.visit(&mut expr).unwrap();
 
-//         // outer if is second expression in base node
-//         let outer_if = match expr.as_ref() {
-//             Node::Base(children) => &children[1],
-//             _ => panic!("expected base node"),
-//         };
+        // outer if is second expression in base node
+        let outer_if = match &expr {
+            Node::Base(data) => &data.children[1],
+            _ => panic!("expected base node"),
+        };
 
-//         let inner_if = match outer_if.as_ref() {
-//             Node::If(children, _, _, ..) => &children[2],
-//             _ => panic!("expected if node"),
-//         };
+        let inner_if = match outer_if {
+            Node::If(data) => &data.children[2],
+            _ => panic!("expected if node"),
+        };
 
-//         if let Node::If(_, _, affected, ..) = outer_if.as_ref() {
-//             assert_eq!(affected.get().unwrap(), &vec![1, 2, 3]);
-//         } else {
-//             panic!("expected if node");
-//         }
+        if let Node::If(data) = outer_if {
+            assert_eq!(data.affected_vars, vec![1, 2, 3]);
+        } else {
+            panic!("expected if node");
+        }
 
-//         if let Node::If(_, _, affected, ..) = inner_if.as_ref() {
-//             assert_eq!(affected.get().unwrap(), &vec![2]);
-//         } else {
-//             panic!("expected inner if node");
-//         }
+        if let Node::If(data) = inner_if {
+            assert_eq!(data.affected_vars, vec![2]);
+        } else {
+            panic!("expected inner if node");
+        }
 
-//         assert_eq!(processor.max_nested_ifs(), 2);
-//     }
-// }
+        assert_eq!(processor.max_nested_ifs(), 2);
+    }
+}
