@@ -518,10 +518,10 @@ mod tests {
     #[test]
     fn test_expression_indexer_multiple() {
         let indexer = EventIndexer::new();
-        let node = Box::new(Node::new_variable("x".to_string()));
-        indexer.visit(&node).unwrap();
-        let node = Box::new(Node::new_variable("y".to_string()));
-        indexer.visit(&node).unwrap();
+        let mut node = Node::new_variable("x".to_string());
+        indexer.visit(&mut node).unwrap();
+        let mut node = Node::new_variable("y".to_string());
+        indexer.visit(&mut node).unwrap();
         let variables = indexer.get_variable_indexes();
         assert_eq!(variables.get("x"), Some(&0));
         assert_eq!(variables.get("y"), Some(&1));
@@ -544,8 +544,8 @@ mod ai_gen_tests {
     fn test_get_variable_index() {
         // Test retrieving the index of a variable
         let indexer = EventIndexer::new();
-        let node = Box::new(Node::new_variable("x".to_string()));
-        indexer.visit(&node).unwrap();
+        let mut node = Node::new_variable("x".to_string());
+        indexer.visit(&mut node).unwrap();
         assert_eq!(indexer.get_variable_index("x"), Some(0));
     }
 
@@ -553,8 +553,8 @@ mod ai_gen_tests {
     fn test_get_variable_name() {
         // Test retrieving the name of a variable by its index
         let indexer = EventIndexer::new();
-        let node = Box::new(Node::new_variable("x".to_string()));
-        indexer.visit(&node).unwrap();
+        let mut node = Node::new_variable("x".to_string());
+        indexer.visit(&mut node).unwrap();
         assert_eq!(indexer.get_variable_name(0), Some("x".to_string()));
     }
 
@@ -562,10 +562,10 @@ mod ai_gen_tests {
     fn test_get_variables() {
         // Test retrieving all variable names
         let indexer = EventIndexer::new();
-        let node = Box::new(Node::new_variable("x".to_string()));
-        indexer.visit(&node).unwrap();
-        let node = Box::new(Node::new_variable("y".to_string()));
-        indexer.visit(&node).unwrap();
+        let mut node = Node::new_variable("x".to_string());
+        indexer.visit(&mut node).unwrap();
+        let mut node = Node::new_variable("y".to_string());
+        indexer.visit(&mut node).unwrap();
         let variables = indexer.get_variables();
         assert!(variables.contains(&"x".to_string()));
         assert!(variables.contains(&"y".to_string()));
@@ -575,10 +575,10 @@ mod ai_gen_tests {
     fn test_get_variable_indexes() {
         // Test retrieving all variable indexes
         let indexer = EventIndexer::new();
-        let node = Box::new(Node::new_variable("x".to_string()));
-        indexer.visit(&node).unwrap();
-        let node = Box::new(Node::new_variable("y".to_string()));
-        indexer.visit(&node).unwrap();
+        let mut node = Node::new_variable("x".to_string());
+        indexer.visit(&mut node).unwrap();
+        let mut node = Node::new_variable("y".to_string());
+        indexer.visit(&mut node).unwrap();
         let variable_indexes = indexer.get_variable_indexes();
         assert_eq!(variable_indexes.get("x"), Some(&0));
         assert_eq!(variable_indexes.get("y"), Some(&1));
@@ -588,19 +588,19 @@ mod ai_gen_tests {
     fn test_get_variables_size() {
         // Test retrieving the size of the variables hashmap
         let indexer = EventIndexer::new();
-        let node = Box::new(Node::new_variable("x".to_string()));
-        indexer.visit(&node).unwrap();
-        let node = Box::new(Node::new_variable("y".to_string()));
-        indexer.visit(&node).unwrap();
+        let mut node = Node::new_variable("x".to_string());
+        indexer.visit(&mut node).unwrap();
+        let mut node = Node::new_variable("y".to_string());
+        indexer.visit(&mut node).unwrap();
         assert_eq!(indexer.get_variables_size(), 2);
     }
 
     #[test]
     fn test_visit_index_node() {
         let script = "arr = [1,2,3]; x = arr[1];";
-        let expr = ExprTree::try_from(script).unwrap();
+        let mut expr = Node::try_from(script).unwrap();
         let indexer = EventIndexer::new();
-        indexer.visit(&expr).unwrap();
+        indexer.visit(&mut expr).unwrap();
         let variable_indexes = indexer.get_variable_indexes();
         assert_eq!(variable_indexes.get("arr"), Some(&0));
         assert_eq!(variable_indexes.get("x"), Some(&1));
@@ -609,12 +609,12 @@ mod ai_gen_tests {
     #[test]
     fn test_spot_request_with_date() {
         let script = "x = Spot(\"USD\", \"EUR\", \"2025-06-01\");";
-        let expr = ExprTree::try_from(script).unwrap();
+        let expr = Node::try_from(script).unwrap();
         let event = Event::new(Date::new(2025, 1, 1), expr);
-        let events = EventStream::new().with_events(vec![event]);
+        let mut events = EventStream::new().with_events(vec![event]);
 
         let indexer = EventIndexer::new();
-        indexer.visit_events(&events).unwrap();
+        indexer.visit_events(&mut events).unwrap();
 
         let req = indexer.get_request();
         let fx = &req[0].fxs()[0];
@@ -626,13 +626,13 @@ mod ai_gen_tests {
     #[test]
     fn test_spot_request_uses_event_date_when_none() {
         let script = "x = Spot(\"USD\", \"EUR\");";
-        let expr = ExprTree::try_from(script).unwrap();
+        let expr = Node::try_from(script).unwrap();
         let event_date = Date::new(2025, 1, 1);
         let event = Event::new(event_date, expr);
-        let events = EventStream::new().with_events(vec![event]);
+        let mut events = EventStream::new().with_events(vec![event]);
 
         let indexer = EventIndexer::new();
-        indexer.visit_events(&events).unwrap();
+        indexer.visit_events(&mut events).unwrap();
 
         let req = indexer.get_request();
         let fx = &req[0].fxs()[0];
@@ -642,12 +642,12 @@ mod ai_gen_tests {
     #[test]
     fn test_df_request_with_curve() {
         let script = "x = Df(\"2025-06-01\", \"curve\");";
-        let expr = ExprTree::try_from(script).unwrap();
+        let expr = Node::try_from(script).unwrap();
         let event = Event::new(Date::new(2025, 1, 1), expr);
-        let events = EventStream::new().with_events(vec![event]);
+        let mut events = EventStream::new().with_events(vec![event]);
 
         let indexer = EventIndexer::new();
-        indexer.visit_events(&events).unwrap();
+        indexer.visit_events(&mut events).unwrap();
 
         let req = indexer.get_request();
         let df = &req[0].dfs()[0];
@@ -658,13 +658,13 @@ mod ai_gen_tests {
     #[test]
     fn test_df_request_without_curve() {
         let script = "x = Df(\"2025-06-01\");";
-        let expr = ExprTree::try_from(script).unwrap();
+        let expr = Node::try_from(script).unwrap();
         let event_date = Date::new(2025, 1, 1);
         let event = Event::new(event_date, expr);
-        let events = EventStream::new().with_events(vec![event]);
+        let mut events = EventStream::new().with_events(vec![event]);
 
         let indexer = EventIndexer::new();
-        indexer.visit_events(&events).unwrap();
+        indexer.visit_events(&mut events).unwrap();
 
         let req = indexer.get_request();
         let df = &req[0].dfs()[0];
