@@ -207,27 +207,49 @@ impl NodeVisitor for EventIndexer {
                 Ok(())
             }
             Node::ForEach(data) => {
-                self.visit(data.node)?;
-                match data.id.get() {
+                self.visit(&mut data.node)?;
+                match data.id {
                     Some(id) => {
-                        self.variables.borrow_mut().insert(name.clone(), *id);
+                        self.variables.borrow_mut().insert(data.var.clone(), id);
                     }
                     None => {
-                        if self.variables.borrow_mut().contains_key(name) {
-                            let size = self.variables.borrow_mut().get(name).unwrap().clone();
-                            opt_idx.set(size).unwrap();
+                        if self.variables.borrow_mut().contains_key(data.var.as_str()) {
+                            let size = self
+                                .variables
+                                .borrow_mut()
+                                .get(data.var.as_str())
+                                .unwrap()
+                                .clone();
+                            data.id = Some(size);
                         } else {
                             let size = self.variables.borrow_mut().len();
-                            self.variables.borrow_mut().insert(name.clone(), size);
-                            opt_idx.set(size).unwrap();
+                            self.variables.borrow_mut().insert(data.var.clone(), size);
+                            data.id = Some(size);
                         }
                     }
                 };
-                children.iter().try_for_each(|child| self.visit(child))?;
+                data.children
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
                 Ok(())
             }
-            Node::Range(children) | Node::List(children) | Node::Index(children) => {
-                children.iter().try_for_each(|child| self.visit(child))?;
+            Node::Range(data) => {
+                data.children
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+
+            Node::List(data) => {
+                data.children
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Index(data) => {
+                data.children
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
                 Ok(())
             }
 
@@ -235,9 +257,9 @@ impl NodeVisitor for EventIndexer {
                 data.children
                     .iter_mut()
                     .try_for_each(|child| self.visit(child))?;
-                match data.id.get() {
+                match data.id {
                     Some(id) => {
-                        self.variables.borrow_mut().insert(data.name.clone(), *id);
+                        self.variables.borrow_mut().insert(data.name.clone(), id);
                     }
                     None => {
                         // check if the variable is already in the hashmap

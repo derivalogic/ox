@@ -1,10 +1,12 @@
+use std::process::Output;
+
 use crate::prelude::*;
 use rustatlas::prelude::*;
 
 // pub type ExprTree = Box<Node>;
 
 pub trait HasChildren {
-    fn children(&self) -> &Vec<Node>;
+    fn children(&mut self) -> &mut Vec<Node>;
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -13,8 +15,8 @@ pub struct NodeData {
 }
 
 impl HasChildren for NodeData {
-    fn children(&self) -> &Vec<Node> {
-        &self.children
+    fn children(&mut self) -> &mut Vec<Node> {
+        &mut self.children
     }
 }
 
@@ -26,8 +28,8 @@ pub struct BoolData {
 }
 
 impl HasChildren for BoolData {
-    fn children(&self) -> &Vec<Node> {
-        &self.children
+    fn children(&mut self) -> &mut Vec<Node> {
+        &mut self.children
     }
 }
 
@@ -43,8 +45,8 @@ pub struct CompData {
 }
 
 impl HasChildren for CompData {
-    fn children(&self) -> &Vec<Node> {
-        &self.children
+    fn children(&mut self) -> &mut Vec<Node> {
+        &mut self.children
     }
 }
 
@@ -56,8 +58,8 @@ pub struct ExprData {
 }
 
 impl HasChildren for ExprData {
-    fn children(&self) -> &Vec<Node> {
-        &self.children
+    fn children(&mut self) -> &mut Vec<Node> {
+        &mut self.children
     }
 }
 
@@ -80,8 +82,8 @@ pub struct IfData {
 }
 
 impl HasChildren for IfData {
-    fn children(&self) -> &Vec<Node> {
-        &self.children
+    fn children(&mut self) -> &mut Vec<Node> {
+        &mut self.children
     }
 }
 
@@ -119,8 +121,8 @@ pub struct PaysData {
 }
 
 impl HasChildren for PaysData {
-    fn children(&self) -> &Vec<Node> {
-        &self.children
+    fn children(&mut self) -> &mut Vec<Node> {
+        &mut self.children
     }
 }
 
@@ -128,13 +130,13 @@ impl HasChildren for PaysData {
 pub struct ForEachData {
     pub var: String,
     pub id: Option<usize>,
-    pub iter: Vec<Node>,
+    pub children: Vec<Node>,
     pub node: Box<Node>,
 }
 
 impl HasChildren for ForEachData {
-    fn children(&self) -> &Vec<Node> {
-        &self.iter
+    fn children(&mut self) -> &mut Vec<Node> {
+        &mut self.children
     }
 }
 
@@ -145,8 +147,8 @@ pub struct IndexData {
 }
 
 impl HasChildren for IndexData {
-    fn children(&self) -> &Vec<Node> {
-        &self.children
+    fn children(&mut self) -> &mut Vec<Node> {
+        &mut self.children
     }
 }
 
@@ -546,10 +548,10 @@ impl Node {
         Node::List(NodeData::default())
     }
 
-    pub fn new_for_each(var: String, node: Box<Node>, iter: Vec<Node>) -> Node {
+    pub fn new_for_each(var: String, node: Box<Node>, children: Vec<Node>) -> Node {
         Node::ForEach(ForEachData {
             var,
-            iter: iter,
+            children: children,
             node: node,
             id: None,
         })
@@ -588,7 +590,7 @@ impl Node {
             Node::Index(data) => data.children.push(child),
             Node::NotEqual(data) => data.children.push(child),
             Node::Pays(data) => data.children.push(child),
-            Node::ForEach(data) => data.node.add_child(child),
+            Node::ForEach(data) => data.children.push(child),
             Node::Range(data) => data.children.push(child),
             Node::List(data) => data.children.push(child),
             Node::Spot(_) => panic!("Cannot add child to spot node"),
@@ -636,7 +638,7 @@ impl Node {
             Node::Pays(data) => &data.children,
             Node::Range(data) => &data.children,
             Node::List(data) => &data.children,
-            Node::ForEach(_) => panic!("Cannot get children from foreach node directly"),
+            Node::ForEach(data) => &data.children,
             Node::Spot(_) => panic!("Cannot get children from spot node"),
             Node::Df(_) => panic!("Cannot get children from df node"),
             Node::RateIndex(_) => {
