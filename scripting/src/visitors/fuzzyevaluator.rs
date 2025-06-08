@@ -113,25 +113,27 @@ impl<'a> FuzzyEvaluator<'a> {
     // Call spread centred on 0 with width `eps`
     fn c_spr(&self, x: NumericType, eps: f64) -> NumericType {
         let half = eps * 0.5;
-        (x + half)
+        ((x + half)
             .min(NumericType::from(eps))
             .max(NumericType::zero())
-            / eps
+            / eps)
+            .into()
     }
 
     // Call spread between explicit bounds `lb` and `rb`
     fn c_spr_bounds(&self, x: NumericType, lb: f64, rb: f64) -> NumericType {
-        (x - NumericType::from(lb))
+        ((x - NumericType::from(lb))
             .min(NumericType::from(rb - lb))
             .max(NumericType::zero())
-            / (rb - lb)
+            / (rb - lb))
+            .into()
     }
 
     // Butterfly centred on 0 with width `eps`
     fn bfly(&self, x: NumericType, eps: f64) -> NumericType {
         let half = eps * 0.5;
         let inner = NumericType::from(half) - x.abs();
-        inner.max(NumericType::zero()) / half
+        (inner.max(NumericType::zero()) / half).into()
     }
 
     // Butterfly with explicit bounds `lb` < 0 < `rb`
@@ -139,9 +141,9 @@ impl<'a> FuzzyEvaluator<'a> {
         if x.value() < lb || x.value() > rb {
             NumericType::zero()
         } else if x.value() < 0.0 {
-            NumericType::one() - x / lb
+            (NumericType::one() - x / lb).into()
         } else {
-            NumericType::one() - x / rb
+            (NumericType::one() - x / rb).into()
         }
     }
 }
@@ -206,7 +208,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 let left = self.base.digit_stack.borrow_mut().pop().unwrap();
                 let diff = (left - right).into();
                 let dt = NumericType::one() - self.bfly(diff, self.eps);
-                self.dt_stack.borrow_mut().push(dt);
+                self.dt_stack.borrow_mut().push(dt.into());
                 Ok(())
             }
             Node::And(data) => {
