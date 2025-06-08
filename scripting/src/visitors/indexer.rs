@@ -15,41 +15,200 @@ pub struct EventIndexer {
 
 impl NodeVisitor for EventIndexer {
     type Output = Result<()>;
-    fn visit(&self, node: &Box<Node>) -> Self::Output {
-        match node.as_ref() {
-            Node::Base(children)
-            | Node::Add(children)
-            | Node::Subtract(children)
-            | Node::Multiply(children)
-            | Node::Divide(children)
-            | Node::Assign(children)
-            | Node::Min(children)
-            | Node::Max(children)
-            | Node::Exp(children)
-            | Node::Pow(children)
-            | Node::Ln(children)
-            | Node::Fif(children)
-            | Node::Append(children)
-            | Node::Mean(children)
-            | Node::Std(children)
-            | Node::UnaryPlus(children)
-            | Node::UnaryMinus(children)
-            | Node::Equal(children)
-            | Node::NotEqual(children)
-            | Node::And(children)
-            | Node::Or(children)
-            | Node::Not(children)
-            | Node::Superior(children)
-            | Node::Inferior(children)
-            | Node::SuperiorOrEqual(children)
-            | Node::InferiorOrEqual(children)
-            | Node::If(children, ..) => {
-                children.iter().try_for_each(|child| self.visit(child))?;
+    fn visit(&self, node: &mut Node) -> Self::Output {
+        match node {
+            Node::Base(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
                 Ok(())
             }
-            Node::ForEach(name, iter, children, opt_idx) => {
-                self.visit(iter)?;
-                match opt_idx.get() {
+            Node::Add(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Subtract(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Multiply(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Divide(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Assign(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Min(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Max(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Exp(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Pow(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Ln(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Fif(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Append(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Mean(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Std(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::UnaryPlus(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::UnaryMinus(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Equal(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::NotEqual(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::And(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Or(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Not(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Superior(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::Inferior(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::SuperiorOrEqual(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::InferiorOrEqual(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::If(children) => {
+                children
+                    .children()
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                Ok(())
+            }
+            Node::ForEach(data) => {
+                self.visit(data.node)?;
+                match data.id.get() {
                     Some(id) => {
                         self.variables.borrow_mut().insert(name.clone(), *id);
                     }
@@ -72,30 +231,37 @@ impl NodeVisitor for EventIndexer {
                 Ok(())
             }
 
-            Node::Variable(children, name, opt_idx) => {
-                children.iter().try_for_each(|child| self.visit(child))?;
-                match opt_idx.get() {
+            Node::Variable(data) => {
+                data.children
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                match data.id.get() {
                     Some(id) => {
-                        self.variables.borrow_mut().insert(name.clone(), *id);
+                        self.variables.borrow_mut().insert(data.name.clone(), *id);
                     }
                     None => {
                         // check if the variable is already in the hashmap
-                        if self.variables.borrow_mut().contains_key(name) {
-                            let size = self.variables.borrow_mut().get(name).unwrap().clone();
+                        if self.variables.borrow_mut().contains_key(data.name.as_str()) {
+                            let size = self
+                                .variables
+                                .borrow_mut()
+                                .get(data.name.as_str())
+                                .unwrap()
+                                .clone();
                             // Update the id of the variable
-                            opt_idx.set(size).unwrap();
+                            data.id = Some(size);
                         } else {
                             let size = self.variables.borrow_mut().len();
-                            self.variables.borrow_mut().insert(name.clone(), size);
+                            self.variables.borrow_mut().insert(data.name.clone(), size);
                             // Update the id of the variable
-                            opt_idx.set(size).unwrap();
+                            data.id = Some(size);
                         }
                     }
                 };
                 Ok(())
             }
-            Node::Spot(first, second, date_opt, opt_idx) => {
-                match opt_idx.get() {
+            Node::Spot(data) => {
+                match data.id {
                     Some(_) => {}
                     None => {
                         let size = self
@@ -113,21 +279,21 @@ impl NodeVisitor for EventIndexer {
                                 .ok_or(ScriptingError::InvalidSyntax(
                                     "Event date is not set".to_string(),
                                 ))?;
-                        let ref_date = date_opt.unwrap_or(event_date);
+                        let ref_date = data.date.unwrap_or(event_date);
                         self.market_requests
                             .borrow_mut()
                             .last_mut()
                             .ok_or(ScriptingError::NotFoundError(
                                 "No market requests found".to_string(),
                             ))?
-                            .push_fx(ExchangeRateRequest::new(*first, *second, ref_date));
-                        opt_idx.set(size).unwrap();
+                            .push_fx(ExchangeRateRequest::new(data.first, data.second, ref_date));
+                        data.id = Some(size);
                     }
                 };
                 Ok(())
             }
-            Node::Df(date, curve, opt_idx) => {
-                match opt_idx.get() {
+            Node::Df(data) => {
+                match data.id {
                     Some(_) => {}
                     None => {
                         let size = self
@@ -139,21 +305,21 @@ impl NodeVisitor for EventIndexer {
                             ))?
                             .dfs()
                             .len();
-                        let curve_name = curve.clone().unwrap_or_else(|| "local".to_string());
+                        let curve_name = data.curve.clone().unwrap_or_else(|| "local".to_string());
                         self.market_requests
                             .borrow_mut()
                             .last_mut()
                             .ok_or(ScriptingError::NotFoundError(
                                 "No market requests found".to_string(),
                             ))?
-                            .push_df(DiscountFactorRequest::new(curve_name, *date));
-                        opt_idx.set(size).unwrap();
+                            .push_df(DiscountFactorRequest::new(curve_name, data.date));
+                        data.id = Some(size);
                     }
                 }
                 Ok(())
             }
-            Node::RateIndex(name, start, end, opt_idx) => {
-                match opt_idx.get() {
+            Node::RateIndex(data) => {
+                match data.id {
                     Some(_) => {}
                     None => {
                         let size = self
@@ -166,10 +332,10 @@ impl NodeVisitor for EventIndexer {
                             .fwds()
                             .len();
                         let fwd_request = ForwardRateRequest::new(
-                            name.clone(),
-                            *start,
-                            *start,
-                            *end,
+                            data.name.clone(),
+                            data.start,
+                            data.start,
+                            data.end,
                             Compounding::Simple,
                             Frequency::Annual,
                         );
@@ -180,19 +346,21 @@ impl NodeVisitor for EventIndexer {
                                 "No market requests found".to_string(),
                             ))?
                             .push_fwd(fwd_request);
-                        opt_idx.set(size).unwrap();
+                        data.id = Some(size);
                     }
                 }
                 Ok(())
             }
-            Node::Pays(children, pay_date, currency, df_idx, fx_idx) => {
-                children.iter().try_for_each(|child| self.visit(child))?;
-                match df_idx.get() {
+            Node::Pays(data) => {
+                data.children
+                    .iter_mut()
+                    .try_for_each(|child| self.visit(child))?;
+                match data.df_id {
                     Some(_) => {}
                     None => {
                         let event_date =
-                            match pay_date {
-                                Some(d) => *d,
+                            match data.date {
+                                Some(d) => d,
                                 None => self.event_date.borrow().ok_or(
                                     ScriptingError::InvalidSyntax(
                                         "Event date is not set".to_string(),
@@ -211,12 +379,12 @@ impl NodeVisitor for EventIndexer {
                             ));
                             size
                         };
-                        df_idx.set(size).unwrap();
+                        data.df_id = Some(size);
                     }
                 };
 
-                if let Some(ccy) = currency {
-                    match fx_idx.get() {
+                if let Some(ccy) = data.currency {
+                    match data.spot_id {
                         Some(_) => {}
                         None => {
                             let dom = self.local_currency.borrow().ok_or(
@@ -224,8 +392,8 @@ impl NodeVisitor for EventIndexer {
                                     "Local currency is not set".to_string(),
                                 ),
                             )?;
-                            let event_date = match pay_date {
-                                Some(d) => *d,
+                            let event_date = match data.date {
+                                Some(d) => d,
                                 None => self.event_date.borrow().ok_or(
                                     ScriptingError::InvalidSyntax(
                                         "Event date is not set".to_string(),
@@ -238,10 +406,10 @@ impl NodeVisitor for EventIndexer {
                                     "No market requests found".to_string(),
                                 ))?;
                                 let size = last.fxs().len();
-                                last.push_fx(ExchangeRateRequest::new(dom, *ccy, event_date));
+                                last.push_fx(ExchangeRateRequest::new(dom, ccy, event_date));
                                 size
                             };
-                            fx_idx.set(size).unwrap();
+                            data.spot_id = Some(size);
                         }
                     }
                 }
@@ -320,13 +488,13 @@ impl EventIndexer {
         *self.local_currency.borrow_mut() = None;
     }
 
-    pub fn visit_events(&self, events: &EventStream) -> Result<()> {
-        events.events().iter().try_for_each(|event| {
+    pub fn visit_events(&self, events: &mut EventStream) -> Result<()> {
+        events.mut_events().iter_mut().try_for_each(|event| {
             *self.event_date.borrow_mut() = Some(event.event_date());
             self.market_requests
                 .borrow_mut()
                 .push(SimulationDataRequest::new());
-            self.visit(event.expr())?;
+            self.visit(event.mut_expr())?;
             Ok(())
         })
     }
@@ -340,8 +508,8 @@ mod tests {
     #[test]
     fn test_expression_indexer() {
         let indexer = EventIndexer::new();
-        let node = Box::new(Node::new_variable("x".to_string()));
-        indexer.visit(&node).unwrap();
+        let mut node = Node::new_variable("x".to_string());
+        indexer.visit(&mut node).unwrap();
         let variables = indexer.get_variable_indexes();
         assert_eq!(variables.get("x"), Some(&0));
         print!("{:?}", node);

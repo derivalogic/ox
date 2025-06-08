@@ -295,6 +295,7 @@ impl Parser {
         nodes.append(&mut if_body);
 
         Ok(Node::If(IfData {
+            children: nodes,
             first_else: else_index,
             affected_vars: Vec::new(),
         }))

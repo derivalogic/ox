@@ -45,6 +45,10 @@ impl Event {
     pub fn expr(&self) -> &Node {
         &self.expr
     }
+
+    pub fn mut_expr(&mut self) -> &mut Node {
+        &mut self.expr
+    }
 }
 
 impl TryFrom<CodedEvent> for Event {
@@ -96,6 +100,10 @@ impl EventStream {
 
     pub fn events(&self) -> &Vec<Event> {
         &self.events
+    }
+
+    pub fn mut_events(&mut self) -> &mut Vec<Event> {
+        &mut self.events
     }
 
     pub fn event_dates(&self) -> Vec<Date> {

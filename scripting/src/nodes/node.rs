@@ -3,19 +3,37 @@ use rustatlas::prelude::*;
 
 // pub type ExprTree = Box<Node>;
 
+pub trait HasChildren {
+    fn children(&self) -> &Vec<Node>;
+}
+
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct NodeData {
     pub children: Vec<Node>,
 }
 
+impl HasChildren for NodeData {
+    fn children(&self) -> &Vec<Node> {
+        &self.children
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct BoolData {
+    pub children: Vec<Node>,
     pub always_true: bool,
     pub always_false: bool,
 }
 
+impl HasChildren for BoolData {
+    fn children(&self) -> &Vec<Node> {
+        &self.children
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct CompData {
+    pub children: Vec<Node>,
     pub always_true: bool,
     pub always_false: bool,
     pub discrete: bool,
@@ -24,11 +42,23 @@ pub struct CompData {
     pub rb: f64,
 }
 
+impl HasChildren for CompData {
+    fn children(&self) -> &Vec<Node> {
+        &self.children
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct ExprData {
     pub children: Vec<Node>,
     pub is_constant: bool,
     pub const_value: f64,
+}
+
+impl HasChildren for ExprData {
+    fn children(&self) -> &Vec<Node> {
+        &self.children
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -44,8 +74,15 @@ pub struct VarData {
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct IfData {
+    pub children: Vec<Node>,
     pub first_else: Option<usize>,
     pub affected_vars: Vec<usize>,
+}
+
+impl HasChildren for IfData {
+    fn children(&self) -> &Vec<Node> {
+        &self.children
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -77,7 +114,14 @@ pub struct PaysData {
     pub date: Option<Date>,
     pub currency: Option<Currency>,
     pub id: Option<usize>,
-    pub index_id: Option<usize>,
+    pub df_id: Option<usize>,
+    pub spot_id: Option<usize>,
+}
+
+impl HasChildren for PaysData {
+    fn children(&self) -> &Vec<Node> {
+        &self.children
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -88,10 +132,22 @@ pub struct ForEachData {
     pub node: Box<Node>,
 }
 
+impl HasChildren for ForEachData {
+    fn children(&self) -> &Vec<Node> {
+        &self.iter
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct IndexData {
     pub children: Vec<Node>,
     pub index: Box<Node>,
+}
+
+impl HasChildren for IndexData {
+    fn children(&self) -> &Vec<Node> {
+        &self.children
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
