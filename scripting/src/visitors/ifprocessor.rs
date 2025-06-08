@@ -111,6 +111,7 @@ impl NodeVisitor for IfProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rustatlas::prelude::*;
 
     #[test]
     fn test_if_processor_nested() {
@@ -147,5 +148,54 @@ mod tests {
         }
 
         assert_eq!(processor.max_nested_ifs(), 2);
+    }
+
+    #[test]
+    fn test_if_processor_else_branch() {
+        let script = "if a == 1 { x = 2; } else { y = 3; }";
+        let mut expr = Node::try_from(script).unwrap();
+
+        let indexer = VarIndexer::new();
+        indexer.visit(&mut expr).unwrap();
+
+        let processor = IfProcessor::new();
+        processor.visit(&mut expr).unwrap();
+
+        if let Node::Base(data) = &expr {
+            if let Node::If(ifnode) = &data.children[0] {
+                assert_eq!(ifnode.affected_vars.len(), 2);
+            } else {
+                panic!("expected if node");
+            }
+        } else {
+            panic!("expected base node");
+        }
+    }
+
+    #[test]
+    fn test_if_processor_on_event_stream() {
+        let script1 = "if b == 0 { x = 1; }";
+        let script2 = "y = 2;";
+        let mut events = EventStream::try_from(vec![
+            CodedEvent::new(Date::new(2024, 1, 1), script1.to_string()),
+            CodedEvent::new(Date::new(2024, 1, 2), script2.to_string()),
+        ])
+        .unwrap();
+
+        let indexer = VarIndexer::new();
+        indexer.visit_events(&mut events).unwrap();
+
+        let processor = IfProcessor::new();
+        processor.visit_events(&mut events).unwrap();
+
+        let ifnode = match events.mut_events()[0].mut_expr() {
+            Node::Base(b) => match &b.children[0] {
+                Node::If(data) => data,
+                _ => panic!("expected if node"),
+            },
+            _ => panic!("expected base node"),
+        };
+        assert_eq!(ifnode.affected_vars.len(), 1);
+        assert_eq!(processor.max_nested_ifs(), 1);
     }
 }
