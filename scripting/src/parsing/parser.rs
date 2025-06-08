@@ -379,10 +379,10 @@ impl Parser {
         self.expect_token(Token::Semicolon)?;
         self.advance();
         let rhs_expr = match op {
-            Token::PlusAssign => Node::new_add_with_values(lhs, rhs),
-            Token::MinusAssign => Node::new_subtract_with_values(lhs, rhs),
-            Token::MultiplyAssign => Node::new_multiply_with_values(lhs, rhs),
-            Token::DivideAssign => Node::new_divide_with_values(lhs, rhs),
+            Token::PlusAssign => Node::new_add_with_values(lhs.clone(), rhs),
+            Token::MinusAssign => Node::new_subtract_with_values(lhs.clone(), rhs),
+            Token::MultiplyAssign => Node::new_multiply_with_values(lhs.clone(), rhs),
+            Token::DivideAssign => Node::new_divide_with_values(lhs.clone(), rhs),
             _ => unreachable!(),
         };
         Ok(Node::new_asign_with_values(lhs, rhs_expr))
@@ -636,9 +636,9 @@ impl Parser {
                         Node::String(s) => Ok(s.clone()),
                         _ => Err(self.invalid_syntax_err("Invalid argument, expected string")),
                     };
-                    let s1 = get_str(*a)?;
-                    let s2 = get_str(*b)?;
-                    let s3 = get_str(*c)?;
+                    let s1 = get_str((*a).clone())?;
+                    let s2 = get_str((*b).clone())?;
+                    let s3 = get_str((*c).clone())?;
                     Date::from_str(&s1, "%Y-%m-%d")
                         .map_err(|_| self.invalid_syntax_err("Invalid date"))?;
                     Date::from_str(&s2, "%Y-%m-%d")
@@ -679,7 +679,7 @@ impl Parser {
                         if args.len() != 1 {
                             return Err(self.invalid_syntax_err("append expects one argument"));
                         }
-                        Node::new_append_with_values(expr, args[0])
+                        Node::new_append_with_values(expr, args[0].clone())
                     }
                     "mean" => {
                         if !args.is_empty() {
@@ -1037,8 +1037,8 @@ mod other_tests {
             children: vec![Node::new_asign_with_values(
                 Node::new_variable("a".to_string()),
                 Node::new_list_with_values(vec![Node::new_spot(
-                    Currency::try_from("USD").unwrap(),
-                    Currency::try_from("EUR").unwrap(),
+                    Currency::try_from("USD".to_string()).unwrap(),
+                    Currency::try_from("EUR".to_string()).unwrap(),
                     None,
                 )]),
             )],
@@ -1056,13 +1056,13 @@ mod other_tests {
 
         let list = Node::new_list_with_values(vec![
             Node::new_spot(
-                Currency::try_from("USD").unwrap(),
-                Currency::try_from("CLP").unwrap(),
+                Currency::try_from("USD".to_string()).unwrap(),
+                Currency::try_from("CLP".to_string()).unwrap(),
                 None,
             ),
             Node::new_spot(
-                Currency::try_from("USD").unwrap(),
-                Currency::try_from("EUR").unwrap(),
+                Currency::try_from("USD".to_string()).unwrap(),
+                Currency::try_from("EUR".to_string()).unwrap(),
                 None,
             ),
         ]);
@@ -1083,16 +1083,11 @@ mod other_tests {
         let parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
 
-        let list = Node::new_list_with_values(vec![
-            Node::new_constant(1.0),
-            Node::new_constant(2.0),
-        ]);
+        let list =
+            Node::new_list_with_values(vec![Node::new_constant(1.0), Node::new_constant(2.0)]);
         let expected = Node::Base(NodeData {
             children: vec![
-                Node::new_asign_with_values(
-                    Node::new_variable("vals".to_string()),
-                    list.clone(),
-                ),
+                Node::new_asign_with_values(Node::new_variable("vals".to_string()), list.clone()),
                 Node::new_asign_with_values(
                     Node::new_variable("avg".to_string()),
                     Node::new_mean_with_values(Node::new_variable("vals".to_string())),
@@ -1707,8 +1702,8 @@ mod test_function_args {
         let nodes = Parser::new(tokens).parse().unwrap();
 
         let spot = Node::new_spot(
-            Currency::try_from("CLP").unwrap(),
-            Currency::try_from("USD").unwrap(),
+            Currency::try_from("CLP".to_string()).unwrap(),
+            Currency::try_from("USD".to_string()).unwrap(),
             None,
         );
         let mut max = Node::new_max();
@@ -1868,7 +1863,7 @@ mod test_pays_expression {
     use rustatlas::currencies::enums::Currency;
 
     #[test]
-fn test_pays_as_expression() {
+    fn test_pays_as_expression() {
         let script = "
             call = pays max(Spot(\"CLP\", \"USD\") - 900.0, 0);
         "
@@ -1885,7 +1880,7 @@ fn test_pays_as_expression() {
                     Node::Pays(PaysData {
                         children: vec![Node::new_constant(100.0)],
                         date: Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
-                        currency: Some(Currency::try_from("EUR").unwrap()),
+                        currency: Some(Currency::try_from("EUR".to_string()).unwrap()),
                         id: None,
                         index_id: None,
                     }),
@@ -1968,7 +1963,7 @@ mod test_pays_assignment {
                     Node::Pays(PaysData {
                         children: vec![Node::new_constant(100.0)],
                         date: Some(Date::from_str("2025-06-30", "%Y-%m-%d").unwrap()),
-                        currency: Some(Currency::try_from("EUR").unwrap()),
+                        currency: Some(Currency::try_from("EUR".to_string()).unwrap()),
                         id: None,
                         index_id: None,
                     }),

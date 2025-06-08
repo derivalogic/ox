@@ -578,9 +578,9 @@ impl Node {
             Node::Index(data) => &data.children,
             Node::NotEqual(data) => &data.children,
             Node::Pays(data) => &data.children,
-            Node::ForEach(data) => panic!("Cannot get children from foreach node directly"),
             Node::Range(data) => &data.children,
             Node::List(data) => &data.children,
+            Node::ForEach(_) => panic!("Cannot get children from foreach node directly"),
             Node::Spot(_) => panic!("Cannot get children from spot node"),
             Node::Df(_) => panic!("Cannot get children from df node"),
             Node::RateIndex(_) => {
