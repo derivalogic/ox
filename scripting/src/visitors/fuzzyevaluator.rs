@@ -2,7 +2,7 @@
 use std::cell::{Cell, RefCell};
 
 use crate::prelude::*;
-use crate::visitors::evaluator::{SingleScenarioEvaluator, Value};
+use crate::visitors::evaluator::Value;
 use rustatlas::prelude::*;
 
 const EPS: f64 = 1.0e-12;
@@ -11,7 +11,15 @@ const ONE_MINUS_EPS: f64 = 0.999_999_999_999;
 /// Evaluator implementing the “simple fuzzy logic” mode described in
 /// `docs/AGENTS.md` (Antoine Savine, *Modern Computational Finance*).
 pub struct FuzzyEvaluator<'a> {
-    base: SingleScenarioEvaluator<'a>,
+    pub variables: RefCell<Vec<Value>>,
+    pub digit_stack: RefCell<Vec<NumericType>>,
+    pub boolean_stack: RefCell<Vec<bool>>,
+    pub string_stack: RefCell<Vec<String>>,
+    pub array_stack: RefCell<Vec<Vec<Value>>>,
+    pub is_lhs_variable: RefCell<bool>,
+    pub lhs_variable: RefCell<Option<Node>>,
+    scenario: Option<&'a Scenario>,
+    current_event: RefCell<usize>,
 
     /// Stack of truth degrees (`dt`) produced while evaluating conditions.
     dt_stack: RefCell<Vec<NumericType>>,
@@ -33,7 +41,15 @@ impl<'a> FuzzyEvaluator<'a> {
 
     pub fn new() -> Self {
         Self {
-            base: SingleScenarioEvaluator::new(),
+            variables: RefCell::new(Vec::new()),
+            digit_stack: RefCell::new(Vec::new()),
+            boolean_stack: RefCell::new(Vec::new()),
+            string_stack: RefCell::new(Vec::new()),
+            array_stack: RefCell::new(Vec::new()),
+            is_lhs_variable: RefCell::new(false),
+            lhs_variable: RefCell::new(None),
+            scenario: None,
+            current_event: RefCell::new(0),
             dt_stack: RefCell::new(Vec::new()),
             eps: EPS,
             var_store0: RefCell::new(Vec::new()),
@@ -48,19 +64,57 @@ impl<'a> FuzzyEvaluator<'a> {
     }
 
     pub fn with_scenario(mut self, scenario: &'a Scenario) -> Self {
-        self.base = self.base.with_scenario(scenario);
+        self.scenario = Some(scenario);
         self
     }
 
     /* ─────────────────────── public accessors ─────────────────────── */
 
     pub fn variables(&self) -> Vec<Value> {
-        self.base.variables()
+        self.variables.borrow().clone()
     }
 
     pub fn with_variables(mut self, n: usize) -> Self {
-        self.base = self.base.with_variables(n);
+        self.variables.borrow_mut().resize(n, Value::Null);
         self
+    }
+
+    pub fn with_current_event(mut self, event: usize) -> Self {
+        *self.current_event.borrow_mut() = event;
+        self
+    }
+
+    pub fn current_market_data(&self) -> Result<&SimulationData> {
+        let scenario = self
+            .scenario
+            .ok_or(ScriptingError::EvaluationError("No scenario set".into()))?;
+        scenario
+            .get(*self.current_event.borrow())
+            .ok_or(ScriptingError::EvaluationError("Event not found".into()))
+    }
+
+    pub fn current_event(&self) -> usize {
+        *self.current_event.borrow()
+    }
+
+    pub fn set_current_event(&self, event: usize) {
+        *self.current_event.borrow_mut() = event;
+    }
+
+    pub fn set_variable(&self, idx: usize, val: Value) {
+        let mut vars = self.variables.borrow_mut();
+        if idx >= vars.len() {
+            vars.resize(idx + 1, Value::Null);
+        }
+        vars[idx] = val;
+    }
+
+    pub fn digit_stack(&self) -> Vec<NumericType> {
+        self.digit_stack.borrow().clone()
+    }
+
+    pub fn boolean_stack(&self) -> Vec<bool> {
+        self.boolean_stack.borrow().clone()
     }
 
     /* ──────────────────────── fIf primitives ──────────────────────── */
@@ -116,7 +170,7 @@ impl<'a> FuzzyEvaluator<'a> {
     /// current `nested_if_lvl`.  Called **after** the level is incremented.
     fn ensure_level(&self) {
         let lvl = self.nested_if_lvl.get(); // 1-based inside an `if`
-        let n_vars = self.base.variables.borrow().len();
+        let n_vars = self.variables.borrow().len();
 
         let mut s0 = self.var_store0.borrow_mut();
         if s0.len() < lvl {
@@ -134,6 +188,192 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
 
     fn const_visit(&self, node: &Node) -> Self::Output {
         match node {
+            /* ─────────────── base / variables ─────────────── */
+            Node::Base(data) => {
+                for child in &data.children {
+                    self.const_visit(child)?;
+                }
+                Ok(())
+            }
+            Node::Variable(data) => {
+                let name = &data.name;
+                if *self.is_lhs_variable.borrow() {
+                    *self.lhs_variable.borrow_mut() = Some(node.clone());
+                    Ok(())
+                } else {
+                    match data.id {
+                        None => Err(ScriptingError::EvaluationError(format!(
+                            "Variable {} not indexed",
+                            name
+                        ))),
+                        Some(id) => {
+                            let vars = self.variables.borrow();
+                            let value = vars.get(id).unwrap();
+                            match value {
+                                Value::Number(v) => self.digit_stack.borrow_mut().push(*v),
+                                Value::Bool(v) => self.boolean_stack.borrow_mut().push(*v),
+                                Value::String(v) => self.string_stack.borrow_mut().push(v.clone()),
+                                Value::Array(a) => self.array_stack.borrow_mut().push(a.clone()),
+                                Value::Null => {
+                                    return Err(ScriptingError::EvaluationError(format!(
+                                        "Variable {} not initialized",
+                                        name
+                                    )))
+                                }
+                            }
+                            Ok(())
+                        }
+                    }
+                }
+            }
+
+            Node::Spot(data) => {
+                let id = data
+                    .id
+                    .ok_or(ScriptingError::EvaluationError("Spot not indexed".into()))?;
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError("No scenario set".into()))?
+                    .get(*self.current_event.borrow())
+                    .ok_or(ScriptingError::EvaluationError("Spot not found".into()))?;
+                self.digit_stack.borrow_mut().push(market_data.get_fx(id)?);
+                Ok(())
+            }
+            Node::Df(data) => {
+                let id = data
+                    .id
+                    .ok_or(ScriptingError::EvaluationError("Df not indexed".into()))?;
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError("No scenario set".into()))?
+                    .get(*self.current_event.borrow())
+                    .ok_or(ScriptingError::EvaluationError("Df not found".into()))?;
+                self.digit_stack.borrow_mut().push(market_data.get_df(id)?);
+                Ok(())
+            }
+            Node::RateIndex(data) => {
+                let id = data
+                    .id
+                    .ok_or(ScriptingError::EvaluationError("RateIndex not indexed".into()))?;
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError("No scenario set".into()))?
+                    .get(*self.current_event.borrow())
+                    .ok_or(ScriptingError::EvaluationError("RateIndex not found".into()))?;
+                self.digit_stack.borrow_mut().push(market_data.get_fwd(id)?);
+                Ok(())
+            }
+            Node::Pays(data) => {
+                for child in &data.children {
+                    self.const_visit(child)?;
+                }
+                let market_data = self
+                    .scenario
+                    .ok_or(ScriptingError::EvaluationError("No scenario set".into()))?
+                    .get(*self.current_event.borrow())
+                    .ok_or(ScriptingError::EvaluationError("Event not found".into()))?
+                    .clone();
+                let current_value = self.digit_stack.borrow_mut().pop().unwrap();
+                let df_id = data
+                    .df_id
+                    .ok_or(ScriptingError::EvaluationError("Pays not indexed".into()))?;
+                let df = market_data.get_df(df_id)?;
+                let numerarie = market_data.numerarie();
+                let value: NumericType = if data.currency.is_some() {
+                    let fx_id = data
+                        .spot_id
+                        .ok_or(ScriptingError::EvaluationError("Pays FX not indexed".into()))?;
+                    let fx = market_data.get_fx(fx_id)?;
+                    ((current_value * df * fx) / numerarie).into()
+                } else {
+                    ((current_value * df) / numerarie).into()
+                };
+                self.digit_stack.borrow_mut().push(value);
+                Ok(())
+            }
+            Node::Constant(data) => {
+                self.digit_stack.borrow_mut().push(data.const_value.into());
+                Ok(())
+            }
+            Node::String(value) => {
+                self.string_stack.borrow_mut().push(value.clone());
+                Ok(())
+            }
+
+            /* ─────────────── math ops ─────────────── */
+            Node::Add(data) => {
+                for child in &data.children {
+                    self.const_visit(child)?;
+                }
+                let right = self.digit_stack.borrow_mut().pop().unwrap();
+                let left = self.digit_stack.borrow_mut().pop().unwrap();
+                self.digit_stack.borrow_mut().push((left + right).into());
+                Ok(())
+            }
+            Node::Subtract(data) => {
+                for child in &data.children {
+                    self.const_visit(child)?;
+                }
+                let right = self.digit_stack.borrow_mut().pop().unwrap();
+                let left = self.digit_stack.borrow_mut().pop().unwrap();
+                self.digit_stack.borrow_mut().push((left - right).into());
+                Ok(())
+            }
+            Node::Multiply(data) => {
+                for child in &data.children {
+                    self.const_visit(child)?;
+                }
+                let right = self.digit_stack.borrow_mut().pop().unwrap();
+                let left = self.digit_stack.borrow_mut().pop().unwrap();
+                self.digit_stack.borrow_mut().push((left * right).into());
+                Ok(())
+            }
+            Node::Divide(data) => {
+                for child in &data.children {
+                    self.const_visit(child)?;
+                }
+                let right = self.digit_stack.borrow_mut().pop().unwrap();
+                let left = self.digit_stack.borrow_mut().pop().unwrap();
+                self.digit_stack.borrow_mut().push((left / right).into());
+                Ok(())
+            }
+            Node::Assign(data) => {
+                *self.is_lhs_variable.borrow_mut() = true;
+                self.const_visit(&data.children[0])?;
+                *self.is_lhs_variable.borrow_mut() = false;
+                self.const_visit(&data.children[1])?;
+
+                let variable = self.lhs_variable.borrow_mut().clone().unwrap();
+                if let Node::Variable(var_data) = variable {
+                    let id = var_data.id.ok_or(ScriptingError::EvaluationError(
+                        format!("Variable {} not indexed", var_data.name)))?;
+                    let mut vars = self.variables.borrow_mut();
+                    if !self.boolean_stack.borrow().is_empty() {
+                        vars[id] = Value::Bool(self.boolean_stack.borrow_mut().pop().unwrap());
+                    } else if !self.string_stack.borrow().is_empty() {
+                        vars[id] = Value::String(self.string_stack.borrow_mut().pop().unwrap());
+                    } else if !self.array_stack.borrow().is_empty() {
+                        vars[id] = Value::Array(self.array_stack.borrow_mut().pop().unwrap());
+                    } else {
+                        vars[id] = Value::Number(self.digit_stack.borrow_mut().pop().unwrap());
+                    }
+                    Ok(())
+                } else {
+                    Err(ScriptingError::EvaluationError("Invalid variable assignment".into()))
+                }
+            }
+            Node::NotEqual(data) => {
+                for child in &data.children {
+                    self.const_visit(child)?;
+                }
+                let right = self.digit_stack.borrow_mut().pop().unwrap();
+                let left = self.digit_stack.borrow_mut().pop().unwrap();
+                self.boolean_stack
+                    .borrow_mut()
+                    .push((right - left).abs() >= f64::EPSILON);
+                Ok(())
+            }
+
             /* ─────────────── literals ─────────────── */
             Node::True => {
                 self.dt_stack.borrow_mut().push(NumericType::one());
@@ -147,7 +387,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
             /* ─────────────── comparison ─────────────── */
             Node::Equal(data) => {
                 self.const_visit(&data.children[0])?;
-                let expr = self.base.digit_stack.borrow_mut().pop().unwrap();
+                let expr = self.digit_stack.borrow_mut().pop().unwrap();
 
                 // node-specific ε overrides the default when present
                 // let eps = data.eps.unwrap_or(self.eps);
@@ -164,7 +404,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
 
             Node::Superior(data) | Node::SuperiorOrEqual(data) => {
                 self.const_visit(&data.children[0])?;
-                let expr = self.base.digit_stack.borrow_mut().pop().unwrap();
+                let expr = self.digit_stack.borrow_mut().pop().unwrap();
 
                 // let eps = data.eps.unwrap_or(self.eps);
                 let eps = self.eps;
@@ -184,7 +424,8 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 self.const_visit(&data.children[1])?;
                 let b2 = self.dt_stack.borrow_mut().pop().unwrap();
                 let b1 = self.dt_stack.borrow_mut().pop().unwrap();
-                self.dt_stack.borrow_mut().push((b1 * b2).into());
+                let res: NumericType = (b1 * b2).into();
+                self.dt_stack.borrow_mut().push(res);
                 Ok(())
             }
             Node::Or(data) => {
@@ -192,17 +433,15 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 self.const_visit(&data.children[1])?;
                 let b2 = self.dt_stack.borrow_mut().pop().unwrap();
                 let b1 = self.dt_stack.borrow_mut().pop().unwrap();
-                self.dt_stack
-                    .borrow_mut()
-                    .push((b1 + b2 - (b1 * b2)).into());
+                let dt: NumericType = (b1 + b2 - (b1 * b2)).into();
+                self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
             Node::Not(data) => {
                 self.const_visit(&data.children[0])?;
                 let b = self.dt_stack.borrow_mut().pop().unwrap();
-                self.dt_stack
-                    .borrow_mut()
-                    .push((NumericType::one() - b).into());
+                let dt: NumericType = (NumericType::one() - b).into();
+                self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
 
@@ -238,7 +477,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                         let mut store0 = self.var_store0.borrow_mut();
                         let backup = &mut store0[self.nested_if_lvl.get() - 1];
                         data.affected_vars.iter().for_each(|&idx| {
-                            backup[idx] = match self.base.variables.borrow()[idx] {
+                            backup[idx] = match self.variables.borrow()[idx] {
                                 Value::Number(n) => n,
                                 _ => panic!("expected numeric var"),
                             }
@@ -254,7 +493,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                     {
                         let lvl = self.nested_if_lvl.get() - 1;
                         let mut s1 = self.var_store1.borrow_mut();
-                        let mut vars = self.base.variables.borrow_mut();
+                        let mut vars = self.variables.borrow_mut();
 
                         let store0 = &self.var_store0.borrow()[lvl];
                         let store1 = &mut s1[lvl];
@@ -281,7 +520,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                     {
                         let lvl = self.nested_if_lvl.get() - 1;
                         let store1 = &self.var_store1.borrow()[lvl];
-                        let mut vars = self.base.variables.borrow_mut();
+                        let mut vars = self.variables.borrow_mut();
 
                         data.affected_vars.iter().for_each(|&idx| {
                             let v_true = store1[idx];
@@ -301,9 +540,8 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 Ok(())
             }
 
-            /* ─────────────── fall-through ─────────────── */
-            Node::Assign(_) => self.base.const_visit(node),
-            _ => self.base.const_visit(node),
+            /* ─────────────── unhandled ─────────────── */
+            _ => Err(ScriptingError::EvaluationError("Node not implemented".into())),
         }
     }
 }
