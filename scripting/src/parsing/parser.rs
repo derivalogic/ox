@@ -430,7 +430,7 @@ impl Parser {
 
     /// Repeated??
     fn parse_condition_element(&self) -> Result<Node> {
-        let lhs = self.parse_expr_l2()?;
+        let lhs = self.parse_arith_expr()?;
 
         let comparator = self.current_token();
         match comparator {
@@ -441,7 +441,7 @@ impl Parser {
             | Token::SuperiorOrEqual
             | Token::InferiorOrEqual => {
                 self.advance();
-                let rhs = self.parse_expr_l2()?;
+                let rhs = self.parse_arith_expr()?;
                 let comparison_node = match comparator {
                     Token::Equal => Node::new_equal_with_values(lhs, rhs),
                     Token::NotEqual => Node::new_not_equal_with_values(lhs, rhs),
@@ -831,6 +831,28 @@ impl Parser {
                         _ => {
                             return Err(self.invalid_syntax_err("Invalid operator"));
                         }
+                    };
+                }
+            }
+        }
+        Ok(lhs)
+    }
+
+    /// Parse arithmetic expressions with `+` and `-` operators.
+    fn parse_arith_expr(&self) -> Result<Node> {
+        let mut lhs = self.parse_expr_l2()?;
+
+        while matches!(self.current_token(), Token::Plus | Token::Minus) {
+            let op = self.current_token();
+            self.advance();
+            match self.current_token() {
+                Token::EOF => return Err(self.invalid_syntax_err("Unexpected end of expression")),
+                _ => {
+                    let rhs = self.parse_expr_l2()?;
+                    lhs = match op {
+                        Token::Plus => Node::new_add_with_values(lhs, rhs),
+                        Token::Minus => Node::new_subtract_with_values(lhs, rhs),
+                        _ => unreachable!(),
                     };
                 }
             }
