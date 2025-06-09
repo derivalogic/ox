@@ -383,10 +383,11 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
             /* ─────────────── comparison ─────────────── */
             Node::Equal(data) => {
                 self.const_visit(&data.children[0])?;
-                let expr = self.digit_stack.borrow_mut().pop().unwrap();
+                self.const_visit(&data.children[1])?;
+                let right = self.digit_stack.borrow_mut().pop().unwrap();
+                let left = self.digit_stack.borrow_mut().pop().unwrap();
+                let expr: NumericType = (left - right).into();
 
-                // node-specific ε overrides the default when present
-                // let eps = data.eps.unwrap_or(self.eps);
                 let eps = self.eps;
 
                 let dt = if data.discrete {
@@ -400,9 +401,28 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
 
             Node::Superior(data) | Node::SuperiorOrEqual(data) => {
                 self.const_visit(&data.children[0])?;
-                let expr = self.digit_stack.borrow_mut().pop().unwrap();
+                self.const_visit(&data.children[1])?;
+                let right = self.digit_stack.borrow_mut().pop().unwrap();
+                let left = self.digit_stack.borrow_mut().pop().unwrap();
+                let expr: NumericType = (left - right).into();
 
-                // let eps = data.eps.unwrap_or(self.eps);
+                let eps = self.eps;
+                let dt = if data.discrete {
+                    self.c_spr_bounds(expr, data.lb, data.rb)
+                } else {
+                    self.c_spr(expr, eps)
+                };
+                self.dt_stack.borrow_mut().push(dt);
+                Ok(())
+            }
+
+            Node::Inferior(data) | Node::InferiorOrEqual(data) => {
+                self.const_visit(&data.children[0])?;
+                self.const_visit(&data.children[1])?;
+                let right = self.digit_stack.borrow_mut().pop().unwrap();
+                let left = self.digit_stack.borrow_mut().pop().unwrap();
+                let expr: NumericType = (right - left).into();
+
                 let eps = self.eps;
                 let dt = if data.discrete {
                     self.c_spr_bounds(expr, data.lb, data.rb)
