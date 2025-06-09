@@ -7,7 +7,7 @@ use std::{
 use crate::prelude::*;
 use crate::utils::errors::{Result, ScriptingError};
 
-use super::evaluator::{SingleScenarioEvaluator, Value};
+
 
 /// Visitor that collects undiscounted cashflows per currency for a single scenario.
 pub struct SingleScenarioCashflowCollector<'a> {
@@ -70,13 +70,9 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
                 let numerarie = market_data.numerarie();
 
                 // record undiscounted cashflow
-                let pay_date = data.date.unwrap_or(
-                    self.current_event_date
-                        .borrow()
-                        .ok_or(ScriptingError::EvaluationError(
-                            "Event date not set".to_string(),
-                        ))?,
-                );
+                let pay_date = data.date.unwrap_or(self.current_event_date.borrow().ok_or(
+                    ScriptingError::EvaluationError("Event date not set".to_string()),
+                )?);
                 let ccy = data.currency.unwrap_or(self.local_currency);
                 {
                     let mut map = self.cashflows.borrow_mut();
@@ -115,16 +111,10 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
             | Node::Mean(data)
             | Node::Std(data)
             | Node::UnaryPlus(data)
-            | Node::UnaryMinus(data)
-            | Node::Equal(data)
-            | Node::NotEqual(data)
+            | Node::UnaryMinus(data)            
             | Node::And(data)
             | Node::Or(data)
             | Node::Not(data)
-            | Node::Superior(data)
-            | Node::Inferior(data)
-            | Node::SuperiorOrEqual(data)
-            | Node::InferiorOrEqual(data)
             | Node::Range(data)
             | Node::List(data) => {
                 data.children
@@ -146,6 +136,17 @@ impl<'a> NodeConstVisitor for SingleScenarioCashflowCollector<'a> {
                 self.evaluator.const_visit(node)
             }
             Node::If(data) => {
+                data.children
+                    .iter()
+                    .try_for_each(|child| self.const_visit(child))?;
+                self.evaluator.const_visit(node)
+            }
+            | Node::Equal(data)
+            | Node::NotEqual(data)
+            | Node::Superior(data)
+            | Node::Inferior(data)
+            | Node::SuperiorOrEqual(data)
+            | Node::InferiorOrEqual(data) => {
                 data.children
                     .iter()
                     .try_for_each(|child| self.const_visit(child))?;
@@ -292,4 +293,3 @@ mod tests {
         assert!((amt - 100.0).abs() < f64::EPSILON);
     }
 }
-

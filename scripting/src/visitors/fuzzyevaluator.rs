@@ -1,3 +1,4 @@
+// src/visitors/evaluator/fuzzy_evaluator.rs
 use std::cell::{Cell, RefCell};
 
 use crate::prelude::*;
@@ -5,35 +6,39 @@ use crate::visitors::evaluator::{SingleScenarioEvaluator, Value};
 use rustatlas::prelude::*;
 
 const EPS: f64 = 1.0e-12;
-const ONE_MINUS_EPS: f64 = 0.999999999999;
+const ONE_MINUS_EPS: f64 = 0.999_999_999_999;
 
-/// Evaluator implementing a simple fuzzy logic mode using the
-/// `fIf` smoothing kernel described in `docs/AGENTS.md`.
-///
-/// The evaluator behaves like `SingleScenarioEvaluator` but logical
-/// operations return values in `[0,1]` and assignments inside `if`
-/// blocks are weighted by these probabilities.
+/// Evaluator implementing the “simple fuzzy logic” mode described in
+/// `docs/AGENTS.md` (Antoine Savine, *Modern Computational Finance*).
 pub struct FuzzyEvaluator<'a> {
     base: SingleScenarioEvaluator<'a>,
-    dt_stack: RefCell<Vec<NumericType>>, // condition truth values in [0,1]
+
+    /// Stack of truth degrees (`dt`) produced while evaluating conditions.
+    dt_stack: RefCell<Vec<NumericType>>,
+
+    /// Default smoothing width (ε) when a node does not override it.
     eps: f64,
-    var_store0: RefCell<Vec<Vec<Value>>>,
-    var_store1: RefCell<Vec<Vec<Value>>>,
+
+    /// Temporary variable stores per *nested-if* level.
+    /// `[level][var_index]`
+    var_store0: RefCell<Vec<Vec<NumericType>>>,
+    var_store1: RefCell<Vec<Vec<NumericType>>>,
+
+    /// Current *nested-if* depth (0 = outside any `if`).
     nested_if_lvl: Cell<usize>,
-    max_nested_ifs: Cell<usize>,
 }
 
 impl<'a> FuzzyEvaluator<'a> {
-    /// Create a new fuzzy evaluator with default epsilon = 1e-12.
+    /* ───────────────────────── constructors ───────────────────────── */
+
     pub fn new() -> Self {
         Self {
             base: SingleScenarioEvaluator::new(),
             dt_stack: RefCell::new(Vec::new()),
-            eps: 1e-12,
+            eps: EPS,
             var_store0: RefCell::new(Vec::new()),
             var_store1: RefCell::new(Vec::new()),
             nested_if_lvl: Cell::new(0),
-            max_nested_ifs: Cell::new(0),
         }
     }
 
@@ -42,75 +47,33 @@ impl<'a> FuzzyEvaluator<'a> {
         self
     }
 
-    /// Set market scenario for market-data dependent nodes.
     pub fn with_scenario(mut self, scenario: &'a Scenario) -> Self {
         self.base = self.base.with_scenario(scenario);
         self
     }
 
-    /// Pre-allocate variable storage.
-    pub fn with_variables(mut self, n: usize) -> Self {
-        self.base = self.base.with_variables(n);
+    /* ─────────────────────── public accessors ─────────────────────── */
 
-        let depth = self.max_nested_ifs.get();
-        {
-            let mut s0 = self.var_store0.borrow_mut();
-            s0.resize_with(depth, || vec![Value::Null; n]);
-            for vec in s0.iter_mut() {
-                vec.resize(n, Value::Null);
-            }
-        }
-        {
-            let mut s1 = self.var_store1.borrow_mut();
-            s1.resize_with(depth, || vec![Value::Null; n]);
-            for vec in s1.iter_mut() {
-                vec.resize(n, Value::Null);
-            }
-        }
-        self
-    }
-
-    /// Configure maximum nested `if` depth for variable storage.
-    pub fn with_max_nested_ifs(mut self, depth: usize) -> Self {
-        self.max_nested_ifs.set(depth);
-        let n = self.base.variables.borrow().len();
-        {
-            let mut s0 = self.var_store0.borrow_mut();
-            s0.resize_with(depth, || vec![Value::Null; n]);
-            for vec in s0.iter_mut() {
-                vec.resize(n, Value::Null);
-            }
-        }
-        {
-            let mut s1 = self.var_store1.borrow_mut();
-            s1.resize_with(depth, || vec![Value::Null; n]);
-            for vec in s1.iter_mut() {
-                vec.resize(n, Value::Null);
-            }
-        }
-        self
-    }
-
-    /// Current variables after evaluation.
     pub fn variables(&self) -> Vec<Value> {
         self.base.variables()
     }
 
-    /// Access numeric stack (mainly for tests).
-    pub fn digit_stack(&self) -> Vec<NumericType> {
-        self.base.digit_stack()
+    pub fn with_variables(mut self, n: usize) -> Self {
+        self.base = self.base.with_variables(n);
+        self
     }
 
-    fn fif(&self, x: NumericType, a: NumericType, b: NumericType) -> NumericType {
-        let half = self.eps * 0.5;
+    /* ──────────────────────── fIf primitives ──────────────────────── */
+
+    fn fif(&self, x: NumericType, a: NumericType, b: NumericType, eps: f64) -> NumericType {
+        let half = eps * 0.5;
         let inner = (x + half)
-            .min(NumericType::from(self.eps))
+            .min(NumericType::from(eps))
             .max(NumericType::zero());
-        let res = b.clone() + ((a - b) / self.eps) * inner;
-        res.into()
+        (b + ((a - b) / eps) * inner).into()
     }
 
-    // Call spread centred on 0 with width `eps`
+    /// Call-spread centred on 0, width `eps`.
     fn c_spr(&self, x: NumericType, eps: f64) -> NumericType {
         let half = eps * 0.5;
         ((x + half)
@@ -120,7 +83,7 @@ impl<'a> FuzzyEvaluator<'a> {
             .into()
     }
 
-    // Call spread between explicit bounds `lb` and `rb`
+    /// Call-spread on explicit bounds `[lb, rb]`.
     fn c_spr_bounds(&self, x: NumericType, lb: f64, rb: f64) -> NumericType {
         ((x - NumericType::from(lb))
             .min(NumericType::from(rb - lb))
@@ -129,14 +92,14 @@ impl<'a> FuzzyEvaluator<'a> {
             .into()
     }
 
-    // Butterfly centred on 0 with width `eps`
+    /// Butterfly centred on 0, width `eps`.
     fn bfly(&self, x: NumericType, eps: f64) -> NumericType {
         let half = eps * 0.5;
         let inner = NumericType::from(half) - x.abs();
         (inner.max(NumericType::zero()) / half).into()
     }
 
-    // Butterfly with explicit bounds `lb` < 0 < `rb`
+    /// Butterfly with explicit bounds `lb < 0 < rb`.
     fn bfly_bounds(&self, x: NumericType, lb: f64, rb: f64) -> NumericType {
         if x.value() < lb || x.value() > rb {
             NumericType::zero()
@@ -144,7 +107,24 @@ impl<'a> FuzzyEvaluator<'a> {
             (NumericType::one() - x / lb).into()
         } else {
             (NumericType::one() - x / rb).into()
+        }
+    }
 
+    /* ────────────────────────── utilities ─────────────────────────── */
+
+    /// Grows `var_store0`/`var_store1` so they contain a store for the
+    /// current `nested_if_lvl`.  Called **after** the level is incremented.
+    fn ensure_level(&self) {
+        let lvl = self.nested_if_lvl.get(); // 1-based inside an `if`
+        let n_vars = self.base.variables.borrow().len();
+
+        let mut s0 = self.var_store0.borrow_mut();
+        if s0.len() < lvl {
+            s0.push(vec![NumericType::zero(); n_vars]);
+        }
+        let mut s1 = self.var_store1.borrow_mut();
+        if s1.len() < lvl {
+            s1.push(vec![NumericType::zero(); n_vars]);
         }
     }
 }
@@ -154,6 +134,7 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
 
     fn const_visit(&self, node: &Node) -> Self::Output {
         match node {
+            /* ─────────────── literals ─────────────── */
             Node::True => {
                 self.dt_stack.borrow_mut().push(NumericType::one());
                 Ok(())
@@ -162,169 +143,165 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 self.dt_stack.borrow_mut().push(NumericType::zero());
                 Ok(())
             }
-            Node::Superior(data) => {
-                data.children.iter().try_for_each(|c| self.const_visit(c))?;
-                let right = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.c_spr((left - right).into(), self.eps);
-                self.dt_stack.borrow_mut().push(dt);
-                Ok(())
-            }
-            Node::Inferior(data) => {
-                data.children.iter().try_for_each(|c| self.const_visit(c))?;
-                let right = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.c_spr((right - left).into(), self.eps);
-                self.dt_stack.borrow_mut().push(dt);
-                Ok(())
-            }
-            Node::SuperiorOrEqual(data) => {
-                data.children.iter().try_for_each(|c| self.const_visit(c))?;
-                let right = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.c_spr((left - right).into(), self.eps);
-                self.dt_stack.borrow_mut().push(dt);
-                Ok(())
-            }
-            Node::InferiorOrEqual(data) => {
-                data.children.iter().try_for_each(|c| self.const_visit(c))?;
-                let right = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let dt = self.c_spr((right - left).into(), self.eps);
-                self.dt_stack.borrow_mut().push(dt);
-                Ok(())
-            }
+
+            /* ─────────────── comparison ─────────────── */
             Node::Equal(data) => {
-                data.children.iter().try_for_each(|c| self.const_visit(c))?;
-                let right = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let diff = (left - right).into();
-                let dt = self.bfly(diff, self.eps);
+                self.const_visit(&data.children[0])?;
+                let expr = self.base.digit_stack.borrow_mut().pop().unwrap();
 
+                // node-specific ε overrides the default when present
+                // let eps = data.eps.unwrap_or(self.eps);
+                let eps = self.eps;
+
+                let dt = if data.discrete {
+                    self.bfly_bounds(expr, data.lb, data.rb)
+                } else {
+                    self.bfly(expr, eps)
+                };
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
-            Node::NotEqual(data) => {
-                data.children.iter().try_for_each(|c| self.const_visit(c))?;
-                let right = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let left = self.base.digit_stack.borrow_mut().pop().unwrap();
-                let diff = (left - right).into();
-                let dt = NumericType::one() - self.bfly(diff, self.eps);
-                self.dt_stack.borrow_mut().push(dt.into());
 
+            Node::Superior(data) | Node::SuperiorOrEqual(data) => {
+                self.const_visit(&data.children[0])?;
+                let expr = self.base.digit_stack.borrow_mut().pop().unwrap();
+
+                // let eps = data.eps.unwrap_or(self.eps);
+                let eps = self.eps;
+
+                let dt = if data.discrete {
+                    self.c_spr_bounds(expr, data.lb, data.rb)
+                } else {
+                    self.c_spr(expr, eps)
+                };
+                self.dt_stack.borrow_mut().push(dt);
                 Ok(())
             }
+
+            /* ─────────────── combinators ─────────────── */
             Node::And(data) => {
-                data.children.iter().try_for_each(|c| self.const_visit(c))?;
-                let b = self.dt_stack.borrow_mut().pop().unwrap();
-                let mut binding = self.dt_stack.borrow_mut();
-                let a_ref = binding.last_mut().unwrap();
-                *a_ref = (*a_ref * b).into();
+                self.const_visit(&data.children[0])?;
+                self.const_visit(&data.children[1])?;
+                let b2 = self.dt_stack.borrow_mut().pop().unwrap();
+                let b1 = self.dt_stack.borrow_mut().pop().unwrap();
+                self.dt_stack.borrow_mut().push((b1 * b2).into());
                 Ok(())
             }
             Node::Or(data) => {
-                data.children.iter().try_for_each(|c| self.const_visit(c))?;
-                let b = self.dt_stack.borrow_mut().pop().unwrap();
-                let mut binding = self.dt_stack.borrow_mut();
-                let a_ref = binding.last_mut().unwrap();
-                *a_ref = (*a_ref + b - *a_ref * b).into();
+                self.const_visit(&data.children[0])?;
+                self.const_visit(&data.children[1])?;
+                let b2 = self.dt_stack.borrow_mut().pop().unwrap();
+                let b1 = self.dt_stack.borrow_mut().pop().unwrap();
+                self.dt_stack
+                    .borrow_mut()
+                    .push((b1 + b2 - (b1 * b2)).into());
                 Ok(())
             }
             Node::Not(data) => {
-                data.children.iter().try_for_each(|c| self.const_visit(c))?;
-                let mut binding = self.dt_stack.borrow_mut();
-                let top = binding.last_mut().unwrap();
-                *top = (NumericType::one() - *top).into();
+                self.const_visit(&data.children[0])?;
+                let b = self.dt_stack.borrow_mut().pop().unwrap();
+                self.dt_stack
+                    .borrow_mut()
+                    .push((NumericType::one() - b).into());
                 Ok(())
             }
+
+            /* ─────────────── if / else ─────────────── */
             Node::If(data) => {
-                // evaluate condition
+                // keep 1-based depth like the C++ code
+                self.nested_if_lvl.set(self.nested_if_lvl.get() + 1);
+                self.ensure_level();
+
+                /* ── evaluate condition ── */
+                let last_true = data.first_else.unwrap_or(data.children.len());
                 self.const_visit(&data.children[0])?;
                 let dt = self.dt_stack.borrow_mut().pop().unwrap();
-                let last = data.first_else.unwrap_or(data.children.len());
 
-                let lvl = self.nested_if_lvl.get();
-                self.nested_if_lvl.set(lvl + 1);
-
-                if dt.value() >= ONE_MINUS_EPS {
-                    for c in data.children.iter().skip(1).take(last - 1) {
+                /* ── dt ≈ true ── */
+                if dt.value() > ONE_MINUS_EPS {
+                    for c in data.children.iter().skip(1).take(last_true - 1) {
                         self.const_visit(c)?;
                     }
-                } else if dt.value() <= EPS {
+                }
+                /* ── dt ≈ false ── */
+                else if dt.value() < EPS {
                     if let Some(start) = data.first_else {
                         for c in data.children.iter().skip(start) {
                             self.const_visit(c)?;
-                        }
-                    }
-                } else {
-                    {
-                        let vars = self.base.variables.borrow();
-                        let mut store = self.var_store0.borrow_mut();
-                        if lvl >= store.len() {
-                            let n = vars.len();
-                            store.resize_with(lvl + 1, || vec![Value::Null; n]);
-                        }
-                        for &idx in &data.affected_vars {
-                            if idx >= store[lvl].len() {
-                                store[lvl].resize(idx + 1, Value::Null);
-                            }
-                            store[lvl][idx] = vars[idx].clone();
-                        }
-                    }
-
-                    for c in data.children.iter().skip(1).take(last - 1) {
-                        self.const_visit(c)?;
-                    }
-
-                    {
-                        let mut vars = self.base.variables.borrow_mut();
-                        let s0 = self.var_store0.borrow();
-                        let mut s1 = self.var_store1.borrow_mut();
-                        if lvl >= s1.len() {
-                            let n = vars.len();
-                            s1.resize_with(lvl + 1, || vec![Value::Null; n]);
-                        }
-                        for &idx in &data.affected_vars {
-                            if idx >= s1[lvl].len() {
-                                s1[lvl].resize(idx + 1, Value::Null);
-                            }
-                            s1[lvl][idx] = vars[idx].clone();
-                            vars[idx] = s0[lvl][idx].clone();
-                        }
-                    }
-
-                    if let Some(start) = data.first_else {
-                        for c in data.children.iter().skip(start) {
-                            self.const_visit(c)?;
-                        }
-                    }
-
-                    {
-                        let mut vars = self.base.variables.borrow_mut();
-                        let s1 = self.var_store1.borrow();
-                        for &idx in &data.affected_vars {
-                            let true_v = s1[lvl][idx].clone();
-                            let false_v = vars[idx].clone();
-                            vars[idx] = match (true_v, false_v) {
-                                (Value::Number(a), Value::Number(b)) => {
-                                    let new_val = a * dt + b * (NumericType::one() - dt);
-                                    Value::Number(new_val.into())
-                                }
-                                (t, f) => {
-                                    if dt.value() >= 0.5 {
-                                        t
-                                    } else {
-                                        f
-                                    }
-                                }
-                            };
                         }
                     }
                 }
+                /* ── fuzzy branch ── */
+                else {
+                    /* backup current values */
+                    {
+                        let mut store0 = self.var_store0.borrow_mut();
+                        let backup = &mut store0[self.nested_if_lvl.get() - 1];
+                        data.affected_vars.iter().for_each(|&idx| {
+                            backup[idx] = match self.base.variables.borrow()[idx] {
+                                Value::Number(n) => n,
+                                _ => panic!("expected numeric var"),
+                            }
+                        });
+                    }
 
-                self.nested_if_lvl.set(lvl);
+                    /* evaluate “then”-branch */
+                    for c in data.children.iter().skip(1).take(last_true - 1) {
+                        self.const_visit(c)?;
+                    }
+
+                    /* record “then” result and restore backup */
+                    {
+                        let lvl = self.nested_if_lvl.get() - 1;
+                        let mut s1 = self.var_store1.borrow_mut();
+                        let mut vars = self.base.variables.borrow_mut();
+
+                        let store0 = &self.var_store0.borrow()[lvl];
+                        let store1 = &mut s1[lvl];
+
+                        data.affected_vars.iter().for_each(|&idx| {
+                            /* record */
+                            store1[idx] = match vars[idx] {
+                                Value::Number(n) => n,
+                                _ => panic!("expected numeric var"),
+                            };
+                            /* restore */
+                            vars[idx] = Value::Number(store0[idx]);
+                        });
+                    }
+
+                    /* evaluate “else”-branch (if any) */
+                    if let Some(start) = data.first_else {
+                        for c in data.children.iter().skip(start) {
+                            self.const_visit(c)?;
+                        }
+                    }
+
+                    /* final fuzzy blend */
+                    {
+                        let lvl = self.nested_if_lvl.get() - 1;
+                        let store1 = &self.var_store1.borrow()[lvl];
+                        let mut vars = self.base.variables.borrow_mut();
+
+                        data.affected_vars.iter().for_each(|&idx| {
+                            let v_true = store1[idx];
+                            let v_false = match vars[idx] {
+                                Value::Number(n) => n,
+                                _ => panic!("expected numeric var"),
+                            };
+                            vars[idx] = Value::Number(
+                                (dt * v_true + (NumericType::one() - dt) * v_false).into(),
+                            );
+                        });
+                    }
+                }
+
+                /* leave this `if` */
+                self.nested_if_lvl.set(self.nested_if_lvl.get() - 1);
                 Ok(())
             }
+
+            /* ─────────────── fall-through ─────────────── */
             Node::Assign(_) => self.base.const_visit(node),
             _ => self.base.const_visit(node),
         }
@@ -348,10 +325,7 @@ mod tests {
         let processor = IfProcessor::new();
         processor.visit(&mut nodes).unwrap();
 
-        let evaluator = FuzzyEvaluator::new()
-            .with_variables(indexer.get_variables_size())
-            .with_max_nested_ifs(processor.max_nested_ifs());
-
+        let evaluator = FuzzyEvaluator::new().with_variables(indexer.get_variables_size());
         evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
@@ -375,9 +349,7 @@ mod tests {
         let processor = IfProcessor::new();
         processor.visit(&mut nodes).unwrap();
 
-        let evaluator = FuzzyEvaluator::new()
-            .with_variables(indexer.get_variables_size())
-            .with_max_nested_ifs(processor.max_nested_ifs());
+        let evaluator = FuzzyEvaluator::new().with_variables(indexer.get_variables_size());
 
         evaluator.const_visit(&nodes).unwrap();
 
@@ -406,9 +378,11 @@ mod tests {
         if_processor.visit(&mut script1_nodes).unwrap();
         let doman_processor = DomainProcessor::new(indexer.get_variables_size());
         doman_processor.visit(&mut script1_nodes).unwrap();
+
         let fuzzy_evaluator = FuzzyEvaluator::new()
-            .with_variables(indexer.get_variables_size())
-            .with_eps(1.0);
+            .with_eps(1.0)
+            .with_variables(indexer.get_variables_size());
+
         fuzzy_evaluator.const_visit(&script1_nodes).unwrap();
 
         let eval_vars = fuzzy_evaluator.variables();

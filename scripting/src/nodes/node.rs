@@ -192,15 +192,15 @@ pub enum Node {
     True,
     False,
 
-    Equal(NodeData),
-    NotEqual(NodeData),
+    Equal(CompData),
+    NotEqual(CompData),
     And(NodeData),
     Or(NodeData),
     Not(NodeData),
-    Superior(NodeData),
-    Inferior(NodeData),
-    SuperiorOrEqual(NodeData),
-    InferiorOrEqual(NodeData),
+    Superior(CompData),
+    Inferior(CompData),
+    SuperiorOrEqual(CompData),
+    InferiorOrEqual(CompData),
 
     // control flow
     If(IfData),
@@ -376,42 +376,42 @@ impl Node {
     }
 
     pub fn new_equal_with_values(left: Node, right: Node) -> Node {
-        let mut node = Node::Equal(NodeData::default());
+        let mut node = Node::Equal(CompData::default());
         node.add_child(left);
         node.add_child(right);
         node
     }
 
     pub fn new_not_equal_with_values(left: Node, right: Node) -> Node {
-        let mut node = Node::NotEqual(NodeData::default());
+        let mut node = Node::NotEqual(CompData::default());
         node.add_child(left);
         node.add_child(right);
         node
     }
 
     pub fn new_superior_with_values(left: Node, right: Node) -> Node {
-        let mut node = Node::Superior(NodeData::default());
+        let mut node = Node::Superior(CompData::default());
         node.add_child(left);
         node.add_child(right);
         node
     }
 
     pub fn new_inferior_with_values(left: Node, right: Node) -> Node {
-        let mut node = Node::Inferior(NodeData::default());
+        let mut node = Node::Inferior(CompData::default());
         node.add_child(left);
         node.add_child(right);
         node
     }
 
     pub fn new_superior_or_equal_with_values(left: Node, right: Node) -> Node {
-        let mut node = Node::SuperiorOrEqual(NodeData::default());
+        let mut node = Node::SuperiorOrEqual(CompData::default());
         node.add_child(left);
         node.add_child(right);
         node
     }
 
     pub fn new_inferior_or_equal_with_values(left: Node, right: Node) -> Node {
-        let mut node = Node::InferiorOrEqual(NodeData::default());
+        let mut node = Node::InferiorOrEqual(CompData::default());
         node.add_child(left);
         node.add_child(right);
         node
@@ -458,19 +458,19 @@ impl Node {
     }
 
     pub fn new_superior() -> Node {
-        Node::Superior(NodeData::default())
+        Node::Superior(CompData::default())
     }
 
     pub fn new_inferior() -> Node {
-        Node::Inferior(NodeData::default())
+        Node::Inferior(CompData::default())
     }
 
     pub fn new_superior_or_equal() -> Node {
-        Node::SuperiorOrEqual(NodeData::default())
+        Node::SuperiorOrEqual(CompData::default())
     }
 
     pub fn new_equal() -> Node {
-        Node::Equal(NodeData::default())
+        Node::Equal(CompData::default())
     }
 
     pub fn new_if() -> Node {
@@ -486,11 +486,11 @@ impl Node {
     }
 
     pub fn new_inferior_or_equal() -> Node {
-        Node::InferiorOrEqual(NodeData::default())
+        Node::InferiorOrEqual(CompData::default())
     }
 
     pub fn new_not_equal() -> Node {
-        Node::NotEqual(NodeData::default())
+        Node::NotEqual(CompData::default())
     }
 
     pub fn new_true() -> Node {
