@@ -538,6 +538,28 @@ impl Parser {
             return Ok(expr);
         }
 
+        // Unary operators
+        if self.current_token() == Token::Plus {
+            self.advance();
+            return self.parse_var_const_func();
+        }
+
+        if self.current_token() == Token::Minus {
+            self.advance();
+            match self.current_token() {
+                Token::Value(Some(v), None) => {
+                    self.advance();
+                    return Ok(Node::new_constant(-v));
+                }
+                _ => {
+                    let expr = self.parse_var_const_func()?;
+                    let mut node = Node::new_unary_minus();
+                    node.add_child(expr);
+                    return Ok(node);
+                }
+            }
+        }
+
         // List literal
         if self.current_token() == Token::OpenBracket {
             let list = self.parse_list()?;

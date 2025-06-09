@@ -4,4 +4,5 @@ pub mod domainprocessor;
 pub mod evaluator;
 pub mod fuzzyevaluator;
 pub mod ifprocessor;
+pub mod ifconditiontransform;
 pub mod varindexer;
