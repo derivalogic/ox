@@ -55,8 +55,8 @@ impl NodeVisitor for IfProcessor {
                 }
 
                 let vars = self.var_stack.borrow_mut().pop().unwrap();
-                let mut vec: Vec<usize> = vars.iter().cloned().collect();
-                vec.sort_unstable();
+                let vec: Vec<usize> = vars.iter().cloned().collect();
+                // vec.sort_unstable();
                 data.affected_vars = vec;
 
                 let lvl = lvl - 1;

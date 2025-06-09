@@ -946,6 +946,23 @@ mod other_tests {
     use crate::parsing::lexer::Lexer;
 
     #[test]
+    fn test_negative_expression() {
+        let script = "-5 + 3;".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+
+        let expected = Node::Base(NodeData {
+            children: vec![Node::new_add_with_values(
+                Node::new_constant(-5.0),
+                Node::new_constant(3.0),
+            )],
+        });
+
+        assert_eq!(ast, expected);
+    }
+
+    #[test]
     fn test_advance_token() {
         let tokens = Lexer::new("a = 1;".to_string()).tokenize().unwrap();
         let parser = Parser::new(tokens);
@@ -977,7 +994,7 @@ mod other_tests {
     }
 
     #[test]
-    fn test_parenthesised_expression() {
+    fn test_paren_expr() {
         let script = "avg = (s1 + s2) / 2.0;".to_string();
         let tokens = Lexer::new(script).tokenize().unwrap();
         let parser = Parser::new(tokens);

@@ -37,6 +37,16 @@ impl Tape {
         });
     }
 
+    pub fn debug_print() {
+        TAPE.with(|tc| {
+            let tape = tc.borrow();
+            for (i, &ptr) in tape.book.iter().enumerate() {
+                let node = unsafe { ptr.as_ref() };
+                println!("{}: {:?}", i, node);
+            }
+        });
+    }
+
     #[inline(always)]
     fn index_of(&self, p: NonNull<TapeNode>) -> Option<usize> {
         self.book.iter().position(|&q| q == p)

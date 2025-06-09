@@ -194,12 +194,14 @@ pub enum Node {
 
     Equal(CompData),
     NotEqual(CompData),
-    And(NodeData),
-    Or(NodeData),
-    Not(NodeData),
     Superior(CompData),
-    Inferior(CompData),
     SuperiorOrEqual(CompData),
+
+    And(BoolData),
+    Or(BoolData),
+    Not(BoolData),
+
+    Inferior(CompData),
     InferiorOrEqual(CompData),
 
     // control flow
@@ -356,21 +358,21 @@ impl Node {
     }
 
     pub fn new_and_with_values(left: Node, right: Node) -> Node {
-        let mut node = Node::And(NodeData::default());
+        let mut node = Node::And(BoolData::default());
         node.add_child(left);
         node.add_child(right);
         node
     }
 
     pub fn new_or_with_values(left: Node, right: Node) -> Node {
-        let mut node = Node::Or(NodeData::default());
+        let mut node = Node::Or(BoolData::default());
         node.add_child(left);
         node.add_child(right);
         node
     }
 
     pub fn new_not_with_value(value: Node) -> Node {
-        let mut node = Node::Not(NodeData::default());
+        let mut node = Node::Not(BoolData::default());
         node.add_child(value);
         node
     }
@@ -446,15 +448,15 @@ impl Node {
     }
 
     pub fn new_and() -> Node {
-        Node::And(NodeData::default())
+        Node::And(BoolData::default())
     }
 
     pub fn new_or() -> Node {
-        Node::Or(NodeData::default())
+        Node::Or(BoolData::default())
     }
 
     pub fn new_not() -> Node {
-        Node::Not(NodeData::default())
+        Node::Not(BoolData::default())
     }
 
     pub fn new_superior() -> Node {

@@ -39,9 +39,15 @@ pub struct FuzzyEvaluator<'a> {
 impl<'a> FuzzyEvaluator<'a> {
     /* ───────────────────────── constructors ───────────────────────── */
 
-    pub fn new() -> Self {
+    pub fn new(n_vars: usize, max_nested_ifs: usize) -> Self {
+        let mut var_store0 = Vec::with_capacity(max_nested_ifs);
+        let mut var_store1 = Vec::with_capacity(max_nested_ifs);
+        for _ in 0..max_nested_ifs {
+            var_store0.push(vec![NumericType::zero(); n_vars]);
+            var_store1.push(vec![NumericType::zero(); n_vars]);
+        }
         Self {
-            variables: RefCell::new(Vec::new()),
+            variables: RefCell::new(vec![Value::Null; n_vars]),
             digit_stack: RefCell::new(Vec::new()),
             boolean_stack: RefCell::new(Vec::new()),
             string_stack: RefCell::new(Vec::new()),
@@ -52,8 +58,8 @@ impl<'a> FuzzyEvaluator<'a> {
             current_event: RefCell::new(0),
             dt_stack: RefCell::new(Vec::new()),
             eps: EPS,
-            var_store0: RefCell::new(Vec::new()),
-            var_store1: RefCell::new(Vec::new()),
+            var_store0: RefCell::new(var_store0),
+            var_store1: RefCell::new(var_store1),
             nested_if_lvl: Cell::new(0),
         }
     }
@@ -151,24 +157,6 @@ impl<'a> FuzzyEvaluator<'a> {
             (NumericType::one() - x / lb).into()
         } else {
             (NumericType::one() - x / rb).into()
-        }
-    }
-
-    /* ────────────────────────── utilities ─────────────────────────── */
-
-    /// Grows `var_store0`/`var_store1` so they contain a store for the
-    /// current `nested_if_lvl`.  Called **after** the level is incremented.
-    fn ensure_level(&self) {
-        let lvl = self.nested_if_lvl.get(); // 1-based inside an `if`
-        let n_vars = self.variables.borrow().len();
-
-        let mut s0 = self.var_store0.borrow_mut();
-        if s0.len() < lvl {
-            s0.push(vec![NumericType::zero(); n_vars]);
-        }
-        let mut s1 = self.var_store1.borrow_mut();
-        if s1.len() < lvl {
-            s1.push(vec![NumericType::zero(); n_vars]);
         }
     }
 }
@@ -416,23 +404,6 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 Ok(())
             }
 
-            Node::Inferior(data) | Node::InferiorOrEqual(data) => {
-                self.const_visit(&data.children[0])?;
-                self.const_visit(&data.children[1])?;
-                let right = self.digit_stack.borrow_mut().pop().unwrap();
-                let left = self.digit_stack.borrow_mut().pop().unwrap();
-                let expr: NumericType = (right - left).into();
-
-                let eps = self.eps;
-                let dt = if data.discrete {
-                    self.c_spr_bounds(expr, data.lb, data.rb)
-                } else {
-                    self.c_spr(expr, eps)
-                };
-                self.dt_stack.borrow_mut().push(dt);
-                Ok(())
-            }
-
             /* ─────────────── combinators ─────────────── */
             Node::And(data) => {
                 self.const_visit(&data.children[0])?;
@@ -464,16 +435,15 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
             Node::If(data) => {
                 // keep 1-based depth like the C++ code
                 self.nested_if_lvl.set(self.nested_if_lvl.get() + 1);
-                self.ensure_level();
+                let last_true = data.first_else.unwrap_or(data.children.len()) - 1;
 
                 /* ── evaluate condition ── */
-                let last_true = data.first_else.unwrap_or(data.children.len());
                 self.const_visit(&data.children[0])?;
                 let dt = self.dt_stack.borrow_mut().pop().unwrap();
 
                 /* ── dt ≈ true ── */
                 if dt.value() > ONE_MINUS_EPS {
-                    for c in data.children.iter().skip(1).take(last_true - 1) {
+                    for c in data.children.iter().skip(1).take(last_true) {
                         self.const_visit(c)?;
                     }
                 }
@@ -488,41 +458,32 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                 /* ── fuzzy branch ── */
                 else {
                     /* backup current values */
-                    {
-                        let mut store0 = self.var_store0.borrow_mut();
-                        let backup = &mut store0[self.nested_if_lvl.get() - 1];
-                        data.affected_vars.iter().for_each(|&idx| {
-                            backup[idx] = match self.variables.borrow()[idx] {
-                                Value::Number(n) => n,
-                                _ => panic!("expected numeric var"),
-                            }
-                        });
-                    }
+
+                    let store0 = &mut self.var_store0.borrow_mut()[self.nested_if_lvl.get() - 1];
+
+                    data.affected_vars.iter().for_each(|&idx| {
+                        store0[idx] = match self.variables.borrow()[idx] {
+                            Value::Number(n) => n,
+                            _ => panic!("expected numeric var"),
+                        }
+                    });
 
                     /* evaluate “then”-branch */
-                    for c in data.children.iter().skip(1).take(last_true - 1) {
+                    for c in data.children.iter().skip(1).take(last_true) {
                         self.const_visit(c)?;
                     }
 
                     /* record “then” result and restore backup */
-                    {
-                        let lvl = self.nested_if_lvl.get() - 1;
-                        let mut s1 = self.var_store1.borrow_mut();
-                        let mut vars = self.variables.borrow_mut();
 
-                        let store0 = &self.var_store0.borrow()[lvl];
-                        let store1 = &mut s1[lvl];
-
-                        data.affected_vars.iter().for_each(|&idx| {
-                            /* record */
-                            store1[idx] = match vars[idx] {
-                                Value::Number(n) => n,
-                                _ => panic!("expected numeric var"),
-                            };
-                            /* restore */
-                            vars[idx] = Value::Number(store0[idx]);
-                        });
-                    }
+                    let store1 = &mut self.var_store1.borrow_mut()[self.nested_if_lvl.get() - 1];
+                    data.affected_vars.iter().for_each(|&idx| {
+                        let v = match self.variables.borrow()[idx] {
+                            Value::Number(n) => n,
+                            _ => panic!("expected numeric var"),
+                        };
+                        store1[idx] = v;
+                        self.variables.borrow_mut()[idx] = Value::Number(store0[idx]);
+                    });
 
                     /* evaluate “else”-branch (if any) */
                     if let Some(start) = data.first_else {
@@ -532,23 +493,16 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                     }
 
                     /* final fuzzy blend */
-                    {
-                        let lvl = self.nested_if_lvl.get() - 1;
-                        let store1 = &self.var_store1.borrow()[lvl];
-                        let mut vars = self.variables.borrow_mut();
 
-                        data.affected_vars.iter().for_each(|&idx| {
-                            let v_true = store1[idx];
-                            let v_false = match vars[idx] {
-                                Value::Number(n) => n,
-                                _ => panic!("expected numeric var"),
-                            };
-                            let v = Value::Number(
-                                (dt * v_true + (NumericType::one() - dt) * v_false).into(),
-                            );
-                            vars[idx] = v;
-                        });
-                    }
+                    data.affected_vars.iter().for_each(|&idx| {
+                        let v_true = store1[idx];
+                        let v_false = match self.variables.borrow()[idx] {
+                            Value::Number(n) => n,
+                            _ => panic!("expected numeric var"),
+                        };
+                        let v = Value::Number((dt * v_true + (-dt + 1.0) * v_false).into());
+                        self.variables.borrow_mut()[idx] = v;
+                    });
                 }
 
                 /* leave this `if` */
@@ -581,7 +535,8 @@ mod tests {
         let processor = IfProcessor::new();
         processor.visit(&mut nodes).unwrap();
 
-        let evaluator = FuzzyEvaluator::new().with_variables(indexer.get_variables_size());
+        let evaluator =
+            FuzzyEvaluator::new(indexer.get_variables_size(), processor.max_nested_ifs());
         evaluator.const_visit(&nodes).unwrap();
 
         assert_eq!(
@@ -605,7 +560,8 @@ mod tests {
         let processor = IfProcessor::new();
         processor.visit(&mut nodes).unwrap();
 
-        let evaluator = FuzzyEvaluator::new().with_variables(indexer.get_variables_size());
+        let evaluator =
+            FuzzyEvaluator::new(indexer.get_variables_size(), processor.max_nested_ifs());
 
         evaluator.const_visit(&nodes).unwrap();
 
@@ -616,17 +572,39 @@ mod tests {
     }
 
     #[test]
+    fn test_simple_if_condition2() {
+        let script = "x = 0; if x-1 > 0 { x = 2; }".to_string();
+        let tokens = Lexer::new(script).tokenize().unwrap();
+        let mut nodes = Parser::new(tokens).parse().unwrap();
+
+        let indexer = VarIndexer::new();
+        indexer.visit(&mut nodes).unwrap();
+
+        let processor = IfProcessor::new();
+        processor.visit(&mut nodes).unwrap();
+
+        let evaluator =
+            FuzzyEvaluator::new(indexer.get_variables_size(), processor.max_nested_ifs());
+
+        evaluator.const_visit(&nodes).unwrap();
+
+        assert_eq!(
+            evaluator.variables(),
+            vec![Value::Number(NumericType::new(0.0))]
+        );
+    }
+
+    #[test]
     fn test_fuzzy_case() {
         Tape::start_recording();
 
-        let script1 = "x = 0; y=0; if x > 0 { y = 1; } else { y = 0; }".to_string();
+        let script1 = "x = 0.0; y = 0; if x > 0 { y = 1; }".to_string();
         let tokens = Lexer::new(script1).tokenize().unwrap();
         let mut script1_nodes = Parser::new(tokens).parse().unwrap();
 
         let script2 = "x = 0; y = fif(x,1,0,1);".to_string();
         let tokens2 = Lexer::new(script2).tokenize().unwrap();
         let mut script2_nodes = Parser::new(tokens2).parse().unwrap();
-
         let indexer = VarIndexer::new();
         indexer.visit(&mut script1_nodes).unwrap();
 
@@ -635,24 +613,29 @@ mod tests {
         let domain_processor = DomainProcessor::new(indexer.get_variables_size());
         domain_processor.visit(&mut script1_nodes).unwrap();
 
-        let fuzzy_evaluator = FuzzyEvaluator::new()
-            .with_eps(1.0)
-            .with_variables(indexer.get_variables_size());
+        let fuzzy_evaluator =
+            FuzzyEvaluator::new(indexer.get_variables_size(), if_processor.max_nested_ifs())
+                .with_eps(1.0);
 
         fuzzy_evaluator.const_visit(&script1_nodes).unwrap();
 
         let eval_vars = fuzzy_evaluator.variables();
         match eval_vars.get(1).unwrap() {
             Value::Number(n) => {
+                println!("y = {:?}", n);
                 n.backward().unwrap();
             }
             _ => panic!("Expected y to be a number"),
         }
 
         let result = match eval_vars.get(0).unwrap() {
-            Value::Number(n) => n.adjoint().unwrap(),
+            Value::Number(n) => {
+                println!("x = {:?}", n);
+                n.adjoint().unwrap()
+            }
             _ => panic!("Expected x to be a number"),
         };
+        Tape::debug_print();
 
         indexer.clear();
         indexer.visit(&mut script2_nodes).unwrap();
@@ -660,7 +643,8 @@ mod tests {
         evaluator.const_visit(&script2_nodes).unwrap();
 
         let eval_vars2 = evaluator.variables();
-        match eval_vars2.get(1).unwrap() {
+
+        match eval_vars2.get(0).unwrap() {
             Value::Number(n) => {
                 n.backward().unwrap();
             }
@@ -671,6 +655,7 @@ mod tests {
             _ => panic!("Expected fif result to be a number"),
         };
         assert!((result - result2).abs() < 1e-6, "Results do not match");
+
         Tape::stop_recording();
     }
 }

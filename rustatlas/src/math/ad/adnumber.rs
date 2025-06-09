@@ -52,18 +52,6 @@ impl ToNumeric<f64> for f64 {
     }
 }
 
-impl fmt::Debug for ADNumber {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ADNumber({})", self.val)
-    }
-}
-
-impl fmt::Display for ADNumber {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ADNumber({})", self.val)
-    }
-}
-
 /* ---- ADNumber  ↔  f64 -------------------------------------------- */
 
 impl ToNumeric<f64> for ADNumber {
@@ -108,6 +96,18 @@ pub trait Expr: Clone {
 pub struct ADNumber {
     val: f64,
     node: Option<NonNull<TapeNode>>,
+}
+
+impl fmt::Debug for ADNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ADNumber({}, Node: {:?})", self.val, self.node)
+    }
+}
+
+impl fmt::Display for ADNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ADNumber({})", self.val)
+    }
 }
 
 unsafe impl Sync for ADNumber {}
@@ -1432,5 +1432,23 @@ mod tests {
         out.backward().unwrap();
         assert_eq!(x.adjoint().unwrap(), 1.0);
         assert_eq!(out.adjoint().unwrap(), 1.0);
+    }
+
+    #[test]
+    fn test_reassigning() {
+        Tape::start_recording();
+
+        let a0 = ADNumber::new(5.0); // keep an immutable handle to the leaf
+        let b = ADNumber::new(3.0);
+        let mut a = a0; // mutable alias
+        a *= b; // 5 * 3 = 15
+        let c = a;
+        assert_eq!(c.value(), 15.0); // value is correct
+
+        c.backward().unwrap();
+
+        assert_eq!(a0.adjoint().unwrap(), 3.0); // ∂c/∂a0  = b = 3
+        assert_eq!(b.adjoint().unwrap(), 5.0); // ∂c/∂b   = a0 = 5
+        assert_eq!(c.adjoint().unwrap(), 1.0); // seed stays 1
     }
 }

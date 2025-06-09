@@ -1,4 +1,4 @@
-use std::ptr::NonNull;
+use std::{fmt, ptr::NonNull};
 
 /// A node in the reverse-mode tape.
 ///
@@ -10,6 +10,16 @@ pub struct TapeNode {
     pub childs: Vec<NonNull<TapeNode>>, // ← was Vec<usize>
     pub derivs: Vec<f64>,               // ∂parent / ∂child
     pub adj: f64,
+}
+
+impl fmt::Debug for TapeNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "TapeNode {{ addr: {:?}, childs: {:?}, derivs: {:?}, adj: {} }}",
+            self as *const Self as *const (), self.childs, self.derivs, self.adj
+        )
+    }
 }
 
 impl Default for TapeNode {
