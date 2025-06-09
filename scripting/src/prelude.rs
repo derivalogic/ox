@@ -5,7 +5,7 @@ pub use crate::{
     parsing::{lexer::*, parser::*},
     utils::errors::*,
     visitors::{
-        cashflowcollector::*, checklinearity::*, domainprocessor::*, evaluator::*,
-        fuzzyevaluator::*, ifprocessor::*, varindexer::*,
+        cashflowcollector::*, domainprocessor::*, evaluator::*, fuzzyevaluator::*, ifprocessor::*,
+        varindexer::*,
     },
 };
