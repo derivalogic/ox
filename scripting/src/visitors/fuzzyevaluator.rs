@@ -1,4 +1,3 @@
-// src/visitors/evaluator/fuzzy_evaluator.rs
 use std::cell::{Cell, RefCell};
 
 use crate::prelude::*;
@@ -6,18 +5,16 @@ use crate::visitors::evaluator::Value;
 use rustatlas::prelude::*;
 
 const EPS: f64 = 1.0e-12;
-const ONE_MINUS_EPS: f64 = 0.999_999_999_999;
+const ONE_MINUS_EPS: f64 = 1.0 - EPS;
 
-/// Evaluator implementing the “simple fuzzy logic” mode described in
-/// `docs/AGENTS.md` (Antoine Savine, *Modern Computational Finance*).
 pub struct FuzzyEvaluator<'a> {
-    pub variables: RefCell<Vec<Value>>,
-    pub digit_stack: RefCell<Vec<NumericType>>,
-    pub boolean_stack: RefCell<Vec<bool>>,
-    pub string_stack: RefCell<Vec<String>>,
-    pub array_stack: RefCell<Vec<Vec<Value>>>,
-    pub is_lhs_variable: RefCell<bool>,
-    pub lhs_variable: RefCell<Option<Node>>,
+    variables: RefCell<Vec<Value>>,
+    digit_stack: RefCell<Vec<NumericType>>,
+    boolean_stack: RefCell<Vec<bool>>,
+    string_stack: RefCell<Vec<String>>,
+    array_stack: RefCell<Vec<Vec<Value>>>,
+    is_lhs_variable: RefCell<bool>,
+    lhs_variable: RefCell<Option<Node>>,
     scenario: Option<&'a Scenario>,
     current_event: RefCell<usize>,
 
@@ -126,34 +123,41 @@ impl<'a> FuzzyEvaluator<'a> {
     /// Call-spread centred on 0, width `eps`.
     fn c_spr(&self, x: NumericType, eps: f64) -> NumericType {
         let half = eps * 0.5;
-        ((x + half)
-            .min(NumericType::from(eps))
-            .max(NumericType::zero())
-            / eps)
-            .into()
+        if x < -half {
+            NumericType::zero()
+        } else if x > half {
+            NumericType::one()
+        } else {
+            ((x + half) / eps).into()
+        }
     }
 
     /// Call-spread on explicit bounds `[lb, rb]`.
     fn c_spr_bounds(&self, x: NumericType, lb: f64, rb: f64) -> NumericType {
-        ((x - NumericType::from(lb))
-            .min(NumericType::from(rb - lb))
-            .max(NumericType::zero())
-            / (rb - lb))
-            .into()
+        if x < lb {
+            NumericType::zero()
+        } else if x > rb {
+            NumericType::one()
+        } else {
+            ((x - lb) / (rb - lb)).into()
+        }
     }
 
     /// Butterfly centred on 0, width `eps`.
     fn bfly(&self, x: NumericType, eps: f64) -> NumericType {
         let half = eps * 0.5;
-        let inner = NumericType::from(half) - x.abs();
-        (inner.max(NumericType::zero()) / half).into()
+        if x < -half || x > half {
+            NumericType::zero()
+        } else {
+            ((-x.abs() + half) / half).into()
+        }
     }
 
     /// Butterfly with explicit bounds `lb < 0 < rb`.
     fn bfly_bounds(&self, x: NumericType, lb: f64, rb: f64) -> NumericType {
-        if x.value() < lb || x.value() > rb {
+        if x < lb || x > rb {
             NumericType::zero()
-        } else if x.value() < 0.0 {
+        } else if x < 0.0 {
             (NumericType::one() - x / lb).into()
         } else {
             (NumericType::one() - x / rb).into()
@@ -204,7 +208,6 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                     }
                 }
             }
-
             Node::Spot(data) => {
                 let id = data
                     .id
@@ -371,17 +374,12 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
             /* ─────────────── comparison ─────────────── */
             Node::Equal(data) => {
                 self.const_visit(&data.children[0])?;
-                self.const_visit(&data.children[1])?;
-                let right = self.digit_stack.borrow_mut().pop().unwrap();
-                let left = self.digit_stack.borrow_mut().pop().unwrap();
-                let expr: NumericType = (left - right).into();
-
-                let eps = self.eps;
+                let expr = self.digit_stack.borrow_mut().pop().unwrap();
 
                 let dt = if data.discrete {
                     self.bfly_bounds(expr, data.lb, data.rb)
                 } else {
-                    self.bfly(expr, eps)
+                    self.bfly(expr, self.eps)
                 };
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
@@ -389,16 +387,12 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
 
             Node::Superior(data) | Node::SuperiorOrEqual(data) => {
                 self.const_visit(&data.children[0])?;
-                self.const_visit(&data.children[1])?;
-                let right = self.digit_stack.borrow_mut().pop().unwrap();
-                let left = self.digit_stack.borrow_mut().pop().unwrap();
-                let expr: NumericType = (left - right).into();
+                let expr = self.digit_stack.borrow_mut().pop().unwrap();
 
-                let eps = self.eps;
                 let dt = if data.discrete {
                     self.c_spr_bounds(expr, data.lb, data.rb)
                 } else {
-                    self.c_spr(expr, eps)
+                    self.c_spr(expr, self.eps)
                 };
                 self.dt_stack.borrow_mut().push(dt);
                 Ok(())
@@ -602,7 +596,7 @@ mod tests {
         let tokens = Lexer::new(script1).tokenize().unwrap();
         let mut script1_nodes = Parser::new(tokens).parse().unwrap();
 
-        let script2 = "x = 0; y = fif(x,1,0,1);".to_string();
+        let script2 = "x = 0; y = fif(x,1,0,0.0001);".to_string();
         let tokens2 = Lexer::new(script2).tokenize().unwrap();
         let mut script2_nodes = Parser::new(tokens2).parse().unwrap();
         let indexer = VarIndexer::new();
@@ -615,7 +609,7 @@ mod tests {
 
         let fuzzy_evaluator =
             FuzzyEvaluator::new(indexer.get_variables_size(), if_processor.max_nested_ifs())
-                .with_eps(1.0);
+                .with_eps(0.0001);
 
         fuzzy_evaluator.const_visit(&script1_nodes).unwrap();
 
@@ -635,7 +629,6 @@ mod tests {
             }
             _ => panic!("Expected x to be a number"),
         };
-        Tape::debug_print();
 
         indexer.clear();
         indexer.visit(&mut script2_nodes).unwrap();
@@ -654,7 +647,10 @@ mod tests {
             Value::Number(n) => n.adjoint().unwrap(),
             _ => panic!("Expected fif result to be a number"),
         };
-        assert!((result - result2).abs() < 1e-6, "Results do not match");
+        assert!(
+            (result  - result2).abs() < 1e-6,
+            "Results do not match"
+        );
 
         Tape::stop_recording();
     }
