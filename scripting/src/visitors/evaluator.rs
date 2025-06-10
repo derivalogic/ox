@@ -598,9 +598,9 @@ impl<'a> NodeConstVisitor for SingleScenarioEvaluator<'a> {
                 let a = self.digit_stack.borrow_mut().pop().unwrap();
                 let x = self.digit_stack.borrow_mut().pop().unwrap();
 
-                let half = eps.clone() * 0.5;
-                let inner = (x + half).min(eps.clone()).max(NumericType::zero());
-                let res = b.clone() + ((a - b) / eps) * inner;
+                let half = eps * 0.5;
+                let inner = (x + half).min(eps).max(NumericType::zero());
+                let res = b + ((a - b) / eps) * inner;
                 self.digit_stack.borrow_mut().push(res.into());
 
                 Ok(())

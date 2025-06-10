@@ -487,7 +487,6 @@ impl<'a> NodeConstVisitor for FuzzyEvaluator<'a> {
                     }
 
                     /* final fuzzy blend */
-
                     data.affected_vars.iter().for_each(|&idx| {
                         let v_true = store1[idx];
                         let v_false = match self.variables.borrow()[idx] {
@@ -592,13 +591,10 @@ mod tests {
     fn test_fuzzy_case() {
         Tape::start_recording();
 
-        let script1 = "x = 0.0; y = 0; if x > 0 { y = 1; }".to_string();
+        let script1 = "x = 0; y = 0; if x > 0 { y = 1; }".to_string();
         let tokens = Lexer::new(script1).tokenize().unwrap();
         let mut script1_nodes = Parser::new(tokens).parse().unwrap();
 
-        let script2 = "x = 0; y = fif(x,1,0,0.0001);".to_string();
-        let tokens2 = Lexer::new(script2).tokenize().unwrap();
-        let mut script2_nodes = Parser::new(tokens2).parse().unwrap();
         let indexer = VarIndexer::new();
         indexer.visit(&mut script1_nodes).unwrap();
 
@@ -609,48 +605,30 @@ mod tests {
 
         let fuzzy_evaluator =
             FuzzyEvaluator::new(indexer.get_variables_size(), if_processor.max_nested_ifs())
-                .with_eps(0.0001);
+                .with_eps(1.0);
 
         fuzzy_evaluator.const_visit(&script1_nodes).unwrap();
 
         let eval_vars = fuzzy_evaluator.variables();
-        match eval_vars.get(1).unwrap() {
+        let y = match eval_vars.get(1).unwrap() {
             Value::Number(n) => {
-                println!("y = {:?}", n);
+                // println!("y = {:?}", n);
                 n.backward().unwrap();
+                n.value()
             }
             _ => panic!("Expected y to be a number"),
-        }
+        };
 
         let result = match eval_vars.get(0).unwrap() {
             Value::Number(n) => {
-                println!("x = {:?}", n);
+                // println!("x = {:?}", n);
                 n.adjoint().unwrap()
             }
             _ => panic!("Expected x to be a number"),
         };
 
-        indexer.clear();
-        indexer.visit(&mut script2_nodes).unwrap();
-        let evaluator = SingleScenarioEvaluator::new().with_variables(indexer.get_variables_size());
-        evaluator.const_visit(&script2_nodes).unwrap();
-
-        let eval_vars2 = evaluator.variables();
-
-        match eval_vars2.get(0).unwrap() {
-            Value::Number(n) => {
-                n.backward().unwrap();
-            }
-            _ => panic!("Expected x to be a number"),
-        }
-        let result2 = match eval_vars2.get(0).unwrap() {
-            Value::Number(n) => n.adjoint().unwrap(),
-            _ => panic!("Expected fif result to be a number"),
-        };
-        assert!(
-            (result  - result2).abs() < 1e-6,
-            "Results do not match"
-        );
+        assert!((result - 1.0).abs() < 1e-12, "Results do not match");
+        assert!((y - 0.5).abs() < 1e-12, "y should be 0.5");
 
         Tape::stop_recording();
     }
