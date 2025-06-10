@@ -3,9 +3,7 @@ mod utils;
 
 use parsing::{SimulationData, SimulationResults};
 use rustatlas::prelude::*;
-use scripting::models::scriptingmodel::{BlackScholesModel, MonteCarloEngine};
 use scripting::prelude::*;
-use scripting::visitors::evaluator::{Evaluator, Value};
 use serde_json;
 use std::collections::HashMap;
 use std::result::Result as StdResult;
@@ -35,6 +33,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
         &store,
     );
 
+    model.set_seed(42);
     model
         .initialize()
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
@@ -42,7 +41,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
     let t_handle = model.time_handle();
 
     let scenarios = model
-        .generate_scenarios(events.event_dates(), &requests, 20000)
+        .generate_scenarios(events.event_dates(), &requests, 100_000)
         .map_err(|e| {
             JsValue::from_str(&format!("Failed to generate scenarios: {}", e.to_string()))
         })?;
@@ -91,9 +90,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
                     .read()
                     .unwrap()
                     .adjoint()
-                    .unwrap_or(0.0)
-                    * 0.01
-                    / 100.0,
+                    .unwrap_or(0.0),
             )
         })
         .collect::<HashMap<_, _>>();

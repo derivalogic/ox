@@ -16,6 +16,7 @@ pub struct Curve {
 
 #[derive(Debug, Deserialize)]
 pub struct CurrencyParity {
+    pub reference_date: Date,
     pub weak: Currency,
     pub strong: Currency,
     pub value: f64,
@@ -55,13 +56,13 @@ pub fn create_historical_data(data: &MarketData) -> HistoricalData {
     // Add exchange rates
     data.fx.iter().for_each(|parity| {
         store.mut_exchange_rates().add_exchange_rate(
-            data.reference_date,
+            parity.reference_date,
             parity.weak,
             parity.strong,
             parity.value,
         );
         store.mut_volatilities().add_fx_volatility(
-            data.reference_date,
+            parity.reference_date,
             parity.weak,
             parity.strong,
             parity.vol,

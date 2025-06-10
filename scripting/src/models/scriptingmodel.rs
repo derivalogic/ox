@@ -3,11 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{
-    data::termstructure::{DiscountFactorProvider, ForwardRateProvider, IndexesForDate},
-    models::ramdomnumbers::RandomNumberGenerator,
-    prelude::*,
-};
+use crate::prelude::*;
 use rand::Rng;
 use rand_distr::StandardNormal;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -225,6 +221,10 @@ impl<'a> BlackScholesModel<'a> {
             ccy, self.local_currency
         )))
     }
+
+    fn time_step(&self, date: Date) -> NumericType {
+        self.day_counter.year_fraction(self.reference_date, date)
+    }
 }
 
 impl<'a> RandomNumberGenerator for BlackScholesModel<'a> {
@@ -242,10 +242,6 @@ impl<'a> RandomNumberGenerator for BlackScholesModel<'a> {
         // Generate a random number from the standard normal distribution
         // This is a simple way to generate a random number, but you can use any RNG you prefer
         rng.sample::<f64, _>(StandardNormal)
-    }
-
-    fn time_step(&self, date: Date) -> NumericType {
-        self.day_counter.year_fraction(self.reference_date, date)
     }
 }
 
@@ -344,14 +340,14 @@ impl<'a> FxModel for BlackScholesModel<'a> {
 
 impl<'a> InterestRateModel for BlackScholesModel<'a> {
     fn simulate_df(&self, request: &DiscountFactorRequest) -> Result<NumericType> {
-        if request.date() <= self.reference_date {
+        if request.to_date() <= request.from_date() {
             return Ok(NumericType::new(1.0));
         }
 
         let df = self
             .rates
             .get_by_currency(self.local_currency)?
-            .discount_factor(self.reference_date, request.date())?;
+            .discount_factor(request.from_date(), request.to_date())?;
         return Ok(df);
     }
 }

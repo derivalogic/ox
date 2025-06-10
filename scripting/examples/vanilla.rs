@@ -1,10 +1,6 @@
 use core::panic;
 use rustatlas::prelude::*;
-use scripting::data::termstructure::{TermStructure, TermStructureKey, TermStructureType};
-use scripting::models::scriptingmodel::{BlackScholesModel, MonteCarloEngine};
 use scripting::prelude::*;
-use scripting::utils::errors::Result;
-use scripting::visitors::evaluator::{Evaluator, Value};
 use std::collections::HashMap;
 
 fn market_data(reference_date: Date) -> HistoricalData {
@@ -13,7 +9,7 @@ fn market_data(reference_date: Date) -> HistoricalData {
         reference_date,
         Currency::CLP,
         Currency::USD,
-        938.4,
+        936.405795,
     );
 
     store.mut_exchange_rates().add_exchange_rate(
@@ -125,15 +121,15 @@ fn market_data(reference_date: Date) -> HistoricalData {
 
 fn main() -> Result<()> {
     Tape::start_recording();
-    let reference_date = Date::new(2025, 6, 3);
+    let reference_date = Date::new(2025, 6, 10);
     let store = market_data(reference_date);
     let mut model = BlackScholesModel::new(reference_date, Currency::USD, &store);
     model.initialize()?;
 
     let time_handle = model.time_handle();
     // Scripted payoff of a call option
-    let event_maturity = Date::new(2025, 6, 29);
-    let script = "opt = 0;\ns = Spot(\"CLP\",\"USD\");\ncall = max(s-800,0);\nopt pays call;";
+    let event_maturity = Date::new(2025, 7, 10);
+    let script = "opt = 0;\ns = Spot(\"CLP\",\"USD\");\nopt pays s in \"CLP\";";
 
     // Build the event stream
     let coded = CodedEvent::new(event_maturity, script.to_string());
@@ -144,7 +140,7 @@ fn main() -> Result<()> {
     indexer.visit_events(&mut events)?;
     let requests = indexer.get_request();
 
-    let scenarios = model.generate_scenarios(events.event_dates(), &requests, 100_000)?;
+    let scenarios = model.generate_scenarios(events.event_dates(), &requests, 1000)?;
 
     // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();

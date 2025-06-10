@@ -3,20 +3,29 @@ use rustatlas::prelude::*;
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiscountFactorRequest {
     curve: String,
-    date: Date,
+    to_date: Date,
+    from_date: Date,
 }
 
 impl DiscountFactorRequest {
-    pub fn new(curve: String, date: Date) -> DiscountFactorRequest {
-        DiscountFactorRequest { curve, date }
+    pub fn new(curve: String, to_date: Date, from_date: Date) -> DiscountFactorRequest {
+        DiscountFactorRequest {
+            curve,
+            to_date,
+            from_date,
+        }
     }
 
     pub fn curve(&self) -> &String {
         &self.curve
     }
 
-    pub fn date(&self) -> Date {
-        self.date
+    pub fn to_date(&self) -> Date {
+        self.to_date
+    }
+
+    pub fn from_date(&self) -> Date {
+        self.from_date
     }
 }
 

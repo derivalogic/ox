@@ -327,13 +327,19 @@ impl NodeVisitor for VarIndexer {
                             .dfs()
                             .len();
                         let curve_name = data.curve.clone().unwrap_or_else(|| "local".to_string());
+                        let from_date =
+                            self.event_date
+                                .borrow()
+                                .ok_or(ScriptingError::InvalidSyntax(
+                                    "Event date is not set".to_string(),
+                                ))?;
                         self.market_requests
                             .borrow_mut()
                             .last_mut()
                             .ok_or(ScriptingError::NotFoundError(
                                 "No market requests found".to_string(),
                             ))?
-                            .push_df(DiscountFactorRequest::new(curve_name, data.date));
+                            .push_df(DiscountFactorRequest::new(curve_name, from_date, data.date));
                         data.id = Some(size);
                     }
                 }
@@ -379,7 +385,7 @@ impl NodeVisitor for VarIndexer {
                 match data.df_id {
                     Some(_) => {}
                     None => {
-                        let event_date =
+                        let to_date =
                             match data.date {
                                 Some(d) => d,
                                 None => self.event_date.borrow().ok_or(
@@ -388,6 +394,12 @@ impl NodeVisitor for VarIndexer {
                                     ),
                                 )?,
                             };
+                        let from_date =
+                            self.event_date
+                                .borrow()
+                                .ok_or(ScriptingError::InvalidSyntax(
+                                    "Event date is not set".to_string(),
+                                ))?;
                         let size = {
                             let mut mr = self.market_requests.borrow_mut();
                             let last = mr.last_mut().ok_or(ScriptingError::NotFoundError(
@@ -396,7 +408,8 @@ impl NodeVisitor for VarIndexer {
                             let size = last.dfs().len();
                             last.push_df(DiscountFactorRequest::new(
                                 "local".to_string(),
-                                event_date,
+                                from_date,
+                                to_date,
                             ));
                             size
                         };
@@ -679,7 +692,7 @@ mod ai_gen_tests {
         let req = indexer.get_request();
         let df = &req[0].dfs()[0];
         assert_eq!(df.curve(), &"curve".to_string());
-        assert_eq!(df.date(), Date::new(2025, 6, 1));
+        assert_eq!(df.to_date(), Date::new(2025, 6, 1));
     }
 
     #[test]
@@ -696,6 +709,6 @@ mod ai_gen_tests {
         let req = indexer.get_request();
         let df = &req[0].dfs()[0];
         assert_eq!(df.curve(), &"local".to_string());
-        assert_eq!(df.date(), Date::new(2025, 6, 1));
+        assert_eq!(df.to_date(), Date::new(2025, 6, 1));
     }
 }
