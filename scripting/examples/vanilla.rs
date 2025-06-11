@@ -28,15 +28,15 @@ fn market_data(reference_date: Date) -> HistoricalData {
 
     store
         .mut_volatilities()
-        .add_fx_volatility(reference_date, Currency::EUR, Currency::USD, 0.2);
+        .add_fx_volatility(reference_date, Currency::EUR, Currency::USD, 0.0);
 
     store
         .mut_volatilities()
-        .add_fx_volatility(reference_date, Currency::CLP, Currency::USD, 0.2);
+        .add_fx_volatility(reference_date, Currency::CLP, Currency::USD, 0.0);
 
     store
         .mut_volatilities()
-        .add_fx_volatility(reference_date, Currency::JPY, Currency::USD, 0.2);
+        .add_fx_volatility(reference_date, Currency::JPY, Currency::USD, 0.0);
 
     // general
     let year_fractions = vec![1.0];
@@ -129,7 +129,7 @@ fn main() -> Result<()> {
     let time_handle = model.time_handle();
     // Scripted payoff of a call option
     let event_maturity = Date::new(2025, 7, 10);
-    let script = "opt = 0;\ns = Spot(\"CLP\",\"USD\");\nopt pays s*1000000;";
+    let script = "opt = 0;\ns = Spot(\"CLP\",\"USD\");\nopt pays s*1000000  in \"CLP\";";
 
     // Build the event stream
     let coded = CodedEvent::new(event_maturity, script.to_string());
@@ -140,7 +140,7 @@ fn main() -> Result<()> {
     indexer.visit_events(&mut events)?;
     let requests = indexer.get_request();
 
-    let scenarios = model.generate_scenarios(events.event_dates(), &requests, 100_000)?;
+    let scenarios = model.generate_scenarios(events.event_dates(), &requests, 1000)?;
 
     // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();
@@ -162,7 +162,7 @@ fn main() -> Result<()> {
         .map(|(pair, rate)| {
             (
                 format!("{}/{}", pair.0.code(), pair.1.code()),
-                rate.read().unwrap().adjoint().unwrap_or(0.0),
+                rate.adjoint().unwrap_or(0.0),
             )
         })
         .collect::<HashMap<_, _>>();
@@ -173,14 +173,7 @@ fn main() -> Result<()> {
         .map(|c| {
             (
                 c.key().name().unwrap().clone(),
-                c.values()
-                    .get(0)
-                    .unwrap()
-                    .read()
-                    .unwrap()
-                    .adjoint()
-                    .unwrap_or(0.0)
-                    * 0.01,
+                c.values().get(0).unwrap().adjoint().unwrap_or(0.0),
             )
         })
         .collect::<HashMap<_, _>>();

@@ -612,7 +612,6 @@ mod tests {
         let eval_vars = fuzzy_evaluator.variables();
         let y = match eval_vars.get(1).unwrap() {
             Value::Number(n) => {
-                // println!("y = {:?}", n);
                 n.backward().unwrap();
                 n.value()
             }
@@ -620,10 +619,7 @@ mod tests {
         };
 
         let result = match eval_vars.get(0).unwrap() {
-            Value::Number(n) => {
-                // println!("x = {:?}", n);
-                n.adjoint().unwrap()
-            }
+            Value::Number(n) => n.adjoint().unwrap(),
             _ => panic!("Expected x to be a number"),
         };
 

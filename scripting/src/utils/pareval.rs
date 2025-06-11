@@ -26,38 +26,17 @@ pub fn par_eval(
             TAPE.with(|t| {
                 t.borrow_mut().active = true;
                 ADNumber::set_tape(&mut *t.borrow_mut());
-                // println!(
-                //     "Status Thread: {}: {}-{:?}",
-                //     std::thread::current().name().unwrap_or("unnamed"),
-                //     ADNumber::has_tape(),
-                //     ADNumber::tape_addr()
-                // );
             });
+            Tape::set_mark();
         });
     let pool = thread_pool_builder.build().unwrap();
 
-    let results: Vec<(
-        f64,
-        HashMap<String, Value>,
-        HashMap<String, f64>,
-        HashMap<String, f64>,
-    )> = pool.install(|| {
+    let results: Vec<(f64, HashMap<String, f64>, HashMap<String, f64>)> = pool.install(|| {
         (0..n_simulations)
             .into_par_iter()
             .map(|_| {
-                // Create a new model instance for each thread
-
-                // println!(
-                //     "Status Thread 2: {}: {}-{:?}- is_active: {}",
-                //     std::thread::current().name().unwrap_or("unnamed"),
-                //     ADNumber::has_tape(),
-                //     ADNumber::tape_addr(),
-                //     Tape::is_active()
-                // );
-
                 let mut model = BlackScholesModel::new(reference_date, local_currency, data);
                 model.initialize().unwrap();
-
                 // Generate random scenario for each simulation
                 let scenario = model
                     .generate_scenario(events.event_dates(), &request)
@@ -66,6 +45,7 @@ pub fn par_eval(
                 let evaluator = SingleScenarioEvaluator::new()
                     .with_variables(n_vars)
                     .with_scenario(&scenario);
+
                 let result = evaluator.visit_events(events, &var_indexes).unwrap();
 
                 let price = result
@@ -85,7 +65,7 @@ pub fn par_eval(
                     .map(|(pair, rate)| {
                         (
                             format!("{}/{}", pair.0.code(), pair.1.code()),
-                            rate.read().unwrap().adjoint().unwrap_or(0.0),
+                            rate.adjoint().unwrap(),
                         )
                     })
                     .collect::<HashMap<_, _>>();
@@ -96,30 +76,22 @@ pub fn par_eval(
                     .map(|c| {
                         (
                             c.key().name().unwrap().clone(),
-                            c.values()
-                                .get(0)
-                                .unwrap()
-                                .read()
-                                .unwrap()
-                                .adjoint()
-                                .unwrap_or(0.0),
+                            c.values().get(0).unwrap().adjoint().unwrap(),
                         )
                     })
                     .collect::<HashMap<_, _>>();
-
                 Tape::rewind_to_mark();
-                (price, result, deltas, rhos)
+                (price, deltas, rhos)
             })
             .collect()
     });
-
     // avg all the results and return a single map with the average values
 
     let mut total_price = 0.0;
     let mut total_deltas: HashMap<String, f64> = HashMap::new();
     let mut total_rhos: HashMap<String, f64> = HashMap::new();
-    let n_results = results.len() as f64;
-    for (price, _result, deltas, rhos) in results {
+
+    for (price, deltas, rhos) in results {
         total_price += price;
         for (key, value) in deltas {
             *total_deltas.entry(key).or_insert(0.0) += value;
@@ -128,12 +100,12 @@ pub fn par_eval(
             *total_rhos.entry(key).or_insert(0.0) += value;
         }
     }
-    total_price /= n_results;
+    total_price /= n_simulations as f64;
     for value in total_deltas.values_mut() {
-        *value /= n_results;
+        *value /= n_simulations as f64;
     }
     for value in total_rhos.values_mut() {
-        *value /= n_results;
+        *value /= n_simulations as f64;
     }
 
     Ok((total_price, total_deltas, total_rhos))
@@ -149,20 +121,27 @@ mod tests {
             reference_date,
             Currency::CLP,
             Currency::USD,
-            800.0,
+            936.405795,
         );
 
         store.mut_exchange_rates().add_exchange_rate(
             reference_date,
             Currency::JPY,
             Currency::USD,
-            142.0,
+            142.74,
+        );
+
+        store.mut_exchange_rates().add_exchange_rate(
+            reference_date,
+            Currency::EUR,
+            Currency::USD,
+            0.876,
         );
 
         store.mut_volatilities().add_fx_volatility(
             reference_date,
+            Currency::EUR,
             Currency::USD,
-            Currency::CLP,
             0.0,
         );
 
@@ -177,20 +156,6 @@ mod tests {
             reference_date,
             Currency::JPY,
             Currency::USD,
-            0.0,
-        );
-
-        store.mut_volatilities().add_fx_volatility(
-            reference_date,
-            Currency::USD,
-            Currency::JPY,
-            0.0,
-        );
-
-        store.mut_volatilities().add_fx_volatility(
-            reference_date,
-            Currency::CLP,
-            Currency::JPY,
             0.0,
         );
 
@@ -198,16 +163,12 @@ mod tests {
         let year_fractions = vec![1.0];
         let interpolator = Interpolator::Linear;
         let enable_extrapolation = true;
-        let rate_definition = RateDefinition::new(
-            DayCounter::Actual360,
-            Compounding::Continuous,
-            Frequency::Annual,
-        );
+        let rate_definition = RateDefinition::default();
         let term_structure_type = TermStructureType::FlatForward;
 
         // CLP term structure
         let clp_ts_key = TermStructureKey::new(Currency::CLP, true, Some("CLP".to_string()));
-        let clp_rate = vec![0.03];
+        let clp_rate = vec![0.046];
 
         let clp_ts = TermStructure::new(
             clp_ts_key,
@@ -221,12 +182,40 @@ mod tests {
 
         // USD term structure
         let usd_ts_key = TermStructureKey::new(Currency::USD, true, Some("USD".to_string()));
-        let usd_rate = vec![0.02];
+        let usd_rate = vec![0.036];
 
         let usd_ts = TermStructure::new(
             usd_ts_key,
             year_fractions.clone(),
             usd_rate,
+            interpolator,
+            enable_extrapolation,
+            rate_definition,
+            term_structure_type,
+        );
+
+        // USD term structure
+        let eur_ts_key = TermStructureKey::new(Currency::EUR, true, Some("EUR".to_string()));
+        let eur_rate = vec![0.027];
+
+        let eur_ts = TermStructure::new(
+            eur_ts_key,
+            year_fractions.clone(),
+            eur_rate,
+            interpolator,
+            enable_extrapolation,
+            rate_definition,
+            term_structure_type,
+        );
+
+        // JPY term structure
+        let jpy_ts_key = TermStructureKey::new(Currency::JPY, true, Some("JPY".to_string()));
+        let jpy_rate = vec![0.027];
+
+        let jpy_ts = TermStructure::new(
+            jpy_ts_key,
+            year_fractions.clone(),
+            jpy_rate,
             interpolator,
             enable_extrapolation,
             rate_definition,
@@ -240,18 +229,10 @@ mod tests {
             .mut_term_structures()
             .add_term_structure(reference_date, usd_ts);
 
-        // JPY term structure
-        let jpy_ts_key = TermStructureKey::new(Currency::JPY, true, Some("JPY".to_string()));
-        let jpy_rate = vec![0.01];
-        let jpy_ts = TermStructure::new(
-            jpy_ts_key,
-            year_fractions,
-            jpy_rate,
-            interpolator,
-            enable_extrapolation,
-            rate_definition,
-            term_structure_type,
-        );
+        store
+            .mut_term_structures()
+            .add_term_structure(reference_date, eur_ts);
+
         store
             .mut_term_structures()
             .add_term_structure(reference_date, jpy_ts);
@@ -260,42 +241,20 @@ mod tests {
     }
 
     #[test]
-    fn test_par_eval_1() {
-        let data = market_data(Date::new(2023, 10, 1));
-        let script = "x=2; opt=x*x;";
-        let event_date = Date::new(2023, 10, 1);
-        let coded_event = CodedEvent::new(event_date, script.to_string());
-        let mut event = EventStream::try_from(vec![coded_event]).unwrap();
+    fn test_par_eval() {
+        let reference_date = Date::new(2025, 6, 10);
+        let data = market_data(reference_date);
 
-        let local_currency = Currency::CLP;
-        let n_simulations = 100_000;
+        let event_maturity = Date::new(2025, 7, 10);
+        let script = "opt = 0;\ns = Spot(\"CLP\",\"USD\");\nopt pays s*1000000 in \"CLP\";";
+        let coded = CodedEvent::new(event_maturity, script.to_string());
+        let mut event = EventStream::try_from(vec![coded]).unwrap();
+
+        let local_currency = Currency::USD;
+        let n_simulations = 100;
         let result = par_eval(
             &mut event,
-            Date::new(2023, 10, 1),
-            &data,
-            local_currency,
-            n_simulations,
-        );
-        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
-        let (opt_value, deltas, rhos) = result.unwrap();
-        println!("Opt value: {}", opt_value);
-        println!("Deltas: {:?}", deltas);
-        println!("Rhos: {:?}", rhos);
-    }
-
-    #[test]
-    fn test_par_eval_2() {
-        let data = market_data(Date::new(2023, 10, 1));
-        let script = "opt=0; opt pays Spot(\"CLP\",\"USD\")*1000000;";
-        let event_date = Date::new(2023, 10, 1);
-        let coded_event = CodedEvent::new(event_date, script.to_string());
-        let mut event = EventStream::try_from(vec![coded_event]).unwrap();
-
-        let local_currency = Currency::CLP;
-        let n_simulations = 100_000;
-        let result = par_eval(
-            &mut event,
-            Date::new(2023, 10, 1),
+            reference_date,
             &data,
             local_currency,
             n_simulations,

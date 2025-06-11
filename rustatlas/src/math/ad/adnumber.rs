@@ -10,7 +10,7 @@ use crate::prelude::*;
 use crate::utils::errors::{AtlasError, Result};
 use core::fmt;
 use serde::{Deserialize, Serialize};
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::ptr::NonNull;
 use std::{cmp::Ordering, ops::*};
 
@@ -118,9 +118,11 @@ unsafe impl Send for ADNumber {}
 impl ADNumber {
     thread_local! {
         /* installable handle – lets the user pick a *different* Tape if they
-           don’t want to use the thread-local singleton.  Leave it null to use
+           don't want to use the thread-local singleton.  Leave it null to use
            the default `TAPE`. */
-        static TAPE_PTR: Cell<*mut Tape> = const { Cell::new(std::ptr::null_mut()) };
+        static TAPE_PTR: Cell<*mut Tape> = Cell::new(unsafe {
+            &mut *TAPE.with(|t| t.as_ptr()) as *mut Tape
+        });
     }
 
     pub fn set_tape(t: &mut Tape) {
@@ -152,7 +154,6 @@ impl ADNumber {
     /* ------------ user-facing API ---------------------- */
 
     pub fn new(v: f64) -> Self {
-        // choose the current tape (thread-local or user-supplied)
         // Self::with_tape(|tcell| {
         //     let mut tape = tcell.borrow_mut();
         //     let node_opt = if tape.active {
@@ -174,7 +175,10 @@ impl ADNumber {
                     node: Some(node),
                 }
             } else {
-                panic!("ADNumber::new called without a tape set");
+                ADNumber {
+                    val: v,
+                    node: None, // no tape active
+                }
             }
         })
     }
@@ -1252,7 +1256,7 @@ mod tests {
         let b = ADNumber::new(4.0);
         let expr = (a * b).sin();
         let out: ADNumber = expr.into();
-        out.backward_to_mark(); // propagate to the current mark
+        out.backward_to_mark().unwrap(); // propagate to the current mark
         assert_eq!(out.adjoint().unwrap(), 1.0); // should be 1.0
 
         out.backward().unwrap(); // propagate from mark to start

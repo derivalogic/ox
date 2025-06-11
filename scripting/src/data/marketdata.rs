@@ -125,7 +125,7 @@ impl ExchangeRates {
 }
 
 pub fn triangulate_currencies(
-    exchange_rates: &HashMap<(Currency, Currency), RwLock<NumericType>>,
+    exchange_rates: &HashMap<(Currency, Currency), NumericType>,
     ccy1: Currency,
     ccy2: Currency,
 ) -> Result<NumericType> {
@@ -133,10 +133,10 @@ pub fn triangulate_currencies(
         return Ok(NumericType::one());
     }
     if let Some(r) = exchange_rates.get(&(ccy1, ccy2)) {
-        return Ok(r.read().unwrap().clone());
+        return Ok(r.clone());
     }
     if let Some(r) = exchange_rates.get(&(ccy2, ccy1)) {
-        return Ok((NumericType::one() / r.read().unwrap().clone()).into());
+        return Ok((NumericType::one() / r.clone()).into());
     }
 
     use std::collections::{HashSet, VecDeque};
@@ -154,7 +154,7 @@ pub fn triangulate_currencies(
         }
 
         for ((base, terms), quote) in exchange_rates.iter() {
-            let v = quote.read().unwrap().clone();
+            let v = quote.clone();
 
             if *base == cur && !visited.contains(terms) {
                 // forward edge: 1 base = v terms

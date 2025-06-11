@@ -1,7 +1,6 @@
 use rustatlas::prelude::*;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::{Arc, RwLock};
 
 use crate::utils::errors::{Result, ScriptingError};
 
@@ -110,6 +109,10 @@ impl<T: Clone> TermStructure<T> {
         &self.values
     }
 
+    pub fn mut_values(&mut self) -> &mut [T] {
+        &mut self.values
+    }
+
     pub fn nodes(&self) -> Vec<(T, T)> {
         self.year_fractions
             .iter()
@@ -190,6 +193,10 @@ impl<T: Clone> IndexesForDate<T> {
     pub fn iter(&self) -> impl Iterator<Item = &TermStructure<T>> {
         self.term_structures.iter()
     }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut TermStructure<T>> {
+        self.term_structures.iter_mut()
+    }
 }
 
 impl<T: Clone> TermStructureStore<T> {
@@ -233,19 +240,15 @@ impl<T: Clone> TermStructureStore<T> {
     }
 }
 
-impl From<TermStructure<f64>> for TermStructure<Arc<RwLock<NumericType>>> {
+impl From<TermStructure<f64>> for TermStructure<NumericType> {
     fn from(ts: TermStructure<f64>) -> Self {
         TermStructure {
             key: ts.key,
-            values: ts
-                .values
-                .into_iter()
-                .map(|v| Arc::new(RwLock::new(NumericType::new(v))))
-                .collect(),
+            values: ts.values.into_iter().map(|v| NumericType::new(v)).collect(),
             year_fractions: ts
                 .year_fractions
                 .into_iter()
-                .map(|v| Arc::new(RwLock::new(NumericType::new(v))))
+                .map(|v| NumericType::new(v))
                 .collect(),
             interpolator: ts.interpolator,
             enable_extrapolation: ts.enable_extrapolation,
@@ -255,7 +258,7 @@ impl From<TermStructure<f64>> for TermStructure<Arc<RwLock<NumericType>>> {
     }
 }
 
-impl From<IndexesForDate<f64>> for IndexesForDate<Arc<RwLock<NumericType>>> {
+impl From<IndexesForDate<f64>> for IndexesForDate<NumericType> {
     fn from(idxs: IndexesForDate<f64>) -> Self {
         IndexesForDate {
             term_structures: idxs
@@ -283,7 +286,7 @@ pub trait ForwardRateProvider<T>: DiscountFactorProvider<T> {
     ) -> Result<T>;
 }
 
-impl DiscountFactorProvider<NumericType> for TermStructure<Arc<RwLock<NumericType>>> {
+impl DiscountFactorProvider<NumericType> for TermStructure<NumericType> {
     fn discount_factor(&self, from: Date, to: Date) -> Result<NumericType> {
         if to < from {
             return Err(ScriptingError::InvalidOperation(
@@ -303,8 +306,6 @@ impl DiscountFactorProvider<NumericType> for TermStructure<Arc<RwLock<NumericTyp
                     .ok_or(ScriptingError::NotFoundError(
                         "No values found in flat forward term structure".to_string(),
                     ))?
-                    .read()
-                    .unwrap()
                     .clone();
                 let interest_rate = InterestRate::new(
                     value,
@@ -319,13 +320,9 @@ impl DiscountFactorProvider<NumericType> for TermStructure<Arc<RwLock<NumericTyp
                 let year_fractions = self
                     .year_fractions
                     .iter()
-                    .map(|v| v.read().unwrap().clone())
+                    .map(|v| v.clone())
                     .collect::<Vec<_>>();
-                let values = self
-                    .values
-                    .iter()
-                    .map(|v| v.read().unwrap().clone())
-                    .collect::<Vec<_>>();
+                let values = self.values.iter().map(|v| v.clone()).collect::<Vec<_>>();
                 let discount_factor = self.interpolator.interpolate(
                     year_fraction,
                     &year_fractions,
@@ -340,7 +337,7 @@ impl DiscountFactorProvider<NumericType> for TermStructure<Arc<RwLock<NumericTyp
     }
 }
 
-impl ForwardRateProvider<NumericType> for TermStructure<Arc<RwLock<NumericType>>> {
+impl ForwardRateProvider<NumericType> for TermStructure<NumericType> {
     fn fwd_rate_from_rate_definition(
         &self,
         from: Date,

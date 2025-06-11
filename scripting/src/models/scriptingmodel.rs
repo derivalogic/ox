@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, RwLock,
+        RwLock,
     },
 };
 
@@ -23,11 +23,11 @@ pub struct BlackScholesModel<'a> {
     reference_date: Date,
     local_currency: Currency,
     historical_data: &'a HistoricalData,
-    fx: HashMap<(Currency, Currency), RwLock<NumericType>>,
-    rates: IndexesForDate<Arc<RwLock<NumericType>>>,
-    equities: HashMap<String, RwLock<NumericType>>,
-    equity_vols: HashMap<String, RwLock<NumericType>>,
-    fx_vols: HashMap<(Currency, Currency), RwLock<NumericType>>,
+    fx: HashMap<(Currency, Currency), NumericType>,
+    rates: IndexesForDate<NumericType>,
+    equities: HashMap<String, NumericType>,
+    equity_vols: HashMap<String, NumericType>,
+    fx_vols: HashMap<(Currency, Currency), NumericType>,
     is_initialized: RwLock<bool>,
     day_counter: DayCounter,
     time_handle: NumericType,
@@ -74,9 +74,8 @@ impl<'a> BlackScholesModel<'a> {
             .get_exchange_rates(self.reference_date)?
             .iter()
             .for_each(|(ccys, rate)| {
-                self.fx
-                    .entry(*ccys)
-                    .or_insert_with(|| RwLock::new(NumericType::new(*rate)));
+                let v = NumericType::new(*rate);
+                self.fx.entry(*ccys).or_insert_with(|| v);
             });
 
         self.historical_data
@@ -86,7 +85,7 @@ impl<'a> BlackScholesModel<'a> {
             .for_each(|(ccys, vol)| {
                 self.fx_vols
                     .entry(*ccys)
-                    .or_insert_with(|| RwLock::new(NumericType::new(*vol)));
+                    .or_insert_with(|| NumericType::new(*vol));
             });
 
         self.rates = self
@@ -98,23 +97,23 @@ impl<'a> BlackScholesModel<'a> {
         Ok(())
     }
 
-    pub fn fx(&self) -> &HashMap<(Currency, Currency), RwLock<NumericType>> {
+    pub fn fx(&self) -> &HashMap<(Currency, Currency), NumericType> {
         &self.fx
     }
 
-    pub fn rates(&self) -> &IndexesForDate<Arc<RwLock<NumericType>>> {
+    pub fn rates(&self) -> &IndexesForDate<NumericType> {
         &self.rates
     }
 
-    pub fn equities(&self) -> &HashMap<String, RwLock<NumericType>> {
+    pub fn equities(&self) -> &HashMap<String, NumericType> {
         &self.equities
     }
 
-    pub fn equity_vols(&self) -> &HashMap<String, RwLock<NumericType>> {
+    pub fn equity_vols(&self) -> &HashMap<String, NumericType> {
         &self.equity_vols
     }
 
-    pub fn fx_vols(&self) -> &HashMap<(Currency, Currency), RwLock<NumericType>> {
+    pub fn fx_vols(&self) -> &HashMap<(Currency, Currency), NumericType> {
         &self.fx_vols
     }
 
@@ -136,11 +135,11 @@ impl<'a> BlackScholesModel<'a> {
         }
         // try (ccy, local)  ─────────────────────────────────────────────
         if let Some(p) = self.fx.get(&(ccy, self.local_currency)) {
-            return Ok(p.read().unwrap().clone());
+            return Ok(p.clone());
         }
         // try (local, ccy)  ─────────────────────────────────────────────
         if let Some(p) = self.fx.get(&(self.local_currency, ccy)) {
-            return Ok((NumericType::one() / p.read().unwrap().clone()).into());
+            return Ok((NumericType::one() / p.clone()).into());
         }
         // fall back to triangulation (may still need inversion)
         let l_over_ccy = triangulate_currencies(&self.fx, self.local_currency, ccy)?;
@@ -153,10 +152,10 @@ impl<'a> BlackScholesModel<'a> {
             return Ok(NumericType::zero());
         }
         if let Some(v) = self.fx_vols.get(&(ccy, self.local_currency)) {
-            return Ok(v.read().unwrap().clone());
+            return Ok(v.clone());
         }
         if let Some(v) = self.fx_vols.get(&(self.local_currency, ccy)) {
-            return Ok(v.read().unwrap().clone());
+            return Ok(v.clone());
         }
         Err(ScriptingError::NotFoundError(format!(
             "Volatility not found for {} and {}",
@@ -377,25 +376,25 @@ impl<'a> MonteCarloEngine for BlackScholesModel<'a> {
 impl<'a> ParallelMonteCarloEngine for BlackScholesModel<'a> {
     fn put_on_tape(&mut self) {
         self.fx.iter_mut().for_each(|((_, _), rate)| {
-            rate.write().unwrap().put_on_tape();
+            rate.put_on_tape();
         });
 
         self.fx_vols.iter_mut().for_each(|((_, _), vol)| {
-            vol.write().unwrap().put_on_tape();
+            vol.put_on_tape();
         });
 
-        self.rates.iter().for_each(|curve| {
+        self.rates.iter_mut().for_each(|curve| {
             curve
-                .values()
-                .iter()
-                .for_each(|rate| rate.write().unwrap().put_on_tape());
+                .mut_values()
+                .iter_mut()
+                .for_each(|rate| rate.put_on_tape());
         });
 
         self.equities.iter_mut().for_each(|(_, equity)| {
-            equity.write().unwrap().put_on_tape();
+            equity.put_on_tape();
         });
         self.equity_vols.iter_mut().for_each(|(_, vol)| {
-            vol.write().unwrap().put_on_tape();
+            vol.put_on_tape();
         });
 
         self.time_handle.put_on_tape();

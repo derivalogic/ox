@@ -843,7 +843,7 @@ impl<'a> SingleScenarioEvaluator<'a> {
                 self.const_visit(event.expr())?;
                 Ok(())
             })?;
-        let v = self.variables.borrow_mut().clone();
+        let v = self.variables.borrow_mut();
         let mut map = HashMap::new();
         for (name, idx) in var_indexes.iter() {
             if let Some(v) = v.get(*idx) {

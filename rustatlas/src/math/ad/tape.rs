@@ -156,7 +156,6 @@ impl Tape {
             t.bump.reset();
             t.book.clear();
             t.mark = 0;
-            t.active = false;
         });
     }
 }
