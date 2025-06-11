@@ -137,42 +137,27 @@ impl ADNumber {
         Self::TAPE_PTR.with(|c| c.get())
     }
 
-    /// choose the *current* tape (explicit or fallback to the thread-local one)
-    // fn with_tape<R>(f: impl FnOnce(&RefCell<Tape>) -> R) -> R {
-    //     Self::TAPE_PTR.with(|c| {
-    //         let p = c.get();
-    //         if p.is_null() {
-    //             // fallback
-    //             TAPE.with(f)
-    //         } else {
-    //             // user-supplied
-    //             unsafe { f(&*(p as *const RefCell<Tape>)) }
-    //         }
-    //     })
-    // }
-
     /* ------------ user-facing API ---------------------- */
 
     pub fn new(v: f64) -> Self {
-        // Self::with_tape(|tcell| {
-        //     let mut tape = tcell.borrow_mut();
-        //     let node_opt = if tape.active {
-        //         Some(tape.new_leaf()) // allocate & remember pointer
-        //     } else {
-        //         None // just a literal
-        //     };
-        //     ADNumber {
-        //         val: v,
-        //         node: node_opt,
-        //     }
-        // })
         Self::TAPE_PTR.with(|t| {
             let ptr = t.get();
             if !ptr.is_null() {
-                let node = unsafe { (*ptr).new_leaf() };
-                ADNumber {
-                    val: v,
-                    node: Some(node),
+                let active = unsafe { (*ptr).active };
+                if active {
+                    // If the tape is active, we can create a new leaf node.
+                    // Safety: `ptr` is guaranteed to be valid and non-null.
+                    let node = unsafe { (*ptr).new_leaf() };
+                    ADNumber {
+                        val: v,
+                        node: Some(node),
+                    }
+                } else {
+                    // If the tape is not active, we return a leaf without a node.
+                    ADNumber {
+                        val: v,
+                        node: None, // no tape active
+                    }
                 }
             } else {
                 ADNumber {
@@ -232,15 +217,7 @@ impl ADNumber {
         if self.node.is_some() {
             return; // already on a tape
         }
-        // self.node = Self::with_tape(|tcell| {
-        //     let mut tape = tcell.borrow_mut();
-        //     let is_active = tape.active;
-        //     if is_active {
-        //         Some(tape.new_leaf()) // now get a node
-        //     } else {
-        //         None
-        //     }
-        // });
+
         Self::TAPE_PTR.with(|t| {
             let ptr = t.get();
             if !ptr.is_null() {
@@ -1203,14 +1180,13 @@ mod tests {
     #[test]
     fn test_late_tape_recording() {
         let mut a = ADNumber::new(3.0);
-        let mut b = ADNumber::new(4.0);
+        println!("a: {:?}", a);
         Tape::start_recording(); // start recording
         a.put_on_tape();
-        b.put_on_tape();
-        let expr = (a * b).sin();
+        let expr = a * a;
         let out: ADNumber = expr.into();
         out.backward().unwrap();
-        assert_eq!(out.adjoint().unwrap(), 1.0);
+        assert_eq!(a.adjoint().unwrap(), 6.0);
     }
 
     #[test]
@@ -1245,7 +1221,7 @@ mod tests {
         let b = ADNumber::new(4.0);
         let expr = (a * b).sin();
         let out: ADNumber = expr.into();
-        out.backward_to_mark(); // propagate to the current mark
+        out.backward_to_mark().unwrap(); // propagate to the current mark
         assert_eq!(out.adjoint().unwrap(), 1.0); // should be 1.0
     }
 

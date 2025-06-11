@@ -1311,6 +1311,7 @@ name = "scripting"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "criterion",
  "getrandom 0.3.3",
  "once_cell",
  "rand",

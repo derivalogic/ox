@@ -73,7 +73,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
         .map(|(pair, rate)| {
             (
                 format!("{}/{}", pair.0.code(), pair.1.code()),
-                rate.read().unwrap().adjoint().unwrap_or(0.0),
+                rate.adjoint().unwrap_or(0.0),
             )
         })
         .collect::<HashMap<_, _>>();
@@ -84,13 +84,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
         .map(|c| {
             (
                 c.key().name().unwrap().clone(),
-                c.values()
-                    .get(0)
-                    .unwrap()
-                    .read()
-                    .unwrap()
-                    .adjoint()
-                    .unwrap_or(0.0),
+                c.values().get(0).unwrap().adjoint().unwrap_or(0.0),
             )
         })
         .collect::<HashMap<_, _>>();

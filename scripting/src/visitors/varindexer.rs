@@ -692,7 +692,7 @@ mod ai_gen_tests {
         let req = indexer.get_request();
         let df = &req[0].dfs()[0];
         assert_eq!(df.curve(), &"curve".to_string());
-        assert_eq!(df.to_date(), Date::new(2025, 6, 1));
+        assert_eq!(df.from_date(), Date::new(2025, 6, 1));
     }
 
     #[test]
@@ -709,6 +709,6 @@ mod ai_gen_tests {
         let req = indexer.get_request();
         let df = &req[0].dfs()[0];
         assert_eq!(df.curve(), &"local".to_string());
-        assert_eq!(df.to_date(), Date::new(2025, 6, 1));
+        assert_eq!(df.from_date(), Date::new(2025, 6, 1));
     }
 }
