@@ -21,85 +21,89 @@ pub fn par_eval(
     let var_indexes = indexer.get_variable_indexes();
 
     let thread_pool_builder = ThreadPoolBuilder::new()
-        .thread_name(|i| format!("pareval-thread-{}", i))
-        .start_handler(|_| {
-            TAPE.with(|t| {
-                t.borrow_mut().active = true;
-                ADNumber::set_tape(&mut *t.borrow_mut());
-            });
-            Tape::set_mark();
-        });
+        .thread_name(|i| format!("pareval-thread-{}", i));
     let pool = thread_pool_builder.build().unwrap();
 
-    let results: Vec<(f64, HashMap<String, f64>, HashMap<String, f64>)> = pool.install(|| {
+    let event_dates = events.event_dates();
+    let results: (f64, HashMap<String, f64>, HashMap<String, f64>) = pool.install(|| {
         (0..n_simulations)
             .into_par_iter()
-            .map(|_| {
-                let mut model = BlackScholesModel::new(reference_date, local_currency, data);
-                model.initialize().unwrap();
-                // Generate random scenario for each simulation
-                let scenario = model
-                    .generate_scenario(events.event_dates(), &request)
-                    .unwrap();
+            .map_init(
+                || {
+                    Tape::start_recording();
+                    Tape::set_mark();
+                    let mut model =
+                        BlackScholesModel::new(reference_date, local_currency, data);
+                    model.initialize().unwrap();
+                    model.initialize_for_parallelization();
+                    model
+                },
+                |model, _| {
+                    let scenario = model
+                        .generate_scenario(event_dates.clone(), &request)
+                        .unwrap();
 
-                let evaluator = SingleScenarioEvaluator::new()
-                    .with_variables(n_vars)
-                    .with_scenario(&scenario);
+                    let evaluator = SingleScenarioEvaluator::new()
+                        .with_variables(n_vars)
+                        .with_scenario(&scenario);
 
-                let result = evaluator.visit_events(events, &var_indexes).unwrap();
+                    let result = evaluator.visit_events(events, &var_indexes).unwrap();
 
-                let price = result
-                    .get("opt")
-                    .and_then(|v| match v {
-                        Value::Number(num) => {
-                            num.backward().unwrap();
-                            Some(num.value())
-                        }
-                        _ => None,
-                    })
-                    .unwrap_or(0.0);
+                    let price = result
+                        .get("opt")
+                        .and_then(|v| match v {
+                            Value::Number(num) => {
+                                num.backward().unwrap();
+                                Some(num.value())
+                            }
+                            _ => None,
+                        })
+                        .unwrap_or(0.0);
 
-                let deltas = model
-                    .fx()
-                    .iter()
-                    .map(|(pair, rate)| {
-                        (
-                            format!("{}/{}", pair.0.code(), pair.1.code()),
-                            rate.adjoint().unwrap(),
-                        )
-                    })
-                    .collect::<HashMap<_, _>>();
+                    let deltas = model
+                        .fx()
+                        .iter()
+                        .map(|(pair, rate)| {
+                            (
+                                format!("{}/{}", pair.0.code(), pair.1.code()),
+                                rate.adjoint().unwrap(),
+                            )
+                        })
+                        .collect::<HashMap<_, _>>();
 
-                let rhos = model
-                    .rates()
-                    .iter()
-                    .map(|c| {
-                        (
-                            c.key().name().unwrap().clone(),
-                            c.values().get(0).unwrap().adjoint().unwrap(),
-                        )
-                    })
-                    .collect::<HashMap<_, _>>();
-                Tape::rewind_to_mark();
-                (price, deltas, rhos)
-            })
-            .collect()
+                    let rhos = model
+                        .rates()
+                        .iter()
+                        .map(|c| {
+                            (
+                                c.key().name().unwrap().clone(),
+                                c.values().get(0).unwrap().adjoint().unwrap(),
+                            )
+                        })
+                        .collect::<HashMap<_, _>>();
+                    Tape::rewind_to_mark();
+                    (price, deltas, rhos)
+                },
+            )
+            .reduce(
+                || (0.0, HashMap::new(), HashMap::new()),
+                |mut acc, (price, deltas, rhos)| {
+                    acc.0 += price;
+                    for (k, v) in deltas {
+                        *acc.1.entry(k).or_insert(0.0) += v;
+                    }
+                    for (k, v) in rhos {
+                        *acc.2.entry(k).or_insert(0.0) += v;
+                    }
+                    acc
+                },
+            )
     });
-    // avg all the results and return a single map with the average values
+    // average aggregated results
+    let mut total_price = results.0;
+    let mut total_deltas = results.1;
+    let mut total_rhos = results.2;
 
-    let mut total_price = 0.0;
-    let mut total_deltas: HashMap<String, f64> = HashMap::new();
-    let mut total_rhos: HashMap<String, f64> = HashMap::new();
-
-    for (price, deltas, rhos) in results {
-        total_price += price;
-        for (key, value) in deltas {
-            *total_deltas.entry(key).or_insert(0.0) += value;
-        }
-        for (key, value) in rhos {
-            *total_rhos.entry(key).or_insert(0.0) += value;
-        }
-    }
     total_price /= n_simulations as f64;
     for value in total_deltas.values_mut() {
         *value /= n_simulations as f64;
