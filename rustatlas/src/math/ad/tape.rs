@@ -47,6 +47,11 @@ impl Tape {
         });
     }
 
+    pub fn mark(&self) -> usize {
+        // mark the current length of the book
+        self.mark
+    }
+
     #[inline(always)]
     fn index_of(&self, p: NonNull<TapeNode>) -> Option<usize> {
         self.book.iter().position(|&q| q == p)
@@ -103,6 +108,14 @@ impl Tape {
 
     /// Sweep from the last mark (exclusive) back to the start.
     pub fn propagate_mark_to_start(&mut self) {
+        let end = self.mark.saturating_sub(1);
+        for i in (0..=end).rev() {
+            let node = unsafe { self.book[i].as_ref().clone() };
+            node.propagate_into();
+        }
+    }
+
+    pub fn propagate_to_mark(&mut self) {
         let end = self.mark.saturating_sub(1);
         for i in (0..=end).rev() {
             let node = unsafe { self.book[i].as_ref().clone() };

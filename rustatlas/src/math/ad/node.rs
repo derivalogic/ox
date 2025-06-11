@@ -34,7 +34,6 @@ impl Default for TapeNode {
 
 impl TapeNode {
     /// Propagate this node’s adjoint into its children
-    /// (no “book” slice needed any more).
     #[inline(always)]
     pub fn propagate_into(&self) {
         debug_assert_eq!(self.childs.len(), self.derivs.len());

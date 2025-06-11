@@ -183,12 +183,7 @@ impl ADNumber {
     /// Seed reverse mode from *this* node and sweep back to the start.
     pub fn backward(&self) -> Result<()> {
         let root = self.node.ok_or(AtlasError::NodeNotIndexedInTapeErr)?;
-        // Self::with_tape(|t| -> Result<()> {
-        //     let mut t = t.borrow_mut();
-        //     t.mut_node(root).unwrap().adj = 1.0;
-        //     t.propagate_from(root)?;
-        //     Ok(())
-        // })?;
+
         Self::TAPE_PTR.with(|t| {
             let tape = unsafe { &mut *t.get() };
             tape.mut_node(root).unwrap().adj = 1.0;
@@ -198,7 +193,7 @@ impl ADNumber {
     }
 
     /// Seed and propagate only up to the last `Tape::set_mark()`.
-    pub fn backward_to_mark(&self) -> Result<()> {
+    pub fn backward_mark_to_start(&self) -> Result<()> {
         let root: NonNull<TapeNode> = self.node.ok_or(AtlasError::NodeNotIndexedInTapeErr)?;
         // Self::with_tape(|t| {
         //     let mut t = t.borrow_mut();
@@ -209,6 +204,16 @@ impl ADNumber {
             let tape = unsafe { &mut *t.get() };
             tape.mut_node(root).unwrap().adj = 1.0;
             tape.propagate_mark_to_start()
+        });
+        Ok(())
+    }
+
+    pub fn backward_to_mark(&self) -> Result<()> {
+        let root: NonNull<TapeNode> = self.node.ok_or(AtlasError::NodeNotIndexedInTapeErr)?;
+        Self::TAPE_PTR.with(|t| {
+            let tape = unsafe { &mut *t.get() };
+            tape.mut_node(root).unwrap().adj = 1.0;
+            tape.propagate_to_mark()
         });
         Ok(())
     }

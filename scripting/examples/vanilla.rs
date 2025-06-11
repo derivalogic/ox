@@ -125,7 +125,6 @@ fn main() -> Result<()> {
     let store = market_data(reference_date);
     let mut model = BlackScholesModel::new(reference_date, Currency::USD, &store);
     model.initialize()?;
-    model.use_sobol(64, 42);
     let time_handle = model.time_handle();
     // Scripted payoff of a call option
     let event_maturity = Date::new(2025, 7, 10);

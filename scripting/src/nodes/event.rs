@@ -71,6 +71,7 @@ impl TryFrom<CodedEvent> for Event {
 
 /// # EventStream
 /// An event stream is a collection of events that will happen in the future. An event stream could represent a series of cash flows, for example.
+#[derive(Debug, Clone, PartialEq)]
 pub struct EventStream {
     id: Option<usize>,
     events: Vec<Event>,

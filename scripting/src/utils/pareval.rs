@@ -13,29 +13,30 @@ pub fn par_eval(
     data: &HistoricalData,
     local_currency: Currency,
     n_simulations: usize,
-) -> Result<(f64, HashMap<String, f64>, HashMap<String, f64>)> {
+) -> Result<(f64, f64, HashMap<String, f64>, HashMap<String, f64>)> {
     let indexer = VarIndexer::new().with_local_currency(local_currency);
     indexer.visit_events(events)?;
     let request = indexer.get_request();
     let n_vars = indexer.get_variables_size();
     let var_indexes = indexer.get_variable_indexes();
 
-    let thread_pool_builder = ThreadPoolBuilder::new()
-        .thread_name(|i| format!("pareval-thread-{}", i));
+    let thread_pool_builder =
+        ThreadPoolBuilder::new().thread_name(|i| format!("pareval-thread-{}", i));
     let pool = thread_pool_builder.build().unwrap();
 
     let event_dates = events.event_dates();
-    let results: (f64, HashMap<String, f64>, HashMap<String, f64>) = pool.install(|| {
+    let results: (f64, f64, HashMap<String, f64>, HashMap<String, f64>) = pool.install(|| {
         (0..n_simulations)
             .into_par_iter()
             .map_init(
                 || {
                     Tape::start_recording();
-                    Tape::set_mark();
-                    let mut model =
-                        BlackScholesModel::new(reference_date, local_currency, data);
+                    TAPE.with(|t| {
+                        ADNumber::set_tape(&mut *t.borrow_mut());
+                    });
+                    let mut model = BlackScholesModel::new(reference_date, local_currency, data);
                     model.initialize().unwrap();
-                    model.initialize_for_parallelization();
+                    Tape::set_mark();
                     model
                 },
                 |model, _| {
@@ -81,19 +82,24 @@ pub fn par_eval(
                             )
                         })
                         .collect::<HashMap<_, _>>();
+
+                    let theta = model.time_handle().adjoint().unwrap();
+
+                    Tape::reset_adjoints();
                     Tape::rewind_to_mark();
-                    (price, deltas, rhos)
+                    (price, theta, deltas, rhos)
                 },
             )
             .reduce(
-                || (0.0, HashMap::new(), HashMap::new()),
-                |mut acc, (price, deltas, rhos)| {
+                || (0.0, 0.0, HashMap::new(), HashMap::new()),
+                |mut acc, (price, theta, deltas, rhos)| {
                     acc.0 += price;
+                    acc.1 += theta;
                     for (k, v) in deltas {
-                        *acc.1.entry(k).or_insert(0.0) += v;
+                        *acc.2.entry(k).or_insert(0.0) += v;
                     }
                     for (k, v) in rhos {
-                        *acc.2.entry(k).or_insert(0.0) += v;
+                        *acc.3.entry(k).or_insert(0.0) += v;
                     }
                     acc
                 },
@@ -101,10 +107,12 @@ pub fn par_eval(
     });
     // average aggregated results
     let mut total_price = results.0;
-    let mut total_deltas = results.1;
-    let mut total_rhos = results.2;
+    let mut total_theta = results.1;
+    let mut total_deltas = results.2;
+    let mut total_rhos = results.3;
 
     total_price /= n_simulations as f64;
+    total_theta /= n_simulations as f64;
     for value in total_deltas.values_mut() {
         *value /= n_simulations as f64;
     }
@@ -112,7 +120,7 @@ pub fn par_eval(
         *value /= n_simulations as f64;
     }
 
-    Ok((total_price, total_deltas, total_rhos))
+    Ok((total_price, total_theta, total_deltas, total_rhos))
 }
 
 #[cfg(test)]
@@ -255,7 +263,7 @@ mod tests {
         let mut event = EventStream::try_from(vec![coded]).unwrap();
 
         let local_currency = Currency::USD;
-        let n_simulations = 100;
+        let n_simulations = 1000;
         let result = par_eval(
             &mut event,
             reference_date,
@@ -264,8 +272,9 @@ mod tests {
             n_simulations,
         );
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
-        let (opt_value, deltas, rhos) = result.unwrap();
+        let (opt_value, theta, deltas, rhos) = result.unwrap();
         println!("Opt value: {}", opt_value);
+        println!("Theta: {}", theta);
         println!("Deltas: {:?}", deltas);
         println!("Rhos: {:?}", rhos);
     }
