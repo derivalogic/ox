@@ -127,34 +127,54 @@ impl ADNumber {
         Self::TAPE_PTR.with(|c| c.set(t));
     }
 
-    /// choose the *current* tape (explicit or fallback to the thread-local one)
-    fn with_tape<R>(f: impl FnOnce(&RefCell<Tape>) -> R) -> R {
-        Self::TAPE_PTR.with(|c| {
-            let p = c.get();
-            if p.is_null() {
-                // fallback
-                TAPE.with(f)
-            } else {
-                // user-supplied
-                unsafe { f(&*(p as *const RefCell<Tape>)) }
-            }
-        })
+    pub fn has_tape() -> bool {
+        Self::TAPE_PTR.with(|c| !c.get().is_null())
     }
+
+    pub fn tape_addr() -> *mut Tape {
+        Self::TAPE_PTR.with(|c| c.get())
+    }
+
+    /// choose the *current* tape (explicit or fallback to the thread-local one)
+    // fn with_tape<R>(f: impl FnOnce(&RefCell<Tape>) -> R) -> R {
+    //     Self::TAPE_PTR.with(|c| {
+    //         let p = c.get();
+    //         if p.is_null() {
+    //             // fallback
+    //             TAPE.with(f)
+    //         } else {
+    //             // user-supplied
+    //             unsafe { f(&*(p as *const RefCell<Tape>)) }
+    //         }
+    //     })
+    // }
 
     /* ------------ user-facing API ---------------------- */
 
     pub fn new(v: f64) -> Self {
         // choose the current tape (thread-local or user-supplied)
-        Self::with_tape(|tcell| {
-            let mut tape = tcell.borrow_mut();
-            let node_opt = if tape.active {
-                Some(tape.new_leaf()) // allocate & remember pointer
+        // Self::with_tape(|tcell| {
+        //     let mut tape = tcell.borrow_mut();
+        //     let node_opt = if tape.active {
+        //         Some(tape.new_leaf()) // allocate & remember pointer
+        //     } else {
+        //         None // just a literal
+        //     };
+        //     ADNumber {
+        //         val: v,
+        //         node: node_opt,
+        //     }
+        // })
+        Self::TAPE_PTR.with(|t| {
+            let ptr = t.get();
+            if !ptr.is_null() {
+                let node = unsafe { (*ptr).new_leaf() };
+                ADNumber {
+                    val: v,
+                    node: Some(node),
+                }
             } else {
-                None // just a literal
-            };
-            ADNumber {
-                val: v,
-                node: node_opt,
+                panic!("ADNumber::new called without a tape set");
             }
         })
     }
@@ -174,35 +194,56 @@ impl ADNumber {
     /// Seed reverse mode from *this* node and sweep back to the start.
     pub fn backward(&self) -> Result<()> {
         let root = self.node.ok_or(AtlasError::NodeNotIndexedInTapeErr)?;
-        Self::with_tape(|t| -> Result<()> {
-            let mut t = t.borrow_mut();
-            t.mut_node(root).unwrap().adj = 1.0;
-            t.propagate_from(root)?;
-            Ok(())
+        // Self::with_tape(|t| -> Result<()> {
+        //     let mut t = t.borrow_mut();
+        //     t.mut_node(root).unwrap().adj = 1.0;
+        //     t.propagate_from(root)?;
+        //     Ok(())
+        // })?;
+        Self::TAPE_PTR.with(|t| {
+            let tape = unsafe { &mut *t.get() };
+            tape.mut_node(root).unwrap().adj = 1.0;
+            tape.propagate_from(root)
         })?;
         Ok(())
     }
 
     /// Seed and propagate only up to the last `Tape::set_mark()`.
-    pub fn backward_to_mark(&self) {
-        let root: NonNull<TapeNode> = self.node.unwrap();
-        Self::with_tape(|t| {
-            let mut t = t.borrow_mut();
-            t.mut_node(root).unwrap().adj = 1.0;
-            t.propagate_mark_to_start();
+    pub fn backward_to_mark(&self) -> Result<()> {
+        let root: NonNull<TapeNode> = self.node.ok_or(AtlasError::NodeNotIndexedInTapeErr)?;
+        // Self::with_tape(|t| {
+        //     let mut t = t.borrow_mut();
+        //     t.mut_node(root).unwrap().adj = 1.0;
+        //     t.propagate_mark_to_start();
+        // });
+        Self::TAPE_PTR.with(|t| {
+            let tape = unsafe { &mut *t.get() };
+            tape.mut_node(root).unwrap().adj = 1.0;
+            tape.propagate_mark_to_start()
         });
+        Ok(())
     }
 
     pub fn put_on_tape(&mut self) {
         if self.node.is_some() {
             return; // already on a tape
         }
-        self.node = Self::with_tape(|tcell| {
-            let mut tape = tcell.borrow_mut();
-            if tape.active {
-                Some(tape.new_leaf()) // now get a node
+        // self.node = Self::with_tape(|tcell| {
+        //     let mut tape = tcell.borrow_mut();
+        //     let is_active = tape.active;
+        //     if is_active {
+        //         Some(tape.new_leaf()) // now get a node
+        //     } else {
+        //         None
+        //     }
+        // });
+        Self::TAPE_PTR.with(|t| {
+            let ptr = t.get();
+            if !ptr.is_null() {
+                let node = unsafe { (*ptr).new_leaf() };
+                self.node = Some(node);
             } else {
-                None
+                panic!("ADNumber::put_on_tape called without a tape set");
             }
         });
     }
@@ -230,7 +271,11 @@ fn flatten<E: Expr + Clone>(e: &E) -> ADNumber {
     e.push_adj(&mut node, 1.0);
 
     // Try to record; get None if the tape is idle.
-    let ptr_opt = ADNumber::with_tape(|t| t.borrow_mut().record(node));
+    // let ptr_opt = ADNumber::with_tape(|t| t.borrow_mut().record(node));
+    let ptr_opt = ADNumber::TAPE_PTR.with(|t| {
+        let tape = unsafe { &mut *t.get() };
+        tape.record(node)
+    });
 
     ADNumber {
         val: e.inner_value(),

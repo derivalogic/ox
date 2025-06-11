@@ -125,11 +125,11 @@ fn main() -> Result<()> {
     let store = market_data(reference_date);
     let mut model = BlackScholesModel::new(reference_date, Currency::USD, &store);
     model.initialize()?;
-
+    model.use_sobol(64, 42);
     let time_handle = model.time_handle();
     // Scripted payoff of a call option
     let event_maturity = Date::new(2025, 7, 10);
-    let script = "opt = 0;\ns = Spot(\"CLP\",\"USD\");\nopt pays s in \"CLP\";";
+    let script = "opt = 0;\ns = Spot(\"CLP\",\"USD\");\nopt pays s*1000000;";
 
     // Build the event stream
     let coded = CodedEvent::new(event_maturity, script.to_string());
@@ -140,7 +140,7 @@ fn main() -> Result<()> {
     indexer.visit_events(&mut events)?;
     let requests = indexer.get_request();
 
-    let scenarios = model.generate_scenarios(events.event_dates(), &requests, 1000)?;
+    let scenarios = model.generate_scenarios(events.event_dates(), &requests, 100_000)?;
 
     // Evaluate the script under all scenarios
     let var_map = indexer.get_variable_indexes();

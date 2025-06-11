@@ -33,7 +33,7 @@ pub fn run_simulation(json: &str) -> StdResult<JsValue, JsValue> {
         &store,
     );
 
-    model.set_seed(42);
+    model.use_sobol(64, 42);
     model
         .initialize()
         .map_err(|e| JsValue::from_str(&e.to_string()))?;

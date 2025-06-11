@@ -1,82 +1,22 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    },
 };
 
 use crate::prelude::*;
 use rand::Rng;
-use rand_distr::StandardNormal;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rustatlas::prelude::*;
+use sobol_burley::sample;
+use statrs::distribution::{ContinuousCDF, Normal};
 
-pub trait FxModel {
-    fn simulate_fx(&self, request: &ExchangeRateRequest) -> Result<NumericType>;
-}
-
-pub trait InterestRateModel {
-    fn simulate_df(&self, request: &DiscountFactorRequest) -> Result<NumericType>;
-    // fn simulate_fwd(&self, request: &ForwardRateRequest) -> Result<NumericType>;
-}
-
-pub trait EquityModel {
-    fn simulate_equity(&self, request: &EquityRequest) -> Result<NumericType>;
-}
-
-pub trait NumerarieModel {
-    fn simulate_numerarie(&self, date: Date) -> Result<NumericType>;
-}
-
-pub trait MarketModel: FxModel + InterestRateModel + EquityModel + NumerarieModel {}
-
-pub trait MonteCarloEngine {
-    fn generate_scenario(
-        &self,
-        event_dates: Vec<Date>,
-        request: &Vec<SimulationDataRequest>,
-    ) -> Result<Scenario>;
-
-    fn generate_scenarios(
-        &self,
-        event_dates: Vec<Date>,
-        request: &Vec<SimulationDataRequest>,
-        num_scenarios: usize,
-    ) -> Result<Vec<Scenario>> {
-        let scenarios = (0..num_scenarios)
-            .into_iter()
-            .map(|_| self.generate_scenario(event_dates.clone(), request))
-            .collect::<Result<Vec<Scenario>>>()?;
-        Ok(scenarios)
-    }
-}
-
-pub trait ParallelMonteCarloEngine: MonteCarloEngine + Sync + Send {
-    fn initialize_for_parallelization(&self) {
-        Tape::rewind_to_mark();
-        self.put_on_tape();
-        Tape::set_mark();
-    }
-
-    fn put_on_tape(&self);
-
-    fn is_initialized(&self) -> bool;
-
-    fn par_generate_scenarios(
-        &self,
-        event_dates: Vec<Date>,
-        request: &Vec<SimulationDataRequest>,
-        num_scenarios: usize,
-    ) -> Result<Vec<Scenario>> {
-        // one initialise per *thread* – Rayon guarantees that the closure is
-        // called once per worker the first time it needs a job
-        rayon::scope(|s| {
-            s.spawn(|_| self.initialize_for_parallelization());
-        });
-
-        (0..num_scenarios)
-            .into_par_iter()
-            .map(|_| self.generate_scenario(event_dates.clone(), request))
-            .collect()
-    }
+struct SobolState {
+    // global running index of *coordinates* (not of paths)
+    counter: AtomicU64,
+    dims: usize, // #coords you draw per time‑step (2 in current code)
+    seed: u32,   // Owen‑scramble seed ⇒ reproducible QMC runs
 }
 
 pub struct BlackScholesModel<'a> {
@@ -91,6 +31,7 @@ pub struct BlackScholesModel<'a> {
     is_initialized: RwLock<bool>,
     day_counter: DayCounter,
     time_handle: NumericType,
+    sobol: Option<SobolState>,
 }
 
 impl<'a> BlackScholesModel<'a> {
@@ -111,6 +52,7 @@ impl<'a> BlackScholesModel<'a> {
             is_initialized: RwLock::new(false),
             day_counter: DayCounter::Actual360,
             time_handle: NumericType::zero(),
+            sobol: None,
         }
     }
 
@@ -225,6 +167,14 @@ impl<'a> BlackScholesModel<'a> {
     fn time_step(&self, date: Date) -> NumericType {
         self.day_counter.year_fraction(self.reference_date, date)
     }
+
+    pub fn use_sobol(&mut self, dims: usize, seed: u32) {
+        self.sobol = Some(SobolState {
+            counter: AtomicU64::new(0),
+            dims,
+            seed,
+        });
+    }
 }
 
 impl<'a> RandomNumberGenerator for BlackScholesModel<'a> {
@@ -236,12 +186,35 @@ impl<'a> RandomNumberGenerator for BlackScholesModel<'a> {
 
     fn set_seed(&self, _seed: u64) {}
 
+    // fn gen_rand(&self) -> f64 {
+    //     // let normal = Normal::new(0.0, 1.0).unwrap();
+    //     let mut rng = rand::thread_rng();
+    //     // Generate a random number from the standard normal distribution
+    //     // This is a simple way to generate a random number, but you can use any RNG you prefer
+    //     rng.sample::<f64, _>(StandardNormal)
+    // }
+
+    #[inline]
     fn gen_rand(&self) -> f64 {
-        // let normal = Normal::new(0.0, 1.0).unwrap();
-        let mut rng = rand::thread_rng();
-        // Generate a random number from the standard normal distribution
-        // This is a simple way to generate a random number, but you can use any RNG you prefer
-        rng.sample::<f64, _>(StandardNormal)
+        // ––– QMC branch ––––––––––––––––––––––––––––––––––––––––––––
+        if let Some(ref sob) = self.sobol {
+            // each call grabs the *next* global coordinate
+            let i = sob.counter.fetch_add(1, Ordering::Relaxed);
+            let sample_idx = (i / sob.dims as u64) as u32; // which point
+            let dim = (i % sob.dims as u64) as u32; // which axis
+
+            // sobol_burley::sample() supports up to 2¹⁶ points; guard if needed
+            if sample_idx < (1 << 16) {
+                let u = sample(sample_idx, dim, sob.seed); // f32 → [0,1)
+                                                           // Φ⁻¹(u)   (clip away exact 0/1 to avoid ±∞)
+                let phi = Normal::new(0.0, 1.0).unwrap();
+                return phi.inverse_cdf(u.max(1e-12).min(1. - 1e-12) as f64);
+            }
+            /* fall‑through to MC once we run out of Sobol points */
+        }
+
+        // ––– Monte‑Carlo fallback ––––––––––––––––––––––––––––––––––
+        rand::thread_rng().sample::<f64, _>(rand_distr::StandardNormal)
     }
 }
 
@@ -398,6 +371,39 @@ impl<'a> MonteCarloEngine for BlackScholesModel<'a> {
                 ))
             })
             .collect::<Result<Vec<_>>>()
+    }
+}
+
+impl<'a> ParallelMonteCarloEngine for BlackScholesModel<'a> {
+    fn put_on_tape(&mut self) {
+        self.fx.iter_mut().for_each(|((_, _), rate)| {
+            rate.write().unwrap().put_on_tape();
+        });
+
+        self.fx_vols.iter_mut().for_each(|((_, _), vol)| {
+            vol.write().unwrap().put_on_tape();
+        });
+
+        self.rates.iter().for_each(|curve| {
+            curve
+                .values()
+                .iter()
+                .for_each(|rate| rate.write().unwrap().put_on_tape());
+        });
+
+        self.equities.iter_mut().for_each(|(_, equity)| {
+            equity.write().unwrap().put_on_tape();
+        });
+        self.equity_vols.iter_mut().for_each(|(_, vol)| {
+            vol.write().unwrap().put_on_tape();
+        });
+
+        self.time_handle.put_on_tape();
+        *self.is_initialized.write().unwrap() = true;
+    }
+
+    fn is_initialized(&self) -> bool {
+        *self.is_initialized.read().unwrap()
     }
 }
 

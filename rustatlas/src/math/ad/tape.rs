@@ -56,6 +56,15 @@ impl Tape {
 /*── public API (called from ADNumber / operators / sweeps) ────────────────*/
 
 impl Tape {
+    pub fn new() -> Self {
+        Tape {
+            bump: Bump::new(),
+            book: Vec::new(),
+            mark: 0,
+            active: false,
+        }
+    }
+
     /// Make an *independent* leaf (no parents, zero adjoint).
     #[inline]
     pub fn new_leaf(&mut self) -> NonNull<TapeNode> {

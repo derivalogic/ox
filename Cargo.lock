@@ -1318,6 +1318,7 @@ dependencies = [
  "rayon",
  "rustatlas",
  "serde",
+ "sobol",
  "sobol_burley",
  "statrs 0.16.1",
  "thiserror",

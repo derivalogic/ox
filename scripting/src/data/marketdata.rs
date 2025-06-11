@@ -118,6 +118,10 @@ impl ExchangeRates {
             first_ccy, second_ccy
         )))
     }
+
+    pub fn count(&self) -> usize {
+        self.exchange_rates.len()
+    }
 }
 
 pub fn triangulate_currencies(
